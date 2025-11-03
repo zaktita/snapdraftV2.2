@@ -2,8 +2,9 @@ import { Button } from '@/components/ui/button';
 import AppLayout from '@/layouts/app-layout';
 import { dashboard } from '@/routes';
 import { type BreadcrumbItem } from '@/types';
-import { Head, Link } from '@inertiajs/react';
-import { ArrowLeft, Star, Download, MoreHorizontal, BoxSelect, Square, SquareCheck } from 'lucide-react';
+import { Head, Link, router } from '@inertiajs/react';
+import { ArrowLeft, Star, Download, MoreHorizontal, BoxSelect, Square, SquareCheck, Edit, Maximize, RotateCw, Share, Trash2, Check, Plus } from 'lucide-react';
+import { useState, useRef, useEffect } from 'react';
 
 interface Project {
     id: number;
@@ -21,6 +22,51 @@ interface ProjectShowProps {
 }
 
 export default function ProjectShow({ project }: ProjectShowProps) {
+    const [selectedImages, setSelectedImages] = useState<number[]>([]);
+    const [favoriteImages, setFavoriteImages] = useState<number[]>([]);
+    const [isEditingTitle, setIsEditingTitle] = useState(false);
+    const [editTitle, setEditTitle] = useState(project.title);
+    const titleInputRef = useRef<HTMLInputElement>(null);
+    
+    useEffect(() => {
+        if (isEditingTitle && titleInputRef.current) {
+            titleInputRef.current.focus();
+            titleInputRef.current.select();
+        }
+    }, [isEditingTitle]);
+
+    const handleTitleDoubleClick = () => {
+        setIsEditingTitle(true);
+    };
+
+    const handleTitleBlur = () => {
+        setIsEditingTitle(false);
+        if (editTitle.trim() && editTitle !== project.title) {
+            // TODO: Backend implementation needed
+            console.log('Rename project:', project.id, 'to:', editTitle);
+            // router.patch(`/projects/${project.id}`, { title: editTitle }, {
+            //     preserveScroll: true,
+            // });
+        } else {
+            setEditTitle(project.title);
+        }
+    };
+
+    const handleTitleKeyDown = (e: React.KeyboardEvent) => {
+        if (e.key === 'Enter') {
+            handleTitleBlur();
+        } else if (e.key === 'Escape') {
+            setIsEditingTitle(false);
+            setEditTitle(project.title);
+        }
+    };
+
+    const handleGenerateMore = () => {
+        // Navigate to generation page or show modal
+        console.log('Generate more images for project:', project.id);
+        // router.visit(`/projects/${project.id}/generate`);
+    };
+    
     const breadcrumbs: BreadcrumbItem[] = [
         {
             title: 'Dashboard',
@@ -65,48 +111,224 @@ export default function ProjectShow({ project }: ProjectShowProps) {
 
                         {/* Right side */}
                         <div className="flex items-center gap-3">
-                            <Button variant="secondary" size="sm" className="gap-2">
-                                <Star className="size-4" />
-                                View Settings
-                            </Button>
-                            <Button variant="secondary" size="sm" className="gap-2">
-                                <SquareCheck className="size-4" />
-                                Select All
+                            <Button 
+                                variant="ghost" 
+                                size="sm" 
+                                className="gap-2 border hover:bg-gray-100"
+                                style={{ borderColor: '#E0E0E0', color: '#333333', minWidth: '125px' }}
+                                onClick={() => {
+                                    if (selectedImages.length === sampleImages.length) {
+                                        setSelectedImages([]);
+                                    } else {
+                                        setSelectedImages(sampleImages.map((_, idx) => idx));
+                                    }
+                                }}
+                            >
+                                {selectedImages.length === sampleImages.length ? (
+                                    <>
+                                        <Square className="size-4" />
+                                        Deselect All
+                                    </>
+                                ) : (
+                                    <>
+                                        <SquareCheck className="size-4" />
+                                        Select All
+                                    </>
+                                )}
                             </Button>
                             <Button 
                                 size="sm" 
-                                className="gap-2 bg-black text-white hover:bg-gray-800"
+                                className="gap-2"
+                                style={{ 
+                                    backgroundColor: selectedImages.length > 0 ? '#1a1a1a' : '#F0F0F0', 
+                                    color: selectedImages.length > 0 ? '#ffffff' : '#A9A9A9',
+                                    cursor: selectedImages.length === 0 ? 'not-allowed' : 'pointer',
+                                    border: 'none'
+                                }}
+                                disabled={selectedImages.length === 0}
+                                onClick={async () => {
+                                    if (selectedImages.length === 0) return;
+                                    
+                                    // Import JSZip dynamically
+                                    const JSZip = (await import('jszip')).default;
+                                    const zip = new JSZip();
+                                    
+                                    // Download each selected image and add to zip
+                                    const promises = selectedImages.map(async (index) => {
+                                        const imageUrl = sampleImages[index];
+                                        try {
+                                            const response = await fetch(imageUrl);
+                                            const blob = await response.blob();
+                                            const filename = `${project.title}_image_${index + 1}.jpg`;
+                                            zip.file(filename, blob);
+                                        } catch (error) {
+                                            console.error(`Failed to download image ${index}:`, error);
+                                        }
+                                    });
+                                    
+                                    await Promise.all(promises);
+                                    
+                                    // Generate zip file and trigger download
+                                    const content = await zip.generateAsync({ type: 'blob' });
+                                    const link = document.createElement('a');
+                                    link.href = URL.createObjectURL(content);
+                                    link.download = `${project.title}_images.zip`;
+                                    document.body.appendChild(link);
+                                    link.click();
+                                    document.body.removeChild(link);
+                                    URL.revokeObjectURL(link.href);
+                                }}
                             >
                                 <Download className="size-4" />
-                                Download ( 0 )
+                                Download ( {selectedImages.length} )
                             </Button>
                         </div>
                     </div>
 
                     {/* Project Title */}
-                    <div className="mb-8">
-                        <h1 className="text-2xl font-semibold text-gray-900 mb-1">
-                            {project.title}
-                        </h1>
-                        <p className="text-gray-500">
-                            {project.images_count} images
-                        </p>
+                    <div className="mb-8 flex items-center justify-between">
+                        <div>
+                            {isEditingTitle ? (
+                                <input
+                                    ref={titleInputRef}
+                                    type="text"
+                                    value={editTitle}
+                                    onChange={(e) => setEditTitle(e.target.value)}
+                                    onBlur={handleTitleBlur}
+                                    onKeyDown={handleTitleKeyDown}
+                                    className="text-2xl font-semibold text-gray-900 border-b-2 border-blue-500 bg-transparent outline-none mb-1"
+                                />
+                            ) : (
+                                <h1 
+                                    className="text-2xl font-semibold text-gray-900 mb-1 cursor-text hover:opacity-80 transition-opacity"
+                                    onDoubleClick={handleTitleDoubleClick}
+                                    title="Double-click to rename"
+                                >
+                                    {project.title}
+                                </h1>
+                            )}
+                            <p className="text-gray-500">
+                                {project.images_count} images
+                            </p>
+                        </div>
+                        
+                        <Button
+                            size="sm"
+                            className="gap-2"
+                            style={{ backgroundColor: '#1a1a1a', color: '#ffffff', border: 'none' }}
+                            onClick={handleGenerateMore}
+                        >
+                            <Plus className="size-4" />
+                            Generate More
+                        </Button>
                     </div>
 
                     {/* Images Grid */}
                     <div className="grid grid-cols-5 gap-4">
-                        {sampleImages.map((imageUrl, index) => (
-                            <div
-                                key={index}
-                                className="aspect-square overflow-hidden rounded-lg bg-gray-100 cursor-pointer hover:opacity-90 transition-opacity"
-                            >
-                                <img
-                                    src={imageUrl}
-                                    alt={`${project.title} - Image ${index + 1}`}
-                                    className="h-full w-full object-cover"
-                                />
-                            </div>
-                        ))}
+                        {sampleImages.map((imageUrl, index) => {
+                            const isSelected = selectedImages.includes(index);
+                            const isFavorite = favoriteImages.includes(index);
+                            
+                            return (
+                                <div
+                                    key={index}
+                                    className="group relative aspect-square overflow-hidden bg-gray-100 cursor-pointer"
+                                    style={{ borderRadius: '12px' }}
+                                    onClick={() => {
+                                        setSelectedImages(prev => 
+                                            prev.includes(index) 
+                                                ? prev.filter(i => i !== index)
+                                                : [...prev, index]
+                                        );
+                                    }}
+                                >
+                                    <img
+                                        src={imageUrl}
+                                        alt={`${project.title} - Image ${index + 1}`}
+                                        className="h-full w-full object-cover"
+                                    />
+                                    
+                                    {/* Selection Indicator - Always visible when selected */}
+                                    {isSelected && (
+                                        <div className="absolute inset-0 bg-black/20 pointer-events-none" />
+                                    )}
+                                    
+                                    {/* Hover Overlay */}
+                                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity duration-200" />
+                                    
+                                    {/* Checkbox - Always visible when selected, or on hover (above overlay) */}
+                                    <div className={`absolute left-3 top-3 z-10 ${isSelected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'} transition-opacity duration-200`}>
+                                        <button 
+                                            className="flex size-6 items-center justify-center rounded-xl transition-colors"
+                                            style={{ 
+                                                backgroundColor: isSelected ? '#333333' : 'white',
+                                            }}
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                setSelectedImages(prev => 
+                                                    prev.includes(index) 
+                                                        ? prev.filter(i => i !== index)
+                                                        : [...prev, index]
+                                                );
+                                            }}
+                                        >
+                                            {isSelected && <Check className="size-4 text-white" />}
+                                        </button>
+                                    </div>
+                                    
+                                    {/* Bottom Center - Action Icons (above overlay) */}
+                                    <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10">
+                                        <button 
+                                            className="flex size-10 items-center justify-center rounded-full transition-colors"
+                                            style={{ backgroundColor: '#F0F0F0' }}
+                                            title="Expand"
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                // Handle expand
+                                            }}
+                                        >
+                                            <Maximize className="size-4" style={{ color: '#333333' }} />
+                                        </button>
+                                        <button 
+                                            className="flex size-10 items-center justify-center rounded-full transition-colors"
+                                            style={{ backgroundColor: '#F0F0F0' }}
+                                            title="Edit"
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                // Open canvas editor with image
+                                                const encodedImageUrl = encodeURIComponent(imageUrl);
+                                                const encodedTitle = encodeURIComponent(project.title);
+                                                router.visit(`/canvas-editor?projectId=${project.id}&image=${encodedImageUrl}&title=${encodedTitle}`);
+                                            }}
+                                        >
+                                            <Edit className="size-4" style={{ color: '#333333' }} />
+                                        </button>
+                                        <button 
+                                            className="flex size-10 items-center justify-center rounded-full transition-colors"
+                                            style={{ backgroundColor: '#F0F0F0' }}
+                                            title="Regenerate"
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                // Handle regenerate
+                                            }}
+                                        >
+                                            <RotateCw className="size-4" style={{ color: '#333333' }} />
+                                        </button>
+                                        <button 
+                                            className="flex size-10 items-center justify-center rounded-full transition-colors"
+                                            style={{ backgroundColor: '#F0F0F0' }}
+                                            title="Download"
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                // Handle download
+                                            }}
+                                        >
+                                            <Download className="size-4" style={{ color: '#333333' }} />
+                                        </button>
+                                    </div>
+                                </div>
+                            );
+                        })}
                     </div>
                 </div>
             </div>

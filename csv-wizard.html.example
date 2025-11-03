@@ -1,0 +1,1318 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Create CSV Project - SnapDraft</title>
+    <style>
+        /* Notion/shadcn inspired design system */
+        :root {
+            --bg-primary: #ffffff;
+            --bg-secondary: #F7F7F5;
+            --bg-tertiary: #fafafa;
+            --text-primary: #373737;
+            --text-secondary: #787774;
+            --text-tertiary: #9b9a97;
+            --accent-primary: #1a1a1a;
+            --accent-primary-hover: #000000;
+            --accent-light: #e5e5e5;
+            --border-subtle: #e5e7eb;
+            --success: #10b981;
+            --warning: #f59e0b;
+            --error: #ef4444;
+            --shadow-subtle: 0 1px 2px rgba(0, 0, 0, 0.04);
+            --shadow-medium: 0 2px 8px rgba(0, 0, 0, 0.08);
+            --shadow-float: 0 4px 12px rgba(0, 0, 0, 0.08);
+            --border-radius-sm: 4px;
+            --border-radius-md: 6px;
+            --border-radius-lg: 8px;
+            --border-radius-xl: 12px;
+            --transition: all 0.2s ease-out;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif;
+            background: var(--bg-secondary);
+            color: var(--text-primary);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 40px 20px;
+        }
+
+        /* Wizard Container */
+        .wizard-container {
+            background: var(--bg-primary);
+            border-radius: var(--border-radius-xl);
+            box-shadow: var(--shadow-float);
+            max-width: 900px;
+            width: 100%;
+            overflow: hidden;
+        }
+
+        /* Wizard Header */
+        .wizard-header {
+            padding: 32px 40px;
+            border-bottom: 1px solid var(--border-subtle);
+        }
+
+        .back-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 13px;
+            color: var(--text-secondary);
+            text-decoration: none;
+            margin-bottom: 16px;
+            transition: var(--transition);
+        }
+
+        .back-link:hover {
+            color: var(--text-primary);
+        }
+
+        .back-link svg {
+            width: 14px;
+            height: 14px;
+        }
+
+        .wizard-title {
+            font-size: 24px;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: 6px;
+        }
+
+        .wizard-subtitle {
+            font-size: 14px;
+            color: var(--text-secondary);
+            line-height: 1.5;
+        }
+
+        /* Progress Bar */
+        .progress-container {
+            padding: 0 40px 24px;
+            border-bottom: 1px solid var(--border-subtle);
+        }
+
+        .progress-steps {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 12px;
+        }
+
+        .progress-step {
+            flex: 1;
+            height: 4px;
+            background: var(--border-subtle);
+            border-radius: 2px;
+            transition: var(--transition);
+        }
+
+        .progress-step.completed {
+            background: var(--accent-primary);
+        }
+
+        .progress-step.current {
+            background: var(--accent-light);
+        }
+
+        .progress-labels {
+            display: flex;
+            justify-content: space-between;
+            font-size: 12px;
+            color: var(--text-tertiary);
+            font-weight: 500;
+        }
+
+        .progress-label.active {
+            color: var(--text-primary);
+        }
+
+        /* Wizard Body */
+        .wizard-body {
+            padding: 40px;
+            min-height: 400px;
+        }
+
+        .wizard-step {
+            display: none;
+        }
+
+        .wizard-step.active {
+            display: block;
+            animation: fadeIn 0.3s ease;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        /* Upload Zone */
+        .upload-zone {
+            border: 2px dashed var(--border-subtle);
+            border-radius: var(--border-radius-xl);
+            padding: 60px 40px;
+            text-align: center;
+            cursor: pointer;
+            transition: var(--transition);
+            background: var(--bg-secondary);
+        }
+
+        .upload-zone:hover {
+            border-color: var(--accent-primary);
+            background: var(--bg-tertiary);
+        }
+
+        .upload-zone.drag-over {
+            border-color: var(--accent-primary);
+            background: var(--accent-light);
+        }
+
+        .upload-icon {
+            margin-bottom: 20px;
+        }
+
+        .upload-icon svg {
+            width: 64px;
+            height: 64px;
+            stroke-width: 1.5;
+            color: var(--text-tertiary);
+        }
+
+        .upload-text {
+            font-size: 16px;
+            font-weight: 500;
+            color: var(--text-primary);
+            margin-bottom: 8px;
+        }
+
+        .upload-subtext {
+            font-size: 14px;
+            color: var(--text-secondary);
+        }
+
+        .file-input {
+            display: none;
+        }
+
+        /* File Summary Card */
+        .file-summary {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-subtle);
+            border-radius: var(--border-radius-xl);
+            padding: 24px;
+        }
+
+        .summary-row {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px 0;
+        }
+
+        .summary-row:not(:last-child) {
+            border-bottom: 1px solid var(--border-subtle);
+        }
+
+        .summary-icon {
+            flex-shrink: 0;
+            color: var(--text-secondary);
+        }
+
+        .summary-icon svg {
+            width: 20px;
+            height: 20px;
+        }
+
+        .summary-label {
+            font-size: 13px;
+            color: var(--text-tertiary);
+            margin-bottom: 2px;
+        }
+
+        .summary-value {
+            font-size: 14px;
+            font-weight: 500;
+            color: var(--text-primary);
+        }
+
+        /* Data Grid - Notion Style */
+        .table-info {
+            font-size: 13px;
+            color: var(--text-secondary);
+            margin-bottom: 12px;
+            font-weight: 500;
+        }
+
+        .data-grid-container {
+            /* Remove box-in-box - table is now native to page */
+            overflow-x: auto;
+        }
+
+        .data-grid {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .data-grid thead {
+            background: #fafafa;
+        }
+
+        .data-grid th,
+        .data-grid td {
+            padding: 14px 16px;
+            text-align: left;
+            border-bottom: 1px solid #e5e7eb;
+            font-size: 14px;
+        }
+
+        .data-grid th {
+            font-weight: 600;
+            color: var(--text-primary);
+            text-transform: uppercase;
+            font-size: 11px;
+            letter-spacing: 0.5px;
+            color: var(--text-tertiary);
+        }
+
+        .data-grid td {
+            color: var(--text-secondary);
+        }
+
+        .data-grid tbody tr {
+            transition: background-color 0.15s ease;
+        }
+
+        .data-grid tbody tr:hover {
+            background: #fafafa;
+        }
+
+        .data-grid tbody tr:last-child td {
+            border-bottom: 1px solid #e5e7eb;
+        }
+
+        .column-header {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .column-name {
+            text-transform: uppercase;
+            font-size: 11px;
+            letter-spacing: 0.5px;
+            color: var(--text-tertiary);
+            font-weight: 600;
+        }
+
+        .column-mapping {
+            font-size: 13px;
+            padding: 4px 8px 4px 0;
+            border: none;
+            background: transparent;
+            cursor: pointer;
+            transition: var(--transition);
+            font-weight: 400;
+            color: var(--text-secondary);
+            appearance: none;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .column-mapping:hover {
+            color: var(--text-primary);
+        }
+
+        .column-mapping:focus {
+            outline: none;
+            color: var(--text-primary);
+        }
+
+        .checkbox-cell {
+            width: 40px;
+            text-align: center;
+        }
+
+        .checkbox-cell input[type="checkbox"] {
+            width: 17px;
+            height: 17px;
+            cursor: pointer;
+            accent-color: var(--accent-primary);
+            border-radius: 3px;
+        }
+
+        .editable-cell {
+            cursor: text;
+            transition: var(--transition);
+        }
+
+        .editable-cell:hover {
+            background: transparent;
+        }
+
+        .editable-cell input {
+            width: 100%;
+            border: none;
+            background: transparent;
+            font: inherit;
+            color: inherit;
+            padding: 0;
+            outline: none;
+            border: 1px solid transparent;
+            border-radius: 3px;
+            padding: 4px 6px;
+            margin: -4px -6px;
+        }
+
+        .editable-cell input:focus {
+            border-color: #3b82f6;
+            background: white;
+        }
+
+        /* Side Panel - REMOVED */
+
+        /* Image Grid */
+        .image-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+            gap: 12px;
+            margin-top: 20px;
+        }
+
+        .image-item {
+            position: relative;
+            aspect-ratio: 1;
+            border-radius: var(--border-radius-lg);
+            overflow: hidden;
+            border: 1px solid var(--border-subtle);
+        }
+
+        .image-item img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .image-remove {
+            position: absolute;
+            top: 6px;
+            right: 6px;
+            width: 24px;
+            height: 24px;
+            background: rgba(0, 0, 0, 0.6);
+            border-radius: 50%;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: var(--transition);
+        }
+
+        .image-item:hover .image-remove {
+            display: flex;
+        }
+
+        .image-remove:hover {
+            background: rgba(0, 0, 0, 0.8);
+        }
+
+        .image-remove svg {
+            width: 12px;
+            height: 12px;
+            color: white;
+        }
+
+        /* Review Card */
+        .review-card {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-subtle);
+            border-radius: var(--border-radius-xl);
+            padding: 32px;
+        }
+
+        .review-item {
+            display: flex;
+            align-items: flex-start;
+            gap: 16px;
+            padding: 20px 0;
+        }
+
+        .review-item:not(:last-child) {
+            border-bottom: 1px solid var(--border-subtle);
+        }
+
+        .review-icon {
+            flex-shrink: 0;
+            color: var(--text-secondary);
+        }
+
+        .review-icon svg {
+            width: 24px;
+            height: 24px;
+        }
+
+        .review-content {
+            flex: 1;
+        }
+
+        .review-label {
+            font-size: 13px;
+            color: var(--text-tertiary);
+            margin-bottom: 4px;
+        }
+
+        .review-value {
+            font-size: 16px;
+            font-weight: 500;
+            color: var(--text-primary);
+        }
+
+        .thumbnail-preview {
+            display: flex;
+            gap: 8px;
+            margin-top: 8px;
+        }
+
+        .thumbnail-preview img {
+            width: 48px;
+            height: 48px;
+            object-fit: cover;
+            border-radius: var(--border-radius-sm);
+            border: 1px solid var(--border-subtle);
+        }
+
+        .more-indicator {
+            width: 48px;
+            height: 48px;
+            border-radius: var(--border-radius-sm);
+            border: 1px solid var(--border-subtle);
+            background: var(--bg-tertiary);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            color: var(--text-secondary);
+            font-weight: 500;
+        }
+
+        /* Wizard Footer */
+        .wizard-footer {
+            padding: 24px 40px;
+            border-top: 1px solid var(--border-subtle);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        /* Buttons */
+        .btn {
+            padding: 10px 24px;
+            border-radius: var(--border-radius-lg);
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: var(--transition);
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn-primary {
+            background: var(--accent-primary);
+            color: white;
+            border: 1px solid var(--accent-primary);
+        }
+
+        .btn-primary:hover:not(:disabled) {
+            background: var(--accent-primary-hover);
+            border-color: var(--accent-primary-hover);
+        }
+
+        .btn-primary:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .btn-secondary {
+            background: transparent;
+            color: var(--text-secondary);
+            border: 1px solid var(--border-subtle);
+        }
+
+        .btn-secondary:hover {
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+        }
+
+        .btn svg {
+            width: 16px;
+            height: 16px;
+        }
+
+        .hidden {
+            display: none !important;
+        }
+
+        /* Toast Notification */
+        .toast {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            background: var(--accent-primary);
+            color: white;
+            padding: 16px 24px;
+            border-radius: var(--border-radius-lg);
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-size: 14px;
+            font-weight: 500;
+            z-index: 10000;
+            animation: slideInUp 0.3s ease-out;
+        }
+
+        .toast.success {
+            background: var(--success);
+        }
+
+        .toast svg {
+            width: 20px;
+            height: 20px;
+            flex-shrink: 0;
+        }
+
+        @keyframes slideInUp {
+            from {
+                transform: translateY(100px);
+                opacity: 0;
+            }
+            to {
+                transform: translateY(0);
+                opacity: 1;
+            }
+        }
+
+        @keyframes fadeOut {
+            to {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="wizard-container">
+        <!-- Header -->
+        <div class="wizard-header">
+            <a href="projects.html" class="back-link">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="19" y1="12" x2="5" y2="12"/>
+                    <polyline points="12 19 5 12 12 5"/>
+                </svg>
+                Back to Projects
+            </a>
+            <h1 class="wizard-title" id="wizardTitle">Upload Your CSV File</h1>
+            <p class="wizard-subtitle" id="wizardSubtitle">We'll analyze your data and detect the structure.</p>
+        </div>
+
+        <!-- Progress Bar -->
+        <div class="progress-container">
+            <div class="progress-steps">
+                <div class="progress-step current" id="progress-1"></div>
+                <div class="progress-step" id="progress-2"></div>
+                <div class="progress-step" id="progress-3"></div>
+                <div class="progress-step" id="progress-4"></div>
+            </div>
+            <div class="progress-labels">
+                <span class="progress-label active">Upload</span>
+                <span class="progress-label">Review Data</span>
+                <span class="progress-label">Style References</span>
+                <span class="progress-label">Generate</span>
+            </div>
+        </div>
+
+        <!-- Wizard Body -->
+        <div class="wizard-body">
+            <!-- Step 1: Upload CSV -->
+            <div class="wizard-step active" id="step-1">
+                <div class="upload-zone" id="uploadZone" onclick="document.getElementById('csvInput').click()">
+                    <div class="upload-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                            <polyline points="17 8 12 3 7 8"/>
+                            <line x1="12" y1="3" x2="12" y2="15"/>
+                        </svg>
+                    </div>
+                    <div class="upload-text">Drag & drop your CSV file here, or click to upload</div>
+                    <div class="upload-subtext">Maximum 5 rows for bulk generation</div>
+                </div>
+                <input type="file" id="csvInput" class="file-input" accept=".csv" onchange="handleFileUpload(event)">
+                
+                <div class="file-summary hidden" id="fileSummary">
+                    <div class="summary-row">
+                        <div class="summary-icon">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                                <polyline points="14 2 14 8 20 8"/>
+                            </svg>
+                        </div>
+                        <div>
+                            <div class="summary-label">File Name</div>
+                            <div class="summary-value" id="fileName">-</div>
+                        </div>
+                    </div>
+                    <div class="summary-row">
+                        <div class="summary-icon">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <rect x="3" y="3" width="7" height="7"/>
+                                <rect x="14" y="3" width="7" height="7"/>
+                                <rect x="14" y="14" width="7" height="7"/>
+                                <rect x="3" y="14" width="7" height="7"/>
+                            </svg>
+                        </div>
+                        <div>
+                            <div class="summary-label">Rows Detected</div>
+                            <div class="summary-value" id="rowCount">-</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Step 2: Review & Edit Data -->
+            <div class="wizard-step" id="step-2">
+                <div class="table-info" id="tableInfo">Showing 0 of 0 selected rows</div>
+                <div class="data-grid-container">
+                    <table class="data-grid" id="dataGrid">
+                        <!-- Dynamic content -->
+                    </table>
+                </div>
+            </div>
+
+            <!-- Step 3: Style References -->
+            <div class="wizard-step" id="step-3">
+                <div class="upload-zone" onclick="document.getElementById('imageInput').click()">
+                    <div class="upload-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+                            <circle cx="8.5" cy="8.5" r="1.5"/>
+                            <polyline points="21 15 16 10 5 21"/>
+                        </svg>
+                    </div>
+                    <div class="upload-text">Drag & drop your style images here, or click to upload</div>
+                    <div class="upload-subtext">Upload 5-10 images to define the visual style</div>
+                </div>
+                <input type="file" id="imageInput" class="file-input" accept="image/*" multiple onchange="handleImageUpload(event)">
+                
+                <div class="image-grid" id="imageGrid"></div>
+            </div>
+
+            <!-- Step 4: Review & Generate -->
+            <div class="wizard-step" id="step-4">
+                <div class="review-card">
+                    <div class="review-item">
+                        <div class="review-icon">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+                                <circle cx="8.5" cy="8.5" r="1.5"/>
+                                <polyline points="21 15 16 10 5 21"/>
+                            </svg>
+                        </div>
+                        <div class="review-content">
+                            <div class="review-label">Generation Count</div>
+                            <div class="review-value" id="generationCount">3 Images will be generated</div>
+                        </div>
+                    </div>
+                    <div class="review-item">
+                        <div class="review-icon">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                                <polyline points="14 2 14 8 20 8"/>
+                            </svg>
+                        </div>
+                        <div class="review-content">
+                            <div class="review-label">Data Source</div>
+                            <div class="review-value" id="dataSource">Using 3 selected rows from file.csv</div>
+                        </div>
+                    </div>
+                    <div class="review-item">
+                        <div class="review-icon">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <rect x="2" y="7" width="20" height="14" rx="2" ry="2"/>
+                                <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/>
+                            </svg>
+                        </div>
+                        <div class="review-content">
+                            <div class="review-label">Style References</div>
+                            <div class="review-value">8 reference images</div>
+                            <div class="thumbnail-preview" id="thumbnailPreview"></div>
+                        </div>
+                    </div>
+                    <div class="review-item">
+                        <div class="review-icon">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <circle cx="12" cy="12" r="10"/>
+                                <path d="M12 6v6l4 2"/>
+                            </svg>
+                        </div>
+                        <div class="review-content">
+                            <div class="review-label">Estimated Time</div>
+                            <div class="review-value" id="estimatedTime">~2-3 minutes</div>
+                        </div>
+                    </div>
+                    <div class="review-item">
+                        <div class="review-icon">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <circle cx="12" cy="12" r="10"/>
+                                <line x1="12" y1="8" x2="12" y2="12"/>
+                                <line x1="12" y1="16" x2="12.01" y2="16"/>
+                            </svg>
+                        </div>
+                        <div class="review-content">
+                            <div class="review-label">Credit Cost</div>
+                            <div class="review-value" id="creditCost">This will use 3 of your 1,250 available credits</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <div class="wizard-footer">
+            <button class="btn btn-secondary" id="prevBtn" onclick="previousStep()">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="19" y1="12" x2="5" y2="12"/>
+                    <polyline points="12 19 5 12 12 5"/>
+                </svg>
+                Previous
+            </button>
+            <button class="btn btn-primary" id="nextBtn" onclick="nextStep()">
+                Next
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="5" y1="12" x2="19" y2="12"/>
+                    <polyline points="12 5 19 12 12 19"/>
+                </svg>
+            </button>
+        </div>
+    </div>
+
+    <script>
+        // State
+        let currentStep = 1;
+        let csvData = null;
+        let selectedRows = new Set();
+        let columnMappings = {};
+        let styleImages = [];
+        let fileName = '';
+        let uploadComplete = false;
+
+        // Step titles and subtitles
+        const stepContent = {
+            1: {
+                title: 'Upload Your CSV File',
+                subtitle: "We'll analyze your data and detect the structure.",
+                titleAfterUpload: 'Review, Map & Edit Data',
+                subtitleAfterUpload: 'Confirm your data is correct before proceeding.'
+            },
+            2: {
+                title: 'Review, Map & Edit Data',
+                subtitle: 'Confirm your data is correct before proceeding.'
+            },
+            3: {
+                title: 'Add Style References',
+                subtitle: function() {
+                    const count = selectedRows.size;
+                    return `Upload 5-10 images to define the visual style for the ${count} selected product${count !== 1 ? 's' : ''}.`;
+                }
+            },
+            4: {
+                title: 'Preview & Generate',
+                subtitle: 'Review your settings and start generation.'
+            }
+        };
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', function() {
+            updateUI();
+            setupDragAndDrop();
+        });
+
+        // Setup drag and drop
+        function setupDragAndDrop() {
+            const uploadZone = document.getElementById('uploadZone');
+            
+            ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+                uploadZone.addEventListener(eventName, preventDefaults, false);
+            });
+
+            function preventDefaults(e) {
+                e.preventDefault();
+                e.stopPropagation();
+            }
+
+            ['dragenter', 'dragover'].forEach(eventName => {
+                uploadZone.addEventListener(eventName, () => {
+                    uploadZone.classList.add('drag-over');
+                }, false);
+            });
+
+            ['dragleave', 'drop'].forEach(eventName => {
+                uploadZone.addEventListener(eventName, () => {
+                    uploadZone.classList.remove('drag-over');
+                }, false);
+            });
+
+            uploadZone.addEventListener('drop', (e) => {
+                const files = e.dataTransfer.files;
+                if (files.length > 0) {
+                    handleFile(files[0]);
+                }
+            }, false);
+        }
+
+        // Handle file upload
+        function handleFileUpload(event) {
+            const file = event.target.files[0];
+            if (file) {
+                handleFile(file);
+            }
+        }
+
+        // Process CSV file
+        function handleFile(file) {
+            fileName = file.name;
+            const reader = new FileReader();
+            
+            reader.onload = function(e) {
+                const text = e.target.result;
+                csvData = parseCSV(text);
+                
+                // Initialize selected rows
+                selectedRows = new Set(csvData.map((_, index) => index));
+                
+                // Mark upload as complete
+                uploadComplete = true;
+                
+                // Hide upload zone and show file summary
+                document.getElementById('uploadZone').classList.add('hidden');
+                document.getElementById('fileSummary').classList.remove('hidden');
+                document.getElementById('fileName').textContent = fileName;
+                document.getElementById('rowCount').textContent = `${csvData.length} rows`;
+                
+                // CRITICAL UX FIX: Immediately show data table in Step 1
+                // First render into step 2 (hidden)
+                renderDataGrid();
+                
+                // Clone and insert into step 1
+                const tableInfo = document.createElement('div');
+                tableInfo.className = 'table-info';
+                tableInfo.id = 'tableInfo-step1';
+                
+                const tableContainer = document.createElement('div');
+                tableContainer.className = 'data-grid-container';
+                
+                const table = document.createElement('table');
+                table.className = 'data-grid';
+                table.innerHTML = document.getElementById('dataGrid').innerHTML;
+                
+                tableContainer.appendChild(table);
+                
+                // Insert after file summary
+                const fileSummary = document.getElementById('fileSummary');
+                fileSummary.insertAdjacentElement('afterend', tableInfo);
+                tableInfo.insertAdjacentElement('afterend', tableContainer);
+                
+                // Update the info text
+                updateTableInfo();
+                
+                // Update title and subtitle to reflect data is now shown
+                document.getElementById('wizardTitle').textContent = stepContent[1].titleAfterUpload;
+                document.getElementById('wizardSubtitle').textContent = stepContent[1].subtitleAfterUpload;
+                
+                // Update progress to show we're on "Review Data"
+                document.getElementById('progress-1').classList.remove('current');
+                document.getElementById('progress-1').classList.add('completed');
+                document.getElementById('progress-2').classList.add('current');
+                
+                // Update progress labels
+                document.querySelectorAll('.progress-label')[0].classList.remove('active');
+                document.querySelectorAll('.progress-label')[1].classList.add('active');
+                
+                // Enable next button
+                document.getElementById('nextBtn').disabled = false;
+            };
+            
+            reader.readAsText(file);
+        }
+
+        // Parse CSV
+        function parseCSV(text) {
+            const lines = text.trim().split('\n');
+            const headers = lines[0].split(',').map(h => h.trim());
+            const data = [];
+            
+            for (let i = 1; i < Math.min(lines.length, 6); i++) {
+                const values = lines[i].split(',').map(v => v.trim());
+                const row = {};
+                headers.forEach((header, index) => {
+                    row[header] = values[index] || '';
+                });
+                data.push(row);
+            }
+            
+            // Auto-detect column mappings
+            headers.forEach(header => {
+                const lower = header.toLowerCase();
+                if (lower.includes('title') || lower.includes('name')) {
+                    columnMappings[header] = 'Product Title';
+                } else if (lower.includes('description') || lower.includes('prompt')) {
+                    columnMappings[header] = 'Image Prompt';
+                } else if (lower.includes('id')) {
+                    columnMappings[header] = 'Product ID';
+                } else {
+                    columnMappings[header] = 'Ignore this column';
+                }
+            });
+            
+            return data;
+        }
+
+        // Render data grid for step 2
+        function renderDataGrid() {
+            const grid = document.getElementById('dataGrid');
+            if (!csvData || csvData.length === 0) return;
+            
+            const headers = Object.keys(csvData[0]);
+            
+            let html = '<thead><tr>';
+            html += '<th class="checkbox-cell"><input type="checkbox" checked onchange="toggleAllRows(this)"></th>';
+            
+            headers.forEach(header => {
+                html += `<th>
+                    <div class="column-header">
+                        <div class="column-name">${header}</div>
+                        <select class="column-mapping" onchange="updateMapping('${header}', this.value)">
+                            <option value="Product Title" ${columnMappings[header] === 'Product Title' ? 'selected' : ''}>Product Title</option>
+                            <option value="Image Prompt" ${columnMappings[header] === 'Image Prompt' ? 'selected' : ''}>Image Prompt</option>
+                            <option value="Product ID" ${columnMappings[header] === 'Product ID' ? 'selected' : ''}>Product ID</option>
+                            <option value="Style Reference URL" ${columnMappings[header] === 'Style Reference URL' ? 'selected' : ''}>Style Reference URL</option>
+                            <option value="Ignore this column" ${columnMappings[header] === 'Ignore this column' ? 'selected' : ''}>Ignore this column</option>
+                        </select>
+                    </div>
+                </th>`;
+            });
+            html += '</tr></thead><tbody>';
+            
+            csvData.forEach((row, rowIndex) => {
+                html += '<tr>';
+                html += `<td class="checkbox-cell"><input type="checkbox" ${selectedRows.has(rowIndex) ? 'checked' : ''} onchange="toggleRow(${rowIndex}, this)"></td>`;
+                headers.forEach(header => {
+                    html += `<td class="editable-cell" onclick="makeEditable(this)">${row[header]}</td>`;
+                });
+                html += '</tr>';
+            });
+            
+            html += '</tbody>';
+            grid.innerHTML = html;
+            
+            updateTableInfo();
+        }
+
+        // Toggle all rows
+        function toggleAllRows(checkbox) {
+            // Get all checkboxes from both tables
+            const allCheckboxes = document.querySelectorAll('.data-grid tbody input[type="checkbox"]');
+            allCheckboxes.forEach((cb, index) => {
+                cb.checked = checkbox.checked;
+                if (index < csvData.length) {
+                    if (checkbox.checked) {
+                        selectedRows.add(index);
+                    } else {
+                        selectedRows.delete(index);
+                    }
+                }
+            });
+            
+            // Sync header checkboxes
+            document.querySelectorAll('.data-grid thead input[type="checkbox"]').forEach(cb => {
+                cb.checked = checkbox.checked;
+            });
+            
+            updateTableInfo();
+        }
+
+        // Toggle individual row
+        function toggleRow(index, checkbox) {
+            if (checkbox.checked) {
+                selectedRows.add(index);
+            } else {
+                selectedRows.delete(index);
+            }
+            
+            // Sync the same checkbox in the other table
+            const allCheckboxes = document.querySelectorAll(`.data-grid tbody tr:nth-child(${index + 1}) input[type="checkbox"]`);
+            allCheckboxes.forEach(cb => {
+                cb.checked = checkbox.checked;
+            });
+            
+            updateTableInfo();
+        }
+
+        // Update column mapping
+        function updateMapping(header, value) {
+            columnMappings[header] = value;
+            
+            // Sync the dropdowns in both tables
+            document.querySelectorAll(`.column-mapping`).forEach(select => {
+                if (select.onchange && select.onchange.toString().includes(header)) {
+                    select.value = value;
+                }
+            });
+            
+            updateTableInfo();
+        }
+
+        // Make cell editable
+        function makeEditable(cell) {
+            if (cell.querySelector('input')) return;
+            
+            const value = cell.textContent;
+            cell.innerHTML = `<input type="text" value="${value}" onblur="saveEdit(this)" onkeypress="if(event.key==='Enter') this.blur()">`;
+            cell.querySelector('input').focus();
+        }
+
+        // Save edit
+        function saveEdit(input) {
+            input.parentElement.textContent = input.value;
+        }
+
+        // Update table info
+        function updateTableInfo() {
+            const count = selectedRows.size;
+            const total = csvData ? csvData.length : 0;
+            const infoText = `Showing ${count} of ${total} selected row${total !== 1 ? 's' : ''}`;
+            
+            // Update in both places (step 1 and step 2)
+            const tableInfo = document.getElementById('tableInfo');
+            const tableInfoStep1 = document.getElementById('tableInfo-step1');
+            
+            if (tableInfo) tableInfo.textContent = infoText;
+            if (tableInfoStep1) tableInfoStep1.textContent = infoText;
+        }
+
+        // Handle image upload
+        function handleImageUpload(event) {
+            const files = Array.from(event.target.files);
+            files.forEach(file => {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    styleImages.push(e.target.result);
+                    renderImageGrid();
+                };
+                reader.readAsDataURL(file);
+            });
+        }
+
+        // Render image grid
+        function renderImageGrid() {
+            const grid = document.getElementById('imageGrid');
+            grid.innerHTML = styleImages.map((src, index) => `
+                <div class="image-item">
+                    <img src="${src}" alt="Style ${index + 1}">
+                    <div class="image-remove" onclick="removeImage(${index})">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <line x1="18" y1="6" x2="6" y2="18"/>
+                            <line x1="6" y1="6" x2="18" y2="18"/>
+                        </svg>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // Remove image
+        function removeImage(index) {
+            styleImages.splice(index, 1);
+            renderImageGrid();
+        }
+
+        // Update review summary for step 4
+        function updateReviewSummary() {
+            const count = selectedRows.size;
+            document.getElementById('generationCount').textContent = `${count} Image${count !== 1 ? 's' : ''} will be generated`;
+            document.getElementById('dataSource').textContent = `Using ${count} selected row${count !== 1 ? 's' : ''} from ${fileName}`;
+            document.getElementById('creditCost').textContent = `This will use ${count} of your 1,250 available credits`;
+            
+            // Show thumbnail preview
+            const preview = document.getElementById('thumbnailPreview');
+            const displayCount = Math.min(3, styleImages.length);
+            let html = '';
+            
+            for (let i = 0; i < displayCount; i++) {
+                html += `<img src="${styleImages[i]}" alt="Style ${i + 1}">`;
+            }
+            
+            if (styleImages.length > 3) {
+                html += `<div class="more-indicator">+${styleImages.length - 3} more</div>`;
+            }
+            
+            preview.innerHTML = html;
+        }
+
+        // Navigation
+        function nextStep() {
+            if (currentStep === 1 && !csvData) return;
+            
+            // Skip step 2 if we're on step 1 with data already shown
+            if (currentStep === 1 && uploadComplete) {
+                currentStep = 3; // Jump to step 3 (style references)
+            } else if (currentStep === 2) {
+                renderDataGrid();
+                currentStep++;
+            } else if (currentStep < 4) {
+                currentStep++;
+            } else {
+                // Generate - show toast instead of alert
+                showToast('Success! Your images are now generating.', 'success');
+                
+                // Simulate redirect after a moment
+                setTimeout(() => {
+                    window.location.href = 'projects.html';
+                }, 2000);
+                return;
+            }
+            
+            if (currentStep === 4) {
+                updateReviewSummary();
+            }
+            updateUI();
+        }
+
+        function previousStep() {
+            if (currentStep > 1) {
+                // Handle going back from step 3 to the upload view with data
+                if (currentStep === 3 && uploadComplete) {
+                    currentStep = 1;
+                } else {
+                    currentStep--;
+                }
+                updateUI();
+            }
+        }
+
+        // Show toast notification
+        function showToast(message, type = 'success') {
+            const toast = document.createElement('div');
+            toast.className = `toast ${type}`;
+            toast.innerHTML = `
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="20 6 9 17 4 12"/>
+                </svg>
+                <span>${message}</span>
+            `;
+            document.body.appendChild(toast);
+            
+            setTimeout(() => {
+                toast.style.animation = 'fadeOut 0.3s ease-out forwards';
+                setTimeout(() => {
+                    toast.remove();
+                }, 300);
+            }, 3000);
+        }
+
+        // Update UI
+        function updateUI() {
+            // Update header
+            const content = stepContent[currentStep];
+            
+            // Handle special case: step 1 with uploaded data
+            if (currentStep === 1 && uploadComplete) {
+                document.getElementById('wizardTitle').textContent = content.titleAfterUpload;
+                document.getElementById('wizardSubtitle').textContent = content.subtitleAfterUpload;
+            } else {
+                document.getElementById('wizardTitle').textContent = content.title;
+                document.getElementById('wizardSubtitle').textContent = typeof content.subtitle === 'function' ? content.subtitle() : content.subtitle;
+            }
+            
+            // Update progress bar
+            for (let i = 1; i <= 4; i++) {
+                const progress = document.getElementById(`progress-${i}`);
+                progress.classList.remove('completed', 'current');
+                
+                // Handle special progress state when data is shown in step 1
+                if (currentStep === 1 && uploadComplete) {
+                    if (i === 1) {
+                        progress.classList.add('completed');
+                    } else if (i === 2) {
+                        progress.classList.add('current');
+                    }
+                } else {
+                    if (i < currentStep) {
+                        progress.classList.add('completed');
+                    } else if (i === currentStep) {
+                        progress.classList.add('current');
+                    }
+                }
+            }
+            
+            // Update progress labels
+            document.querySelectorAll('.progress-label').forEach((label, index) => {
+                if (currentStep === 1 && uploadComplete) {
+                    label.classList.toggle('active', index + 1 === 2);
+                } else {
+                    label.classList.toggle('active', index + 1 === currentStep);
+                }
+            });
+            
+            // Update steps visibility
+            document.querySelectorAll('.wizard-step').forEach((step, index) => {
+                step.classList.toggle('active', index + 1 === currentStep);
+            });
+            
+            // Update buttons
+            document.getElementById('prevBtn').style.visibility = currentStep === 1 ? 'hidden' : 'visible';
+            
+            const nextBtn = document.getElementById('nextBtn');
+            if (currentStep === 4) {
+                const count = selectedRows.size;
+                nextBtn.innerHTML = `
+                    Generate ${count} Image${count !== 1 ? 's' : ''}
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+                    </svg>
+                `;
+            } else {
+                nextBtn.innerHTML = `
+                    Next
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="5" y1="12" x2="19" y2="12"/>
+                        <polyline points="12 5 19 12 12 19"/>
+                    </svg>
+                `;
+            }
+            
+            // Disable next button on step 1 if no file
+            if (currentStep === 1) {
+                nextBtn.disabled = !csvData;
+            } else {
+                nextBtn.disabled = false;
+            }
+        }
+    </script>
+</body>
+</html>

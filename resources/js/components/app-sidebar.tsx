@@ -78,7 +78,7 @@ const projectNavGroups: NavGroup[] = [
         items: [
             {
                 title: 'Canvas Editor',
-                href: '/canvas',
+                href: '/canvas-editor',
                 icon: PenTool,
             },
         ],

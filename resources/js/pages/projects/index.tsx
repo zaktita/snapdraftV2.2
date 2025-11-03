@@ -35,7 +35,7 @@ import {
     Plus,
     Trash2,
 } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 const breadcrumbs: BreadcrumbItem[] = [
     {
@@ -138,15 +138,37 @@ export default function ProjectsIndex({ projects = [], success }: ProjectsPagePr
     const handleToggleFavorite = (projectId: number, e: React.MouseEvent) => {
         e.preventDefault();
         e.stopPropagation();
-        router.post(`/projects/${projectId}/toggle-favorite`, {}, {
-            preserveScroll: true,
-        });
+        // TODO: Backend implementation needed
+        console.log('Toggle favorite for project:', projectId);
+        // router.post(`/projects/${projectId}/toggle-favorite`, {}, {
+        //     preserveScroll: true,
+        // });
     };
 
     const handleDelete = (projectId: number) => {
         if (confirm('Are you sure you want to delete this project?')) {
-            router.delete(`/projects/${projectId}`);
+            // TODO: Backend implementation needed
+            console.log('Delete project:', projectId);
+            // router.delete(`/projects/${projectId}`);
         }
+    };
+
+    const handleRename = (projectId: number, newTitle: string) => {
+        if (newTitle.trim() && newTitle !== projects.find(p => p.id === projectId)?.title) {
+            // TODO: Backend implementation needed
+            console.log('Rename project:', projectId, 'to:', newTitle);
+            // router.patch(`/projects/${projectId}`, { title: newTitle }, {
+            //     preserveScroll: true,
+            // });
+        }
+    };
+
+    const handleGenerateMore = (projectId: number, e: React.MouseEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+        // Navigate to the project's generation page or show modal
+        console.log('Generate more images for project:', projectId);
+        // router.visit(`/projects/${projectId}/generate`);
     };
 
     const tabs = [
@@ -281,7 +303,7 @@ export default function ProjectsIndex({ projects = [], success }: ProjectsPagePr
                         </div>
                     </div>
 
-                    {/* Projects Grid */}
+                    {/* Projects Grid/List */}
                     <div className="mt-16">
                         {sortedProjects.length === 0 ? (
                             // Empty State
@@ -304,7 +326,7 @@ export default function ProjectsIndex({ projects = [], success }: ProjectsPagePr
                                     </Card>
                                 </Link>
                             </div>
-                        ) : (
+                        ) : viewMode === 'grid' ? (
                             <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                                 {sortedProjects.map((project) => (
                                     <ProjectCard
@@ -313,6 +335,22 @@ export default function ProjectsIndex({ projects = [], success }: ProjectsPagePr
                                         formatDate={formatDate}
                                         onToggleFavorite={handleToggleFavorite}
                                         onDelete={handleDelete}
+                                        onRename={handleRename}
+                                        onGenerateMore={handleGenerateMore}
+                                    />
+                                ))}
+                            </div>
+                        ) : (
+                            <div className="space-y-3 flex flex-col">
+                                {sortedProjects.map((project) => (
+                                    <ProjectListItem
+                                        key={project.id}
+                                        project={project}
+                                        formatDate={formatDate}
+                                        onToggleFavorite={handleToggleFavorite}
+                                        onDelete={handleDelete}
+                                        onRename={handleRename}
+                                        onGenerateMore={handleGenerateMore}
                                     />
                                 ))}
                             </div>
@@ -329,9 +367,43 @@ interface ProjectCardProps {
     formatDate: (date: string) => string;
     onToggleFavorite: (id: number, e: React.MouseEvent) => void;
     onDelete: (id: number) => void;
+    onRename: (id: number, newTitle: string) => void;
+    onGenerateMore: (id: number, e: React.MouseEvent) => void;
 }
 
-function ProjectCard({ project, formatDate, onToggleFavorite, onDelete }: ProjectCardProps) {
+function ProjectCard({ project, formatDate, onToggleFavorite, onDelete, onRename, onGenerateMore }: ProjectCardProps) {
+    const [isEditing, setIsEditing] = useState(false);
+    const [editTitle, setEditTitle] = useState(project.title);
+    const inputRef = useRef<HTMLInputElement>(null);
+
+    useEffect(() => {
+        if (isEditing && inputRef.current) {
+            inputRef.current.focus();
+            inputRef.current.select();
+        }
+    }, [isEditing]);
+
+    const handleDoubleClick = (e: React.MouseEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setIsEditing(true);
+    };
+
+    const handleBlur = () => {
+        setIsEditing(false);
+        onRename(project.id, editTitle);
+        setEditTitle(editTitle.trim() || project.title);
+    };
+
+    const handleKeyDown = (e: React.KeyboardEvent) => {
+        if (e.key === 'Enter') {
+            handleBlur();
+        } else if (e.key === 'Escape') {
+            setIsEditing(false);
+            setEditTitle(project.title);
+        }
+    };
+
     return (
         <Link href={`/projects/${project.id}`}>
             <Card className="group cursor-pointer border border-gray-200 transition-all hover:border-gray-300 hover:shadow-md">
@@ -360,9 +432,28 @@ function ProjectCard({ project, formatDate, onToggleFavorite, onDelete }: Projec
                 
                 {/* Card Content */}
                 <CardContent className="p-6">
-                    <h3 className="text-[18px] font-semibold group-hover:opacity-80" style={{ color: '#191919' }}>
-                        {project.title}
-                    </h3>
+                    {isEditing ? (
+                        <input
+                            ref={inputRef}
+                            type="text"
+                            value={editTitle}
+                            onChange={(e) => setEditTitle(e.target.value)}
+                            onBlur={handleBlur}
+                            onKeyDown={handleKeyDown}
+                            onClick={(e) => e.stopPropagation()}
+                            className="w-full text-[18px] font-semibold border-b-2 border-blue-500 bg-transparent outline-none"
+                            style={{ color: '#191919' }}
+                        />
+                    ) : (
+                        <h3 
+                            className="text-[18px] font-semibold group-hover:opacity-80 cursor-text" 
+                            style={{ color: '#191919' }}
+                            onDoubleClick={handleDoubleClick}
+                            title="Double-click to rename"
+                        >
+                            {project.title}
+                        </h3>
+                    )}
                     
                     <div className="mt-4 flex items-center justify-between">
                         <div className="flex items-center gap-3 text-sm">
@@ -378,6 +469,15 @@ function ProjectCard({ project, formatDate, onToggleFavorite, onDelete }: Projec
                         
                         {/* Actions Menu */}
                         <div className="flex items-center gap-1">
+                            <button
+                                onClick={(e) => onGenerateMore(project.id, e)}
+                                className="rounded p-1.5 transition-colors hover:bg-blue-50"
+                                style={{ color: '#191919' }}
+                                title="Generate more images"
+                            >
+                                <Plus className="size-4" />
+                            </button>
+                            
                             <button
                                 onClick={(e) => onToggleFavorite(project.id, e)}
                                 className="rounded p-1.5 transition-colors hover:bg-gray-50"
@@ -417,6 +517,168 @@ function ProjectCard({ project, formatDate, onToggleFavorite, onDelete }: Projec
                         </div>
                     </div>
                 </CardContent>
+            </Card>
+        </Link>
+    );
+}
+
+// Project List Item Component
+interface ProjectListItemProps {
+    project: Project;
+    formatDate: (date: string) => string;
+    onToggleFavorite: (id: number, e: React.MouseEvent) => void;
+    onDelete: (id: number) => void;
+    onRename: (id: number, newTitle: string) => void;
+    onGenerateMore: (id: number, e: React.MouseEvent) => void;
+}
+
+function ProjectListItem({ project, formatDate, onToggleFavorite, onDelete, onRename, onGenerateMore }: ProjectListItemProps) {
+    const [isEditing, setIsEditing] = useState(false);
+    const [editTitle, setEditTitle] = useState(project.title);
+    const inputRef = useRef<HTMLInputElement>(null);
+
+    useEffect(() => {
+        if (isEditing && inputRef.current) {
+            inputRef.current.focus();
+            inputRef.current.select();
+        }
+    }, [isEditing]);
+
+    const handleDoubleClick = (e: React.MouseEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setIsEditing(true);
+    };
+
+    const handleBlur = () => {
+        setIsEditing(false);
+        onRename(project.id, editTitle);
+        setEditTitle(editTitle.trim() || project.title);
+    };
+
+    const handleKeyDown = (e: React.KeyboardEvent) => {
+        if (e.key === 'Enter') {
+            handleBlur();
+        } else if (e.key === 'Escape') {
+            setIsEditing(false);
+            setEditTitle(project.title);
+        }
+    };
+
+    return (
+        <Link href={`/projects/${project.id}`}>
+            <Card className="group cursor-pointer border border-gray-200 transition-all hover:border-gray-300 hover:shadow-md">
+                <div className="flex items-center gap-6 p-4">
+                    {/* Thumbnail */}
+                    <div className="h-20 w-32 shrink-0 overflow-hidden rounded-md bg-gradient-to-br from-gray-100 to-gray-200 relative">
+                        {project.featured_image ? (
+                            <img 
+                                src={project.featured_image} 
+                                alt={project.title}
+                                className="h-full w-full object-cover"
+                            />
+                        ) : (
+                            <div className="flex h-full items-center justify-center">
+                                <svg className="size-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                </svg>
+                            </div>
+                        )}
+                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/5 transition-colors" />
+                    </div>
+
+                    {/* Content */}
+                    <div className="flex min-w-0 flex-1 items-center justify-between gap-6">
+                        <div className="flex min-w-0 flex-1 items-center gap-8">
+                            {/* Title */}
+                            {isEditing ? (
+                                <input
+                                    ref={inputRef}
+                                    type="text"
+                                    value={editTitle}
+                                    onChange={(e) => setEditTitle(e.target.value)}
+                                    onBlur={handleBlur}
+                                    onKeyDown={handleKeyDown}
+                                    onClick={(e) => e.stopPropagation()}
+                                    className="min-w-0 flex-1 text-[18px] font-semibold border-b-2 border-blue-500 bg-transparent outline-none"
+                                    style={{ color: '#191919' }}
+                                />
+                            ) : (
+                                <h3 
+                                    className="min-w-0 flex-1 truncate text-[18px] font-semibold group-hover:opacity-80 cursor-text" 
+                                    style={{ color: '#191919' }}
+                                    onDoubleClick={handleDoubleClick}
+                                    title="Double-click to rename"
+                                >
+                                    {project.title}
+                                </h3>
+                            )}
+
+                            {/* Metadata */}
+                            <div className="flex shrink-0 items-center gap-4">
+                                <span className="text-sm" style={{ color: '#505050' }}>
+                                    {formatDate(project.created_at)}
+                                </span>
+                                <Badge
+                                    variant="secondary"
+                                    className="text-xs font-medium"
+                                    style={{ backgroundColor: '#F5F5F5', color: '#505050' }}
+                                >
+                                    {project.images_count} images
+                                </Badge>
+                            </div>
+                        </div>
+
+                        {/* Actions */}
+                        <div className="flex shrink-0 items-center gap-1">
+                            <button
+                                onClick={(e) => onGenerateMore(project.id, e)}
+                                className="rounded p-1.5 transition-colors hover:bg-blue-50"
+                                style={{ color: '#191919' }}
+                                title="Generate more images"
+                            >
+                                <Plus className="size-4" />
+                            </button>
+                            
+                            <button
+                                onClick={(e) => onToggleFavorite(project.id, e)}
+                                className="rounded p-1.5 transition-colors hover:bg-gray-50"
+                                style={{ color: project.is_favorite ? '#ff4444' : '#191919' }}
+                                title="Toggle favorite"
+                            >
+                                {project.is_favorite ? (
+                                    <Heart className="size-4 fill-current" />
+                                ) : (
+                                    <Heart className="size-4" />
+                                )}
+                            </button>
+                            
+                            <button
+                                onClick={(e) => {
+                                    e.preventDefault();
+                                    router.visit(`/projects/${project.id}/edit`);
+                                }}
+                                className="rounded p-1.5 transition-colors hover:bg-gray-50"
+                                style={{ color: '#191919' }}
+                                title="Edit project"
+                            >
+                                <Edit className="size-4" />
+                            </button>
+                            
+                            <button
+                                onClick={(e) => {
+                                    e.preventDefault();
+                                    onDelete(project.id);
+                                }}
+                                className="rounded p-1.5 transition-colors hover:bg-red-50"
+                                style={{ color: '#ff4444' }}
+                                title="Delete project"
+                            >
+                                <Trash2 className="size-4" />
+                            </button>
+                        </div>
+                    </div>
+                </div>
             </Card>
         </Link>
     );

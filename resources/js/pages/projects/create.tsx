@@ -34,8 +34,8 @@ const wizardOptions = [
         description:
             'Upload a CSV file with content data to generate brand-consistent visuals in batch',
         icon: FileSpreadsheet,
-        iconColor: 'text-green-600 dark:text-green-500',
-        iconBg: 'bg-green-100 dark:bg-green-950',
+        iconColor: 'text-gray-600 dark:text-gray-500',
+        iconBg: 'bg-gray-100 dark:bg-gray-950',
         features: [
             'Batch generate from CSV data',
             'Required columns: title, description, format',
@@ -50,8 +50,8 @@ const wizardOptions = [
         description:
             'Start with reference images to analyze brand style and generate visuals',
         icon: Image,
-        iconColor: 'text-blue-600 dark:text-blue-500',
-        iconBg: 'bg-blue-100 dark:bg-blue-950',
+        iconColor: 'text-gray-600 dark:text-gray-500',
+        iconBg: 'bg-gray-100 dark:bg-gray-950',
         features: [
             'Upload 5-10 brand reference images',
             'AI analyzes colors, typography, composition',
@@ -66,8 +66,8 @@ const wizardOptions = [
         description:
             'Describe your idea and let AI generate visuals based on your text input',
         icon: Lightbulb,
-        iconColor: 'text-purple-600 dark:text-purple-500',
-        iconBg: 'bg-purple-100 dark:bg-purple-950',
+        iconColor: 'text-gray-600 dark:text-gray-500',
+        iconBg: 'bg-gray-100 dark:bg-gray-950',
         features: [
             'Text-based content generation',
             'Describe your visual concept',

@@ -36,6 +36,19 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::resource('projects', ProjectController::class)->except(['create']);
     Route::post('projects/{id}/toggle-favorite', [ProjectController::class, 'toggleFavorite'])
         ->name('projects.toggle-favorite');
+
+    // Canvas Editor
+    Route::get('canvas-editor', function () {
+        $projectId = request()->query('projectId');
+        $imageUrl = request()->query('image');
+        $projectTitle = request()->query('title', 'Untitled');
+        
+        return Inertia::render('canvas-editor', [
+            'projectId' => $projectId,
+            'imageUrl' => $imageUrl,
+            'projectTitle' => $projectTitle
+        ]);
+    })->name('canvas.editor');
 });
 
 require __DIR__.'/settings.php';
