@@ -34,6 +34,10 @@ class CreateNewUser implements CreatesNewUsers
             'name' => $input['name'],
             'email' => $input['email'],
             'password' => $input['password'],
+            'is_admin' => false,
+            'subscription_tier' => 'free',
+            'credits_remaining' => 10,
+            'credits_total' => 10,
         ]);
     }
 }

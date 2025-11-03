@@ -1,15 +1,18 @@
 <?php
 
 use App\Http\Controllers\ProjectController;
+use App\Http\Controllers\ImageController;
+use App\Http\Controllers\CanvasController;
+use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\Wizards\CSVWizardController;
+use App\Http\Controllers\Wizards\ImagesWizardController;
+use App\Http\Controllers\Wizards\TextWizardController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 use Laravel\Fortify\Features;
 
 Route::middleware(['auth', 'verified'])->group(function () {
-    Route::get('dashboard', function () {
-        return Inertia::render('dashboard');
-    })->name('dashboard');
+    Route::get('dashboard', [DashboardController::class, 'index'])->name('dashboard');
 
     // Project Creation - Wizard Selection Page (must be before resource routes)
     Route::get('projects/create', function () {
@@ -28,14 +31,47 @@ Route::middleware(['auth', 'verified'])->group(function () {
         return Inertia::render('projects/wizards/images');
     })->name('projects.wizards.images');
 
+    Route::post('projects/wizards/images', [ImagesWizardController::class, 'store'])
+        ->name('projects.wizards.images.store');
+
     Route::get('projects/create/text', function () {
         return Inertia::render('projects/wizards/text');
     })->name('projects.wizards.text');
+
+    Route::post('projects/wizards/text', [TextWizardController::class, 'store'])
+        ->name('projects.wizards.text.store');
 
     // Projects Resource Routes (except create, which we handle above)
     Route::resource('projects', ProjectController::class)->except(['create']);
     Route::post('projects/{id}/toggle-favorite', [ProjectController::class, 'toggleFavorite'])
         ->name('projects.toggle-favorite');
+    
+    // AI Generation Routes (with stricter rate limiting and credits check)
+    Route::post('projects/{id}/generate', [ProjectController::class, 'generateMore'])
+        ->middleware(['throttle.user:10,1', 'has.credits']) // 10 requests per minute + credits check
+        ->name('projects.generate-more');
+    
+    Route::get('projects/{id}/generation-progress', [ProjectController::class, 'generationProgress'])
+        ->name('projects.generation-progress');
+
+    // Image Management Routes
+    Route::prefix('projects/{projectId}/images')->group(function () {
+        Route::put('{imageId}', [ImageController::class, 'update'])->name('images.update');
+        Route::delete('{imageId}', [ImageController::class, 'destroy'])->name('images.destroy');
+        Route::post('bulk-delete', [ImageController::class, 'bulkDestroy'])->name('images.bulk-destroy');
+        Route::post('bulk-download', [ImageController::class, 'bulkDownload'])->name('images.bulk-download');
+        Route::post('update-order', [ImageController::class, 'updateOrder'])->name('images.update-order');
+        Route::post('{imageId}/toggle-favorite', [ImageController::class, 'toggleFavorite'])->name('images.toggle-favorite');
+    });
+
+    // Search & Updates (Placeholder routes)
+    Route::get('search', function () {
+        return Inertia::render('search');
+    })->name('search');
+
+    Route::get('updates', function () {
+        return Inertia::render('updates');
+    })->name('updates');
 
     // Canvas Editor
     Route::get('canvas-editor', function () {
@@ -49,7 +85,26 @@ Route::middleware(['auth', 'verified'])->group(function () {
             'projectTitle' => $projectTitle
         ]);
     })->name('canvas.editor');
+
+    // Canvas Editor Actions
+    Route::post('projects/{projectId}/images/{imageId}/save-edit', [CanvasController::class, 'saveEdit'])
+        ->name('canvas.save-edit');
+    Route::post('projects/{projectId}/canvas/export', [CanvasController::class, 'exportCanvas'])
+        ->name('canvas.export');
+
+    // Subscription & Billing
+    Route::prefix('subscription')->name('subscription.')->group(function () {
+        Route::get('/plans', [\App\Http\Controllers\SubscriptionController::class, 'index'])->name('plans');
+        Route::get('/portal', [\App\Http\Controllers\SubscriptionController::class, 'portal'])->name('portal');
+        Route::post('/upgrade', [\App\Http\Controllers\SubscriptionController::class, 'upgrade'])->name('upgrade');
+        Route::post('/downgrade', [\App\Http\Controllers\SubscriptionController::class, 'downgrade'])->name('downgrade');
+        Route::post('/purchase-credits', [\App\Http\Controllers\SubscriptionController::class, 'purchaseCredits'])->name('purchase-credits');
+    });
 });
 
+// Stripe Webhook (outside auth middleware)
+Route::post('/webhook/stripe', [\App\Http\Controllers\SubscriptionController::class, 'webhook'])->name('webhook.stripe');
+
+require __DIR__.'/admin.php';
 require __DIR__.'/settings.php';
 require __DIR__.'/website.php';

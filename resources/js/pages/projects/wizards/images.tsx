@@ -1,11 +1,12 @@
 import { Head, Link, router } from '@inertiajs/react';
-import { ArrowLeft, ArrowRight, Image as ImageIcon, Upload, X, Type, Zap } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Upload, X, Zap } from 'lucide-react';
 import { useState, useRef, DragEvent, ChangeEvent } from 'react';
 
 export default function ImagesWizard() {
     const [currentStep, setCurrentStep] = useState(1);
     const [projectName, setProjectName] = useState('');
     const [styleImages, setStyleImages] = useState<string[]>([]);
+    const [styleImageFiles, setStyleImageFiles] = useState<File[]>([]);
     const [contentDescription, setContentDescription] = useState('');
     const [dragOver, setDragOver] = useState(false);
     
@@ -22,11 +23,13 @@ export default function ImagesWizard() {
                 setStyleImages(prev => [...prev, e.target?.result as string]);
             };
             reader.readAsDataURL(file);
+            setStyleImageFiles(prev => [...prev, file]);
         });
     };
 
     const removeImage = (index: number) => {
         setStyleImages(prev => prev.filter((_, i) => i !== index));
+        setStyleImageFiles(prev => prev.filter((_, i) => i !== index));
     };
 
     // Drag and drop handlers
@@ -55,17 +58,36 @@ export default function ImagesWizard() {
                     setStyleImages(prev => [...prev, e.target?.result as string]);
                 };
                 reader.readAsDataURL(file);
+                setStyleImageFiles(prev => [...prev, file]);
             });
         }
     };
 
     // Navigation
+    const submitToBackend = () => {
+        if (projectName.trim().length === 0) return;
+        if (styleImageFiles.length < 5) return;
+        if (contentDescription.trim().length === 0) return;
+
+        const fd = new FormData();
+        fd.append('project_name', projectName.trim());
+        fd.append('content_description', contentDescription.trim());
+        // format optional; default handled server-side; leave out or send 'square'
+        // fd.append('format', 'square');
+        styleImageFiles.slice(0, 10).forEach((f) => fd.append('reference_images[]', f));
+
+        router.post('/projects/wizards/images', fd, {
+            forceFormData: true,
+            preserveScroll: true,
+        });
+    };
+
     const nextStep = () => {
         if (currentStep < 3) {
             setCurrentStep(currentStep + 1);
         } else {
-            // Generate
-            router.visit('/projects');
+            // Submit to backend
+            submitToBackend();
         }
     };
 

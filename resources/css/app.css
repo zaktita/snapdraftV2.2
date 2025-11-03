@@ -177,3 +177,42 @@
         font-family: var(--font-sans);
     }
 }
+
+/* Design System component utilities */
+@layer components {
+  /* Typography */
+  .ds-heading-1 {
+    @apply text-2xl font-semibold text-gray-900;
+  }
+  .ds-subtext {
+    @apply text-sm text-gray-500;
+  }
+  .ds-label {
+    @apply text-xs text-gray-500;
+  }
+  .ds-number-lg {
+    @apply text-3xl font-semibold text-gray-900;
+  }
+
+  /* Cards */
+  .ds-card-minimal {
+    @apply bg-white shadow-sm;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+  }
+  .ds-card-plain {
+    @apply bg-white shadow-none;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+  }
+
+  /* Progress */
+  .ds-progress-track {
+    @apply h-1 rounded-full;
+    background-color: #f3f4f6; /* light gray track */
+  }
+  .ds-progress-bar {
+    @apply h-full rounded-full;
+    background-color: #9ca3af; /* neutral gray */
+  }
+}

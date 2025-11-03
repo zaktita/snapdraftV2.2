@@ -16,6 +16,8 @@ import {
     AlertDescription,
     AlertTitle,
 } from '@/components/ui/alert';
+import { NoProjectsYet } from '@/components/empty-state';
+import { ProjectListSkeleton } from '@/components/ui/skeleton-loaders';
 import AppLayout from '@/layouts/app-layout';
 import { dashboard } from '@/routes';
 import { create as create_project } from '@/routes/projects';
@@ -57,8 +59,16 @@ interface Project {
     is_favorite: boolean;
 }
 
+interface PaginatedProjects {
+    data: Project[];
+    current_page: number;
+    last_page: number;
+    per_page: number;
+    total: number;
+}
+
 interface ProjectsPageProps {
-    projects: Project[];
+    projects: PaginatedProjects | Project[]; // Support both paginated and array format
     success?: string;
 }
 
@@ -66,10 +76,14 @@ type ViewMode = 'grid' | 'list';
 type FilterTab = 'all' | 'recent' | 'favorites';
 type SortOption = 'date-desc' | 'date-asc' | 'name-asc' | 'name-desc' | 'images-desc';
 
-export default function ProjectsIndex({ projects = [], success }: ProjectsPageProps) {
+export default function ProjectsIndex({ projects: projectsData = [], success }: ProjectsPageProps) {
     const page = usePage();
     const urlParams = new URLSearchParams(window.location.search);
     const filterParam = urlParams.get('filter') as FilterTab | null;
+    
+    // Extract projects array from paginated data or use directly if array
+    const projects = Array.isArray(projectsData) ? projectsData : projectsData.data;
+    const pagination = !Array.isArray(projectsData) ? projectsData : null;
     
     const [viewMode, setViewMode] = useState<ViewMode>('grid');
     const [activeTab, setActiveTab] = useState<FilterTab>(filterParam || 'all');
@@ -138,28 +152,24 @@ export default function ProjectsIndex({ projects = [], success }: ProjectsPagePr
     const handleToggleFavorite = (projectId: number, e: React.MouseEvent) => {
         e.preventDefault();
         e.stopPropagation();
-        // TODO: Backend implementation needed
-        console.log('Toggle favorite for project:', projectId);
-        // router.post(`/projects/${projectId}/toggle-favorite`, {}, {
-        //     preserveScroll: true,
-        // });
+        router.post(`/projects/${projectId}/toggle-favorite`, {}, {
+            preserveScroll: true,
+        });
     };
 
     const handleDelete = (projectId: number) => {
-        if (confirm('Are you sure you want to delete this project?')) {
-            // TODO: Backend implementation needed
-            console.log('Delete project:', projectId);
-            // router.delete(`/projects/${projectId}`);
+        if (confirm('Are you sure you want to delete this project? This will delete all images in the project.')) {
+            router.delete(`/projects/${projectId}`, {
+                preserveScroll: true,
+            });
         }
     };
 
     const handleRename = (projectId: number, newTitle: string) => {
         if (newTitle.trim() && newTitle !== projects.find(p => p.id === projectId)?.title) {
-            // TODO: Backend implementation needed
-            console.log('Rename project:', projectId, 'to:', newTitle);
-            // router.patch(`/projects/${projectId}`, { title: newTitle }, {
-            //     preserveScroll: true,
-            // });
+            router.patch(`/projects/${projectId}`, { title: newTitle }, {
+                preserveScroll: true,
+            });
         }
     };
 
@@ -168,6 +178,7 @@ export default function ProjectsIndex({ projects = [], success }: ProjectsPagePr
         e.stopPropagation();
         // Navigate to the project's generation page or show modal
         console.log('Generate more images for project:', projectId);
+        // TODO: Implement generation flow
         // router.visit(`/projects/${projectId}/generate`);
     };
 
@@ -305,8 +316,11 @@ export default function ProjectsIndex({ projects = [], success }: ProjectsPagePr
 
                     {/* Projects Grid/List */}
                     <div className="mt-16">
-                        {sortedProjects.length === 0 ? (
-                            // Empty State
+                        {projects.length === 0 ? (
+                            // Truly no projects at all
+                            <NoProjectsYet />
+                        ) : sortedProjects.length === 0 ? (
+                            // Empty State for filtered view
                             <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                                 <Link href="/projects/create">
                                     <Card className="group cursor-pointer border border-gray-200 transition-all hover:border-gray-300 hover:shadow-sm">
@@ -320,7 +334,7 @@ export default function ProjectsIndex({ projects = [], success }: ProjectsPagePr
                                                 Create New Project
                                             </h3>
                                             <p className="mt-2 text-sm font-normal" style={{ color: '#505050' }}>
-                                                Get started with a new project
+                                                No projects match your filter
                                             </p>
                                         </CardContent>
                                     </Card>

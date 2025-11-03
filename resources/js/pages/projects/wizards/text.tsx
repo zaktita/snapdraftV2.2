@@ -19,6 +19,7 @@ export default function TextWizard() {
     const [ideaDescription, setIdeaDescription] = useState('');
     const [selectedFormat, setSelectedFormat] = useState('');
     const [styleImages, setStyleImages] = useState<string[]>([]);
+    const [styleImageFiles, setStyleImageFiles] = useState<File[]>([]);
     
     const imageInputRef = useRef<HTMLInputElement>(null);
 
@@ -33,20 +34,50 @@ export default function TextWizard() {
                 setStyleImages(prev => [...prev, e.target?.result as string]);
             };
             reader.readAsDataURL(file);
+            setStyleImageFiles(prev => [...prev, file]);
         });
     };
 
     const removeImage = (index: number) => {
         setStyleImages(prev => prev.filter((_, i) => i !== index));
+        setStyleImageFiles(prev => prev.filter((_, i) => i !== index));
     };
 
     // Navigation
+    const mapFormat = (value: string): 'square' | 'portrait' | 'landscape' => {
+        switch (value) {
+            case 'instagram-post':
+                return 'square';
+            case 'instagram-story':
+                return 'portrait';
+            case 'facebook-post':
+            case 'facebook-ad':
+            case 'linkedin-post':
+            case 'linkedin-banner':
+            case 'twitter-post':
+            case 'youtube-thumbnail':
+            default:
+                return 'landscape';
+        }
+    };
+
     const nextStep = () => {
         if (currentStep < 3) {
             setCurrentStep(currentStep + 1);
         } else {
-            // Generate
-            router.visit('/projects');
+            // Submit to backend
+            if (!projectName.trim() || !ideaDescription.trim()) return;
+            const fd = new FormData();
+            fd.append('project_name', projectName.trim());
+            fd.append('idea_description', ideaDescription.trim());
+            fd.append('format', mapFormat(selectedFormat));
+            // reference images optional (max 5)
+            styleImageFiles.slice(0, 5).forEach((f) => fd.append('reference_images[]', f));
+
+            router.post('/projects/wizards/text', fd, {
+                forceFormData: true,
+                preserveScroll: true,
+            });
         }
     };
 

@@ -1,5 +1,5 @@
 import { Head, Link, router } from '@inertiajs/react';
-import { ArrowLeft, ArrowRight, FileText, Grid, Image as ImageIcon, Upload, X, Check, Clock, AlertCircle, Zap } from 'lucide-react';
+import { ArrowLeft, ArrowRight, FileText, Grid, Image as ImageIcon, Upload, X, Clock, AlertCircle, Zap } from 'lucide-react';
 import { useState, useRef, DragEvent, ChangeEvent } from 'react';
 
 interface CSVRow {
@@ -37,6 +37,9 @@ export default function CSVWizard() {
     const [selectedRows, setSelectedRows] = useState<Set<number>>(new Set());
     const [columnMappings, setColumnMappings] = useState<ColumnMapping>({});
     const [styleImages, setStyleImages] = useState<string[]>([]);
+    const [styleImageFiles, setStyleImageFiles] = useState<File[]>([]);
+    const [csvFile, setCsvFile] = useState<File | null>(null);
+    const [projectName] = useState('');
     const [fileName, setFileName] = useState('');
     const [uploadComplete, setUploadComplete] = useState(false);
     const [dragOver, setDragOver] = useState(false);
@@ -81,6 +84,7 @@ export default function CSVWizard() {
     // Handle file upload
     const handleFileUpload = (file: File) => {
         setFileName(file.name);
+        setCsvFile(file);
         const reader = new FileReader();
         
         reader.onload = (e) => {
@@ -139,11 +143,13 @@ export default function CSVWizard() {
                 setStyleImages(prev => [...prev, e.target?.result as string]);
             };
             reader.readAsDataURL(file);
+            setStyleImageFiles(prev => [...prev, file]);
         });
     };
 
     const removeImage = (index: number) => {
         setStyleImages(prev => prev.filter((_, i) => i !== index));
+        setStyleImageFiles(prev => prev.filter((_, i) => i !== index));
     };
 
     // Toggle row selection
@@ -173,6 +179,27 @@ export default function CSVWizard() {
     };
 
     // Navigation
+    const submitToBackend = () => {
+        // Build a sensible default name if not provided
+        const name = projectName.trim().length
+            ? projectName.trim()
+            : (fileName ? fileName.replace(/\.[^.]+$/, '') : 'CSV Project');
+
+        if (!csvFile) return;
+        if (styleImageFiles.length < 5) return;
+
+        const fd = new FormData();
+        fd.append('project_name', name);
+        fd.append('csv_file', csvFile);
+        styleImageFiles.slice(0, 10).forEach((f) => fd.append('reference_images[]', f));
+        // product_images optional: skip for now
+
+        router.post('/projects/wizards/csv', fd, {
+            forceFormData: true,
+            preserveScroll: true,
+        });
+    };
+
     const nextStep = () => {
         if (currentStep === 1 && !csvData.length) return;
         
@@ -181,11 +208,8 @@ export default function CSVWizard() {
         } else if (currentStep < 4) {
             setCurrentStep(currentStep + 1);
         } else {
-            // Generate
-            showToast('Success! Your images are now generating.');
-            setTimeout(() => {
-                router.visit('/projects');
-            }, 2000);
+            // Submit to backend
+            submitToBackend();
         }
     };
 
@@ -199,10 +223,6 @@ export default function CSVWizard() {
         }
     };
 
-    const showToast = (message: string) => {
-        // Toast implementation can be added later
-        console.log(message);
-    };
 
     const getTitle = () => {
         if (currentStep === 1 && uploadComplete) {

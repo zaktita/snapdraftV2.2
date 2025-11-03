@@ -1,4 +1,6 @@
 import { Button } from '@/components/ui/button';
+import { BatchProgress } from '@/components/batch-progress';
+import { useGenerationProgress } from '@/hooks/use-generation-progress';
 import AppLayout from '@/layouts/app-layout';
 import { dashboard } from '@/routes';
 import { type BreadcrumbItem } from '@/types';
@@ -28,6 +30,9 @@ export default function ProjectShow({ project }: ProjectShowProps) {
     const [editTitle, setEditTitle] = useState(project.title);
     const titleInputRef = useRef<HTMLInputElement>(null);
     
+    // Track generation progress
+    const { progress, isGenerating } = useGenerationProgress(project.id);
+    
     useEffect(() => {
         if (isEditingTitle && titleInputRef.current) {
             titleInputRef.current.focus();
@@ -42,11 +47,9 @@ export default function ProjectShow({ project }: ProjectShowProps) {
     const handleTitleBlur = () => {
         setIsEditingTitle(false);
         if (editTitle.trim() && editTitle !== project.title) {
-            // TODO: Backend implementation needed
-            console.log('Rename project:', project.id, 'to:', editTitle);
-            // router.patch(`/projects/${project.id}`, { title: editTitle }, {
-            //     preserveScroll: true,
-            // });
+            router.patch(`/projects/${project.id}`, { title: editTitle }, {
+                preserveScroll: true,
+            });
         } else {
             setEditTitle(project.title);
         }
@@ -62,9 +65,10 @@ export default function ProjectShow({ project }: ProjectShowProps) {
     };
 
     const handleGenerateMore = () => {
-        // Navigate to generation page or show modal
-        console.log('Generate more images for project:', project.id);
-        // router.visit(`/projects/${project.id}/generate`);
+        // Post to generate endpoint
+        router.post(`/projects/${project.id}/generate`, {}, {
+            preserveScroll: true,
+        });
     };
     
     const breadcrumbs: BreadcrumbItem[] = [
@@ -184,6 +188,18 @@ export default function ProjectShow({ project }: ProjectShowProps) {
                             </Button>
                         </div>
                     </div>
+
+                    {/* Generation Progress */}
+                    {isGenerating && progress && (
+                        <div className="mb-6">
+                            <BatchProgress
+                                total={progress.expected_total}
+                                completed={progress.completed}
+                                failed={progress.failed}
+                                status={progress.is_complete ? 'completed' : 'processing'}
+                            />
+                        </div>
+                    )}
 
                     {/* Project Title */}
                     <div className="mb-8 flex items-center justify-between">

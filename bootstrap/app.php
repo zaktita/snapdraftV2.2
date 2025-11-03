@@ -21,6 +21,17 @@ return Application::configure(basePath: dirname(__DIR__))
             HandleInertiaRequests::class,
             AddLinkHeadersForPreloadedAssets::class,
         ]);
+
+        // API rate limiting (60 requests per minute per user)
+        $middleware->alias([
+            'cache.response' => \App\Http\Middleware\CacheResponse::class,
+            'throttle.user' => \App\Http\Middleware\ThrottlePerUser::class,
+            'admin' => \App\Http\Middleware\EnsureUserIsAdmin::class,
+            'has.credits' => \App\Http\Middleware\EnsureUserHasCredits::class,
+        ]);
+
+        // Throttle API endpoints
+        $middleware->throttleApi();
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         //

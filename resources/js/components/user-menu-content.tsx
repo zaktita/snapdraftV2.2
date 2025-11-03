@@ -10,7 +10,7 @@ import { logout } from '@/routes';
 import { edit } from '@/routes/profile';
 import { type User } from '@/types';
 import { Link, router } from '@inertiajs/react';
-import { LogOut, Settings, HelpCircle, UserPlus } from 'lucide-react';
+import { LogOut, Settings, HelpCircle, UserPlus, Crown, CreditCard, Shield } from 'lucide-react';
 
 interface UserMenuContentProps {
     user: User;
@@ -48,6 +48,32 @@ export function UserMenuContent({ user }: UserMenuContentProps) {
                 <DropdownMenuItem asChild>
                     <Link
                         className="block w-full"
+                        href="/subscription/portal"
+                        as="button"
+                        prefetch
+                        onClick={cleanup}
+                    >
+                        <CreditCard className="mr-2" />
+                        Billing & Credits
+                    </Link>
+                </DropdownMenuItem>
+                {(user as User & { subscription_tier?: string }).subscription_tier === 'free' && (
+                    <DropdownMenuItem asChild>
+                        <Link
+                            className="block w-full"
+                            href="/subscription/plans"
+                            as="button"
+                            prefetch
+                            onClick={cleanup}
+                        >
+                            <Crown className="mr-2 text-yellow-500" />
+                            Upgrade Plan
+                        </Link>
+                    </DropdownMenuItem>
+                )}
+                <DropdownMenuItem asChild>
+                    <Link
+                        className="block w-full"
                         href="/invite"
                         as="button"
                         prefetch
@@ -70,6 +96,25 @@ export function UserMenuContent({ user }: UserMenuContentProps) {
                     </Link>
                 </DropdownMenuItem>
             </DropdownMenuGroup>
+            {(user as User & { is_admin?: boolean }).is_admin && (
+                <>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuGroup>
+                        <DropdownMenuItem asChild>
+                            <Link
+                                className="block w-full bg-yellow-50 text-yellow-900"
+                                href="/admin/dashboard"
+                                as="button"
+                                prefetch
+                                onClick={cleanup}
+                            >
+                                <Shield className="mr-2" />
+                                Admin Dashboard
+                            </Link>
+                        </DropdownMenuItem>
+                    </DropdownMenuGroup>
+                </>
+            )}
             <DropdownMenuSeparator />
             <DropdownMenuItem asChild>
                 <Link

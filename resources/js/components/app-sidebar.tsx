@@ -13,8 +13,9 @@ import {
     SidebarMenuItem,
 } from '@/components/ui/sidebar';
 import { dashboard } from '@/routes';
-import { type NavItem, type NavGroup } from '@/types';
-import { Link } from '@inertiajs/react';
+import { plans as subscriptionPlans, portal as subscriptionPortal } from '@/routes/subscription';
+import { type NavItem, type NavGroup, type SharedData } from '@/types';
+import { Link, usePage } from '@inertiajs/react';
 import {
     BookOpen,
     Folder,
@@ -31,6 +32,9 @@ import {
     HelpCircle,
     UserPlus,
     LogOut,
+    CreditCard,
+    Shield,
+    Crown,
 } from 'lucide-react';
 import AppLogo from './app-logo';
 
@@ -88,6 +92,80 @@ const projectNavGroups: NavGroup[] = [
 const footerNavItems: NavItem[] = [];
 
 export function AppSidebar() {
+    const { auth } = usePage<SharedData>().props;
+    const user = auth.user as typeof auth.user & {
+        is_admin?: boolean;
+        subscription_tier?: string;
+    };
+
+    // Build dynamic nav groups based on user
+    const dynamicProjectNavGroups: NavGroup[] = [
+        {
+            title: 'Projects',
+            items: [
+                {
+                    title: 'All Projects',
+                    href: '/projects',
+                    icon: FolderOpen,
+                },
+                {
+                    title: 'Favorites',
+                    href: '/projects?filter=favorites',
+                    icon: Star,
+                },
+                {
+                    title: 'Recent',
+                    href: '/projects?filter=recent',
+                    icon: Clock,
+                },
+            ],
+        },
+        {
+            title: 'Tools',
+            items: [
+                {
+                    title: 'Canvas Editor',
+                    href: '/canvas-editor',
+                    icon: PenTool,
+                },
+            ],
+        },
+        {
+            title: 'Account',
+            items: [
+                {
+                    title: 'Subscription',
+                    href: user.subscription_tier === 'free' ? subscriptionPlans().url : subscriptionPortal().url,
+                    icon: user.subscription_tier === 'free' ? Crown : CreditCard,
+                },
+            ],
+        },
+    ];
+
+    // Add admin section for admins
+    if (user.is_admin) {
+        dynamicProjectNavGroups.push({
+            title: 'Admin',
+            items: [
+                {
+                    title: 'Dashboard',
+                    href: '/admin/dashboard',
+                    icon: Shield,
+                },
+                {
+                    title: 'Users',
+                    href: '/admin/users',
+                    icon: UserPlus,
+                },
+                {
+                    title: 'Usage',
+                    href: '/admin/usage',
+                    icon: LayoutGrid,
+                },
+            ],
+        });
+    }
+
     return (
         <Sidebar collapsible="icon" variant="inset">
             <SidebarHeader>
@@ -115,7 +193,7 @@ export function AppSidebar() {
 
             <SidebarContent>
                 <NavMain items={mainNavItems} />
-                <NavGroups groups={projectNavGroups} />
+                <NavGroups groups={dynamicProjectNavGroups} />
             </SidebarContent>
 
             <SidebarFooter>
