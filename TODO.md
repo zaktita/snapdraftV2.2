@@ -1,7 +1,172 @@
 # SnapDraft - Project TODO List
 
-**Last Updated**: November 3, 2025  
-**Project Status**: AI Integration Complete - Ready for Testing & Frontend Integration
+**Last Updated**: November 4, 2025  
+**Project Status**: Backend Complete - Critical Issues Blocking Launch
+
+---
+
+## 🔴 **BLOCKING ISSUES - Cannot Launch Without These**
+
+### 1. Payment Integration (for later - skip for now)
+- [ ] Install Paddle SDK (`composer require paddle/paddle-php-sdk`)
+- [ ] Add Paddle credentials to `.env` (vendor ID, API key, webhook secret)
+- [ ] Configure Paddle in `config/services.php`
+- [ ] Create products in Paddle dashboard (Pro, Enterprise)
+- [ ] Implement `SubscriptionController::upgrade()` with Paddle API
+- [ ] Implement `SubscriptionController::purchaseCredits()` with Paddle
+- [ ] Implement `SubscriptionController::webhook()` for subscription events
+- [ ] Create `Invoice` model and migration
+- [ ] Update frontend checkout flow in `plans.tsx`
+- [ ] Update frontend credit purchase in `portal.tsx`
+- [ ] Test with Paddle sandbox environment
+- [ ] Document webhook URL for production
+- **Files**: `app/Http/Controllers/SubscriptionController.php`, new `Invoice.php` model
+- **Guide**: Follow `PADDLE_INTEGRATION.md` (all 10 steps)
+- **Priority**: HIGHEST - Users cannot pay without this
+
+### 2. Comprehensive Testing Suite
+- [ ] Create Feature tests for Projects
+  - [ ] `tests/Feature/ProjectTest.php` (CRUD operations)
+  - [ ] `tests/Feature/ProjectAuthorizationTest.php` (policies)
+- [ ] Create Feature tests for Wizards
+  - [ ] `tests/Feature/Wizards/CSVWizardTest.php`
+  - [ ] `tests/Feature/Wizards/ImagesWizardTest.php`
+  - [ ] `tests/Feature/Wizards/TextWizardTest.php`
+- [ ] Create Feature tests for Images
+  - [ ] `tests/Feature/ImageOperationsTest.php` (bulk delete, download)
+- [ ] Create Feature tests for Admin
+  - [ ] `tests/Feature/Admin/UserManagementTest.php`
+  - [ ] `tests/Feature/Admin/UsageMonitoringTest.php`
+- [ ] Create Feature tests for Subscription
+  - [ ] `tests/Feature/SubscriptionTest.php`
+  - [ ] `tests/Feature/BillingTest.php`
+- [ ] Create Unit tests for Jobs
+  - [ ] `tests/Unit/Jobs/GenerateSingleImageJobTest.php`
+  - [ ] `tests/Unit/Jobs/GenerateBatchImagesJobTest.php`
+  - [ ] `tests/Unit/Jobs/AnalyzeBrandStyleJobTest.php`
+- [ ] Create Unit tests for Services
+  - [ ] `tests/Unit/Services/FileUploadServiceTest.php`
+  - [ ] `tests/Unit/Services/GoogleGeminiServiceTest.php`
+- [ ] Aim for 70%+ code coverage
+- **Priority**: CRITICAL - No confidence in changes without tests
+
+### 3. Error Handling & User Feedback
+- [ ] Add global React error boundary to `app.tsx`
+- [ ] Add error boundary to wizard pages
+- [ ] Add error boundary to canvas editor
+- [ ] Improve form validation error display in wizards
+- [ ] Add retry mechanism for failed AI jobs
+- [ ] Add user-friendly error messages for all API failures
+- [ ] Log all errors to monitoring service (prepare for Sentry)
+- **Priority**: CRITICAL - Users need to understand failures
+
+### 4. Cloud Storage Configuration (S3)
+- [ ] Install AWS SDK (`composer require aws/aws-sdk-php`)
+- [ ] Add S3 credentials to `.env`
+- [ ] Configure S3 disk in `config/filesystems.php`
+- [ ] Update `FileUploadService` to use S3 in production
+- [ ] Add image URL signing for private images
+- [ ] Test upload/download/delete operations
+- [ ] Document storage migration process
+- **Priority**: HIGH - Local storage won't scale
+
+---
+
+## 🟡 **PRE-LAUNCH REQUIREMENTS**
+
+### 5. Security Hardening
+- [ ] Audit all POST routes for CSRF protection
+- [ ] Add XSS prevention for user-generated content (project titles, descriptions)
+- [ ] Implement file upload virus scanning (ClamAV integration)
+- [ ] Require 2FA for admin panel access
+- [ ] Add rate limiting to all sensitive endpoints
+- [ ] Implement IP blocking for abuse
+- [ ] Add security headers (CSP, HSTS, X-Frame-Options)
+- [ ] Document security best practices
+- **Priority**: HIGH - Prevent security breaches
+
+### 6. Performance Optimization
+- [ ] Fix N+1 queries in `DashboardController::index()`
+- [ ] Add eager loading for project relationships
+- [ ] Implement query result caching (5-minute cache)
+- [ ] Add Redis for session/cache storage
+- [ ] Optimize image queries (select only needed columns)
+- [ ] Add database indexes where missing
+- [ ] Implement image lazy loading in project grids
+- [ ] Set up CDN for static assets (CloudFlare)
+- [ ] Enable Gzip compression
+- [ ] Minify CSS/JS in production
+- **Priority**: HIGH - Poor performance = lost users
+
+### 7. Email Notifications
+- [ ] Configure mail driver (SMTP, SES, etc.)
+- [ ] Create mail templates with Blade
+- [ ] Send email on project creation
+- [ ] Send email when generation completes
+- [ ] Send low-credit warning email (< 20%)
+- [ ] Send payment receipt after purchase
+- [ ] Send subscription renewal reminder
+- [ ] Send failed payment notification
+- [ ] Add unsubscribe mechanism
+- [ ] Test all email flows
+- **Priority**: HIGH - Users need to know job status
+
+### 8. Production Deployment Guide
+- [ ] Document server requirements (PHP 8.2, MySQL 8, Redis)
+- [ ] Create `.env.production` example
+- [ ] Document environment variable setup
+- [ ] Document queue worker configuration (Supervisor)
+- [ ] Document cron job setup (schedule:run)
+- [ ] Document database migration process
+- [ ] Document asset compilation (npm run build)
+- [ ] Document SSL certificate setup
+- [ ] Document backup strategy
+- [ ] Create deployment checklist
+- **Priority**: HIGH - Can't deploy without this
+
+---
+
+## 🟢 **POST-LAUNCH IMPROVEMENTS**
+
+### 9. Analytics & Monitoring
+- [ ] Set up error tracking (Sentry)
+- [ ] Add usage analytics (Plausible or Google Analytics)
+- [ ] Track conversion funnel (signup → paid)
+- [ ] Monitor API performance (query times, job durations)
+- [ ] Set up uptime monitoring (Pingdom, UptimeRobot)
+- [ ] Create admin analytics dashboard
+- [ ] Track feature usage metrics
+- **Priority**: MEDIUM
+
+### 10. Mobile Optimization
+- [ ] Make wizards fully mobile-responsive
+- [ ] Create mobile-friendly canvas editor (view-only)
+- [ ] Optimize image grids for small screens
+- [ ] Test on iOS Safari and Android Chrome
+- [ ] Add touch gesture support where needed
+- [ ] Optimize bundle size for mobile
+- **Priority**: MEDIUM
+
+### 11. Accessibility (A11y)
+- [ ] Add ARIA labels to all interactive elements
+- [ ] Implement keyboard navigation in canvas editor
+- [ ] Test with screen readers (NVDA, JAWS)
+- [ ] Add alt text generation for AI images
+- [ ] Ensure color contrast meets WCAG AA
+- [ ] Add focus indicators on all focusable elements
+- [ ] Test keyboard-only navigation
+- **Priority**: MEDIUM
+
+### 12. Advanced Features
+- [ ] Add project templates/duplication
+- [ ] Implement bulk project operations
+- [ ] Add undo/redo in canvas editor
+- [ ] Create image comparison view
+- [ ] Add project sharing/collaboration
+- [ ] Implement keyboard shortcuts
+- [ ] Add export to multiple formats (PDF, SVG)
+- [ ] Create API for third-party integrations
+- **Priority**: LOW - Nice to have
 
 ---
 

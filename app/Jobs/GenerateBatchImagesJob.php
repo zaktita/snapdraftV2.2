@@ -51,35 +51,9 @@ class GenerateBatchImagesJob implements ShouldQueue
                 $jobs[] = $job;
             }
 
-            // Dispatch batch of jobs
+            // Dispatch batch of jobs without callbacks (to avoid closure serialization issues)
             Bus::batch($jobs)
                 ->name('Batch Generation - Project ' . $this->project->id)
-                ->then(function (Batch $batch) {
-                    Log::info('Batch generation completed', [
-                        'project_id' => $this->project->id,
-                        'batch_id' => $batch->id,
-                    ]);
-
-                    // Update project settings
-                    $this->project->update([
-                        'settings' => array_merge($this->project->settings ?? [], [
-                            'batch_completed_at' => now()->toIso8601String(),
-                        ]),
-                    ]);
-                })
-                ->catch(function (Batch $batch, \Throwable $e) {
-                    Log::error('Batch generation failed', [
-                        'project_id' => $this->project->id,
-                        'batch_id' => $batch->id,
-                        'error' => $e->getMessage(),
-                    ]);
-                })
-                ->finally(function (Batch $batch) {
-                    Log::info('Batch generation finished', [
-                        'project_id' => $this->project->id,
-                        'batch_id' => $batch->id,
-                    ]);
-                })
                 ->dispatch();
 
             Log::info('Batch jobs dispatched', [

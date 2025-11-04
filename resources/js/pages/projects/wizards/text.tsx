@@ -1,6 +1,7 @@
 import { Head, Link, router } from '@inertiajs/react';
 import { ArrowLeft, ArrowRight, Upload, X, Zap, ChevronDown } from 'lucide-react';
 import { useState, useRef, ChangeEvent } from 'react';
+import text from '@/routes/projects/wizards/text';
 
 const formatOptions = [
     { value: 'instagram-post', label: 'Instagram Post (1080x1080)' },
@@ -20,6 +21,7 @@ export default function TextWizard() {
     const [selectedFormat, setSelectedFormat] = useState('');
     const [styleImages, setStyleImages] = useState<string[]>([]);
     const [styleImageFiles, setStyleImageFiles] = useState<File[]>([]);
+    const [isSubmitting, setIsSubmitting] = useState(false);
     
     const imageInputRef = useRef<HTMLInputElement>(null);
 
@@ -66,7 +68,10 @@ export default function TextWizard() {
             setCurrentStep(currentStep + 1);
         } else {
             // Submit to backend
-            if (!projectName.trim() || !ideaDescription.trim()) return;
+            if (!projectName.trim() || !ideaDescription.trim() || isSubmitting) return;
+            
+            setIsSubmitting(true);
+            
             const fd = new FormData();
             fd.append('project_name', projectName.trim());
             fd.append('idea_description', ideaDescription.trim());
@@ -74,9 +79,10 @@ export default function TextWizard() {
             // reference images optional (max 5)
             styleImageFiles.slice(0, 5).forEach((f) => fd.append('reference_images[]', f));
 
-            router.post('/projects/wizards/text', fd, {
+            router.post(text.store.url(), fd, {
                 forceFormData: true,
                 preserveScroll: true,
+                onError: () => setIsSubmitting(false),
             });
         }
     };
@@ -454,13 +460,13 @@ export default function TextWizard() {
                         </button>
                         <button 
                             onClick={nextStep}
-                            disabled={!canProceed()}
+                            disabled={!canProceed() || isSubmitting}
                             style={{
                                 padding: '10px 24px',
                                 borderRadius: '8px',
                                 fontSize: '14px',
                                 fontWeight: 500,
-                                cursor: !canProceed() ? 'not-allowed' : 'pointer',
+                                cursor: !canProceed() || isSubmitting ? 'not-allowed' : 'pointer',
                                 transition: 'all 0.2s ease-out',
                                 display: 'inline-flex',
                                 alignItems: 'center',
@@ -468,12 +474,12 @@ export default function TextWizard() {
                                 background: '#1a1a1a',
                                 color: 'white',
                                 border: '1px solid #1a1a1a',
-                                opacity: !canProceed() ? 0.5 : 1
+                                opacity: !canProceed() || isSubmitting ? 0.5 : 1
                             }}
                         >
                             {currentStep === 3 ? (
                                 <>
-                                    Start Generation
+                                    {isSubmitting ? 'Starting Generation...' : 'Start Generation'}
                                     <Zap size={16} />
                                 </>
                             ) : (

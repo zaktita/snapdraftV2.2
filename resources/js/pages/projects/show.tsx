@@ -8,6 +8,14 @@ import { Head, Link, router } from '@inertiajs/react';
 import { ArrowLeft, Star, Download, MoreHorizontal, BoxSelect, Square, SquareCheck, Edit, Maximize, RotateCw, Share, Trash2, Check, Plus } from 'lucide-react';
 import { useState, useRef, useEffect } from 'react';
 
+interface Image {
+    id: number;
+    url: string;
+    thumbnail_url: string;
+    prompt?: string;
+    is_favorite?: boolean;
+}
+
 interface Project {
     id: number;
     title: string;
@@ -17,6 +25,7 @@ interface Project {
     is_favorite: boolean;
     description?: string;
     featured_image?: string;
+    images: Image[];
 }
 
 interface ProjectShowProps {
@@ -86,14 +95,6 @@ export default function ProjectShow({ project }: ProjectShowProps) {
         },
     ];
 
-    const sampleImages = [
-        'https://images.unsplash.com/photo-1541701494587-cb58502866ab?w=400&h=300&fit=crop',
-        'https://images.unsplash.com/photo-1497366216548-37526070297c?w=400&h=300&fit=crop',
-        'https://images.unsplash.com/photo-1497366412874-3415097a27e7?w=400&h=300&fit=crop',
-        'https://images.unsplash.com/photo-1541701494587-cb58502866ab?w=400&h=300&fit=crop',
-        'https://images.unsplash.com/photo-1497366216548-37526070297c?w=400&h=300&fit=crop',
-    ];
-
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
             <Head title={project.title} />
@@ -121,14 +122,14 @@ export default function ProjectShow({ project }: ProjectShowProps) {
                                 className="gap-2 border hover:bg-gray-100"
                                 style={{ borderColor: '#E0E0E0', color: '#333333', minWidth: '125px' }}
                                 onClick={() => {
-                                    if (selectedImages.length === sampleImages.length) {
+                                    if (selectedImages.length === project.images.length) {
                                         setSelectedImages([]);
                                     } else {
-                                        setSelectedImages(sampleImages.map((_, idx) => idx));
+                                        setSelectedImages(project.images.map((_, idx) => idx));
                                     }
                                 }}
                             >
-                                {selectedImages.length === sampleImages.length ? (
+                                {selectedImages.length === project.images.length ? (
                                     <>
                                         <Square className="size-4" />
                                         Deselect All
@@ -159,9 +160,9 @@ export default function ProjectShow({ project }: ProjectShowProps) {
                                     
                                     // Download each selected image and add to zip
                                     const promises = selectedImages.map(async (index) => {
-                                        const imageUrl = sampleImages[index];
+                                        const image = project.images[index];
                                         try {
-                                            const response = await fetch(imageUrl);
+                                            const response = await fetch(image.url);
                                             const blob = await response.blob();
                                             const filename = `${project.title}_image_${index + 1}.jpg`;
                                             zip.file(filename, blob);
@@ -240,29 +241,30 @@ export default function ProjectShow({ project }: ProjectShowProps) {
                     </div>
 
                     {/* Images Grid */}
-                    <div className="grid grid-cols-5 gap-4">
-                        {sampleImages.map((imageUrl, index) => {
-                            const isSelected = selectedImages.includes(index);
-                            const isFavorite = favoriteImages.includes(index);
-                            
-                            return (
-                                <div
-                                    key={index}
-                                    className="group relative aspect-square overflow-hidden bg-gray-100 cursor-pointer"
-                                    style={{ borderRadius: '12px' }}
-                                    onClick={() => {
-                                        setSelectedImages(prev => 
-                                            prev.includes(index) 
-                                                ? prev.filter(i => i !== index)
-                                                : [...prev, index]
-                                        );
-                                    }}
-                                >
-                                    <img
-                                        src={imageUrl}
-                                        alt={`${project.title} - Image ${index + 1}`}
-                                        className="h-full w-full object-cover"
-                                    />
+                    {project.images.length > 0 ? (
+                        <div className="grid grid-cols-5 gap-4">
+                            {project.images.map((image, index) => {
+                                const isSelected = selectedImages.includes(index);
+                                const isFavorite = favoriteImages.includes(index);
+                                
+                                return (
+                                    <div
+                                        key={image.id}
+                                        className="group relative aspect-square overflow-hidden bg-gray-100 cursor-pointer"
+                                        style={{ borderRadius: '12px' }}
+                                        onClick={() => {
+                                            setSelectedImages(prev => 
+                                                prev.includes(index) 
+                                                    ? prev.filter(i => i !== index)
+                                                    : [...prev, index]
+                                            );
+                                        }}
+                                    >
+                                        <img
+                                            src={image.thumbnail_url}
+                                            alt={image.prompt || `${project.title} - Image ${index + 1}`}
+                                            className="h-full w-full object-cover"
+                                        />
                                     
                                     {/* Selection Indicator - Always visible when selected */}
                                     {isSelected && (
@@ -312,7 +314,7 @@ export default function ProjectShow({ project }: ProjectShowProps) {
                                             onClick={(e) => {
                                                 e.stopPropagation();
                                                 // Open canvas editor with image
-                                                const encodedImageUrl = encodeURIComponent(imageUrl);
+                                                const encodedImageUrl = encodeURIComponent(image.url);
                                                 const encodedTitle = encodeURIComponent(project.title);
                                                 router.visit(`/canvas-editor?projectId=${project.id}&image=${encodedImageUrl}&title=${encodedTitle}`);
                                             }}
@@ -346,6 +348,19 @@ export default function ProjectShow({ project }: ProjectShowProps) {
                             );
                         })}
                     </div>
+                    ) : (
+                        <div className="flex flex-col items-center justify-center py-16 text-center">
+                            <p className="text-gray-500 mb-4">No images generated yet.</p>
+                            <Button
+                                onClick={handleGenerateMore}
+                                className="gap-2"
+                                style={{ backgroundColor: '#1a1a1a', color: '#ffffff', border: 'none' }}
+                            >
+                                <Plus className="size-4" />
+                                Generate Images
+                            </Button>
+                        </div>
+                    )}
                 </div>
             </div>
         </AppLayout>

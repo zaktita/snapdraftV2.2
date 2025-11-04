@@ -8,14 +8,18 @@ use Illuminate\Support\Facades\Storage;
 
 class GoogleGeminiService implements AIServiceInterface
 {
-    protected string $apiKey;
-    protected string $model = 'gemini-2.0-flash-exp';
+    protected ?string $apiKey;
+    // Text/analysis model
+    protected string $textModel = 'gemini-2.0-flash-exp';
+    // Image generation model (from server.js.example)
+    protected string $imageModel = 'gemini-2.5-flash-image';
     protected string $baseUrl = 'https://generativelanguage.googleapis.com/v1beta';
 
     public function __construct()
     {
-        $this->apiKey = config('services.gemini.api_key', '');
-        $this->model = config('services.gemini.model', 'gemini-2.0-flash-exp');
+        $this->apiKey = config('services.gemini.api_key');
+        $this->textModel = config('services.gemini.model', 'gemini-2.0-flash-exp');
+        $this->imageModel = config('services.gemini.image_model', 'gemini-2.5-flash-image');
     }
 
     /**
@@ -36,8 +40,8 @@ class GoogleGeminiService implements AIServiceInterface
                 $imageData = $this->fileToBase64($imagePath);
                 if ($imageData) {
                     $imageParts[] = [
-                        'inline_data' => [
-                            'mime_type' => $imageData['mime_type'],
+                        'inlineData' => [
+                            'mimeType' => $imageData['mime_type'],
                             'data' => $imageData['data']
                         ]
                     ];
@@ -68,8 +72,8 @@ class GoogleGeminiService implements AIServiceInterface
             ];
 
             // Call Gemini API
-            $response = Http::timeout(60)
-                ->post("{$this->baseUrl}/models/{$this->model}:generateContent?key={$this->apiKey}", [
+            $response = $this->http()->timeout(60)
+                ->post("{$this->baseUrl}/models/{$this->textModel}:generateContent?key={$this->apiKey}", [
                     'contents' => $contents,
                     'generationConfig' => [
                         'temperature' => 0.4,
@@ -113,7 +117,7 @@ class GoogleGeminiService implements AIServiceInterface
 
             // Add metadata
             $styleData['analyzed_at'] = now()->toIso8601String();
-            $styleData['model'] = $this->model;
+            $styleData['model'] = $this->textModel;
 
             Log::info('Brand analysis completed', ['style' => $styleData]);
 
@@ -155,7 +159,9 @@ class GoogleGeminiService implements AIServiceInterface
         string $format = 'square'
     ): array {
         if (!$this->isAvailable()) {
-            throw new \Exception('Google Gemini API is not configured');
+            // Generate a test/placeholder image when API is not configured
+            Log::warning('Google Gemini API not configured, generating placeholder image');
+            return $this->generatePlaceholderImage($prompt, $format);
         }
 
         Log::info('Generating image with Style Mirror approach', [
@@ -165,8 +171,8 @@ class GoogleGeminiService implements AIServiceInterface
         ]);
 
         try {
-            // Use image generation model
-            $imageModel = 'gemini-2.0-flash-exp';
+            // Use image generation model (matches server.js.example)
+            $imageModel = $this->imageModel;
 
             // Convert reference images to base64 (up to 5)
             $referenceImageParts = [];
@@ -174,8 +180,8 @@ class GoogleGeminiService implements AIServiceInterface
                 $imageData = $this->fileToBase64($imagePath);
                 if ($imageData) {
                     $referenceImageParts[] = [
-                        'inline_data' => [
-                            'mime_type' => $imageData['mime_type'],
+                        'inlineData' => [
+                            'mimeType' => $imageData['mime_type'],
                             'data' => $imageData['data']
                         ]
                     ];
@@ -189,8 +195,8 @@ class GoogleGeminiService implements AIServiceInterface
                 $imageData = $this->fileToBase64($imagePath);
                 if ($imageData) {
                     $productImageParts[] = [
-                        'inline_data' => [
-                            'mime_type' => $imageData['mime_type'],
+                        'inlineData' => [
+                            'mimeType' => $imageData['mime_type'],
                             'data' => $imageData['data']
                         ]
                     ];
@@ -199,12 +205,12 @@ class GoogleGeminiService implements AIServiceInterface
                 }
             }
 
-            // Build the generation prompt (matching your Node.js logic)
-            $fullPrompt = "generate a creative visual for this caption: {$prompt}\n\n";
-            $fullPrompt .= "keep the branding, colors and style similar to the reference images\n";
+            // Build the generation prompt (adapted from server.js.example)
+            $fullPrompt = "generate a creative visual for this caption : {$prompt}\n\n";
+            $fullPrompt .= "keep the branding, colors and style similar the reference images\n";
             $fullPrompt .= "keep the text to a minimum on the visual.\n";
             $fullPrompt .= "no need to include the caption text on the image.\n";
-            $fullPrompt .= "make sure any text is correct and properly spelled.";
+            $fullPrompt .= "make sure the text is correct and properly spelled.";
 
             if (!empty($productNames)) {
                 if (count($productNames) === 1) {
@@ -226,7 +232,7 @@ class GoogleGeminiService implements AIServiceInterface
 
             // Call Gemini API
             $startTime = microtime(true);
-            $response = Http::timeout(120)
+            $response = $this->http()->timeout(120)
                 ->post("{$this->baseUrl}/models/{$imageModel}:generateContent?key={$this->apiKey}", [
                     'contents' => [
                         [
@@ -253,9 +259,9 @@ class GoogleGeminiService implements AIServiceInterface
             // Extract generated image
             if (isset($result['candidates'][0]['content']['parts'])) {
                 foreach ($result['candidates'][0]['content']['parts'] as $part) {
-                    if (isset($part['inline_data']['data'])) {
-                        $imageBase64 = $part['inline_data']['data'];
-                        $mimeType = $part['inline_data']['mime_type'];
+                    if (isset($part['inlineData']['data'])) {
+                        $imageBase64 = $part['inlineData']['data'];
+                        $mimeType = $part['inlineData']['mimeType'];
 
                         Log::info('Image generated successfully', [
                             'size_kb' => strlen($imageBase64) / 1024,
@@ -331,4 +337,137 @@ class GoogleGeminiService implements AIServiceInterface
     {
         return !empty($this->apiKey);
     }
+
+    /**
+     * Generate a placeholder image for testing when API is not configured.
+     */
+    protected function generatePlaceholderImage(string $prompt, string $format): array
+    {
+        // Determine image dimensions based on format
+        $dimensions = match($format) {
+            'square' => ['width' => 1080, 'height' => 1080],
+            'portrait' => ['width' => 1080, 'height' => 1350],
+            'landscape' => ['width' => 1200, 'height' => 628],
+            'story' => ['width' => 1080, 'height' => 1920],
+            default => ['width' => 1080, 'height' => 1080],
+        };
+
+        // Create a simple colored rectangle as placeholder
+        $image = imagecreatetruecolor($dimensions['width'], $dimensions['height']);
+        
+        // Set a gradient-like background
+        $colors = [
+            imagecolorallocate($image, 66, 135, 245),  // Blue
+            imagecolorallocate($image, 99, 102, 241),  // Indigo
+            imagecolorallocate($image, 139, 92, 246),  // Purple
+        ];
+        
+        $colorIndex = abs(crc32($prompt)) % count($colors);
+        $bgColor = $colors[$colorIndex];
+        imagefilledrectangle($image, 0, 0, $dimensions['width'], $dimensions['height'], $bgColor);
+        
+        // Add text overlay
+        $white = imagecolorallocate($image, 255, 255, 255);
+        $textColor = $white;
+        
+        // Add "TEST MODE" watermark
+        $fontSize = 24;
+        $testText = "TEST MODE - Configure GEMINI_API_KEY";
+        imagettftext($image, $fontSize, 0, 50, 80, $textColor, $this->getSystemFont(), $testText);
+        
+        // Add prompt text (wrapped)
+        $promptLines = $this->wrapText($prompt, 40);
+        $y = 180;
+        foreach ($promptLines as $line) {
+            imagettftext($image, 32, 0, 50, $y, $textColor, $this->getSystemFont(), $line);
+            $y += 50;
+        }
+        
+        // Add format info
+        $formatText = "Format: {$format} ({$dimensions['width']}x{$dimensions['height']})";
+        imagettftext($image, 18, 0, 50, $dimensions['height'] - 50, $textColor, $this->getSystemFont(), $formatText);
+        
+        // Convert to PNG
+        ob_start();
+        imagepng($image);
+        $imageData = ob_get_clean();
+        imagedestroy($image);
+        
+        return [
+            'image_data' => base64_encode($imageData),
+            'mime_type' => 'image/png',
+            'model' => 'placeholder-generator',
+            'metadata' => [
+                'is_placeholder' => true,
+                'prompt' => $prompt,
+                'format' => $format,
+                'tokens_used' => 0,
+                'dimensions' => $dimensions,
+            ],
+        ];
+    }
+
+    /**
+     * Get system font path for placeholder text.
+     */
+    protected function getSystemFont(): string
+    {
+        // Try to find a system font
+        $fontPaths = [
+            'C:/Windows/Fonts/arial.ttf',
+            'C:/Windows/Fonts/Arial.ttf',
+            '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf',
+            '/System/Library/Fonts/Helvetica.ttc',
+        ];
+
+        foreach ($fontPaths as $path) {
+            if (file_exists($path)) {
+                return $path;
+            }
+        }
+
+        // Fallback: use GD's built-in font (will be ignored by imagettftext, so we'd need imagestring)
+        return '';
+    }
+
+    /**
+     * Wrap text to fit within a certain width.
+     */
+    protected function wrapText(string $text, int $maxChars): array
+    {
+        $words = explode(' ', $text);
+        $lines = [];
+        $currentLine = '';
+
+        foreach ($words as $word) {
+            if (strlen($currentLine . ' ' . $word) <= $maxChars) {
+                $currentLine .= ($currentLine ? ' ' : '') . $word;
+            } else {
+                if ($currentLine) {
+                    $lines[] = $currentLine;
+                }
+                $currentLine = $word;
+            }
+        }
+
+        if ($currentLine) {
+            $lines[] = $currentLine;
+        }
+
+        return array_slice($lines, 0, 5); // Limit to 5 lines
+    }
+
+    /**
+     * HTTP client with dev-friendly SSL settings on Windows/Laragon.
+     */
+    protected function http()
+    {
+        $client = Http::acceptJson();
+        // On non-production environments, disable SSL verify to avoid local CA issues
+        if (config('app.env') !== 'production') {
+            $client = $client->withOptions(['verify' => false]);
+        }
+        return $client;
+    }
 }
+

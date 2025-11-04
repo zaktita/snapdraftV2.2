@@ -6,6 +6,7 @@ use App\Models\GenerationHistory;
 use App\Models\Project;
 use App\Services\AI\AIServiceManager;
 use App\Services\FileUploadService;
+use Illuminate\Bus\Batchable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Support\Facades\Log;
@@ -14,7 +15,7 @@ use Intervention\Image\Laravel\Facades\Image as InterventionImage;
 
 class GenerateSingleImageJob implements ShouldQueue
 {
-    use Queueable;
+    use Batchable, Queueable;
 
     /**
      * Create a new job instance.

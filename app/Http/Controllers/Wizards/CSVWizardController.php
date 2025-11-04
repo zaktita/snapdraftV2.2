@@ -8,6 +8,7 @@ use App\Models\Project;
 use App\Services\FileUploadService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
 
@@ -22,7 +23,7 @@ class CSVWizardController extends Controller
      */
     public function store(Request $request)
     {
-        $this->authorize('create', Project::class);
+        Gate::authorize('create', Project::class);
 
         $validated = $request->validate([
             'project_name' => 'required|string|max:255',

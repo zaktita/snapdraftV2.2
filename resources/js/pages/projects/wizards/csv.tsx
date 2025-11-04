@@ -1,6 +1,7 @@
 import { Head, Link, router } from '@inertiajs/react';
-import { ArrowLeft, ArrowRight, FileText, Grid, Image as ImageIcon, Upload, X, Clock, AlertCircle, Zap } from 'lucide-react';
+import { ArrowLeft, ArrowRight, FileText, Grid, Image as ImageIcon, Upload, X, Clock, AlertCircle, Zap, Plus, Trash2, Edit3 } from 'lucide-react';
 import { useState, useRef, DragEvent, ChangeEvent } from 'react';
+import csv from '@/routes/projects/wizards/csv';
 
 interface CSVRow {
     [key: string]: string;
@@ -9,6 +10,8 @@ interface CSVRow {
 interface ColumnMapping {
     [key: string]: string;
 }
+
+type UploadMode = 'upload' | 'create';
 
 const stepContent = {
     1: {
@@ -43,6 +46,10 @@ export default function CSVWizard() {
     const [fileName, setFileName] = useState('');
     const [uploadComplete, setUploadComplete] = useState(false);
     const [dragOver, setDragOver] = useState(false);
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [uploadMode, setUploadMode] = useState<UploadMode>('upload');
+    const [editableData, setEditableData] = useState<CSVRow[]>([]);
+    const [editableHeaders, setEditableHeaders] = useState<string[]>(['title', 'description', 'format']);
     
     const csvInputRef = useRef<HTMLInputElement>(null);
     const imageInputRef = useRef<HTMLInputElement>(null);
@@ -132,6 +139,106 @@ export default function CSVWizard() {
         }
     };
 
+    // CSV cell editing
+    const updateCellValue = (rowIndex: number, header: string, value: string) => {
+        const newData = [...csvData];
+        newData[rowIndex][header] = value;
+        setCsvData(newData);
+        
+        // Regenerate CSV file
+        const headers = Object.keys(csvData[0]);
+        const csvContent = [
+            headers.join(','),
+            ...newData.map(row => headers.map(h => `"${row[h] || ''}"`).join(','))
+        ].join('\n');
+        const blob = new Blob([csvContent], { type: 'text/csv' });
+        const file = new File([blob], fileName || 'edited.csv', { type: 'text/csv' });
+        setCsvFile(file);
+    };
+
+    // CSV Creator functions
+    const addRow = () => {
+        const newRow: CSVRow = {};
+        editableHeaders.forEach(header => {
+            newRow[header] = '';
+        });
+        setEditableData([...editableData, newRow]);
+    };
+
+    const removeRow = (index: number) => {
+        setEditableData(editableData.filter((_, i) => i !== index));
+    };
+
+    const updateCell = (rowIndex: number, header: string, value: string) => {
+        const newData = [...editableData];
+        newData[rowIndex][header] = value;
+        setEditableData(newData);
+    };
+
+    const addColumn = () => {
+        const newHeader = `column_${editableHeaders.length + 1}`;
+        setEditableHeaders([...editableHeaders, newHeader]);
+        setEditableData(editableData.map(row => ({ ...row, [newHeader]: '' })));
+    };
+
+    const removeColumn = (header: string) => {
+        if (editableHeaders.length <= 1) return;
+        setEditableHeaders(editableHeaders.filter(h => h !== header));
+        setEditableData(editableData.map(row => {
+            const newRow = { ...row };
+            delete newRow[header];
+            return newRow;
+        }));
+    };
+
+    const updateHeaderName = (oldHeader: string, newHeader: string) => {
+        if (!newHeader.trim() || editableHeaders.includes(newHeader)) return;
+        setEditableHeaders(editableHeaders.map(h => h === oldHeader ? newHeader : h));
+        setEditableData(editableData.map(row => {
+            const newRow = { ...row };
+            newRow[newHeader] = newRow[oldHeader];
+            delete newRow[oldHeader];
+            return newRow;
+        }));
+    };
+
+    const confirmCSVEditor = () => {
+        if (editableData.length === 0) return;
+        
+        setCsvData(editableData.slice(0, 5));
+        setFileName('Custom CSV');
+        
+        const mappings: ColumnMapping = {};
+        editableHeaders.forEach(header => {
+            const lower = header.toLowerCase();
+            if (lower.includes('title') || lower.includes('name')) {
+                mappings[header] = 'Product Title';
+            } else if (lower.includes('description') || lower.includes('prompt')) {
+                mappings[header] = 'Image Prompt';
+            } else if (lower.includes('format')) {
+                mappings[header] = 'Product ID';
+            } else {
+                mappings[header] = 'Ignore this column';
+            }
+        });
+        setColumnMappings(mappings);
+        
+        setSelectedRows(new Set(editableData.slice(0, 5).map((_, index) => index)));
+        
+        const csvContent = [
+            editableHeaders.join(','),
+            ...editableData.slice(0, 5).map(row => 
+                editableHeaders.map(h => `"${row[h] || ''}"`).join(',')
+            )
+        ].join('\n');
+        
+        const blob = new Blob([csvContent], { type: 'text/csv' });
+        const file = new File([blob], 'custom.csv', { type: 'text/csv' });
+        setCsvFile(file);
+        
+        setUploadComplete(true);
+    };
+
     // Handle image upload
     const handleImageUpload = (e: ChangeEvent<HTMLInputElement>) => {
         const files = e.target.files;
@@ -187,6 +294,9 @@ export default function CSVWizard() {
 
         if (!csvFile) return;
         if (styleImageFiles.length < 5) return;
+        if (isSubmitting) return;
+
+        setIsSubmitting(true);
 
         const fd = new FormData();
         fd.append('project_name', name);
@@ -194,9 +304,10 @@ export default function CSVWizard() {
         styleImageFiles.slice(0, 10).forEach((f) => fd.append('reference_images[]', f));
         // product_images optional: skip for now
 
-        router.post('/projects/wizards/csv', fd, {
+        router.post(csv.store.url(), fd, {
             forceFormData: true,
             preserveScroll: true,
+            onError: () => setIsSubmitting(false),
         });
     };
 
@@ -360,39 +471,274 @@ export default function CSVWizard() {
                             <div style={{ animation: 'fadeIn 0.3s ease' }}>
                                 {!uploadComplete ? (
                                     <>
-                                        <div 
-                                            onClick={() => csvInputRef.current?.click()}
-                                            onDragOver={handleDragOver}
-                                            onDragLeave={handleDragLeave}
-                                            onDrop={handleDrop}
-                                            style={{
-                                                border: '2px dashed #e5e7eb',
-                                                borderRadius: '12px',
-                                                padding: '60px 40px',
-                                                textAlign: 'center',
-                                                cursor: 'pointer',
-                                                transition: 'all 0.2s ease-out',
-                                                background: dragOver ? '#e5e5e5' : '#F7F7F5',
-                                                borderColor: dragOver ? '#1a1a1a' : '#e5e7eb'
-                                            }}
-                                        >
-                                            <div style={{ marginBottom: '20px' }}>
-                                                <Upload style={{ width: '64px', height: '64px', strokeWidth: 1.5, color: '#9b9a97', margin: '0 auto' }} />
-                                            </div>
-                                            <div style={{ fontSize: '16px', fontWeight: 500, color: '#373737', marginBottom: '8px' }}>
-                                                Drag & drop your CSV file here, or click to upload
-                                            </div>
-                                            <div style={{ fontSize: '14px', color: '#787774' }}>
-                                                Maximum 5 rows for bulk generation
-                                            </div>
+                                        {/* Tab Switcher */}
+                                        <div style={{
+                                            display: 'flex',
+                                            gap: '8px',
+                                            marginBottom: '24px',
+                                            borderBottom: '1px solid #e5e7eb',
+                                            paddingBottom: '0'
+                                        }}>
+                                            <button
+                                                onClick={() => setUploadMode('upload')}
+                                                style={{
+                                                    padding: '12px 20px',
+                                                    fontSize: '14px',
+                                                    fontWeight: 500,
+                                                    background: 'transparent',
+                                                    border: 'none',
+                                                    borderBottom: uploadMode === 'upload' ? '2px solid #1a1a1a' : '2px solid transparent',
+                                                    color: uploadMode === 'upload' ? '#1a1a1a' : '#9b9a97',
+                                                    cursor: 'pointer',
+                                                    transition: 'all 0.2s ease'
+                                                }}
+                                            >
+                                                <Upload size={16} style={{ display: 'inline', marginRight: '6px', verticalAlign: 'middle' }} />
+                                                Upload CSV
+                                            </button>
+                                            <button
+                                                onClick={() => {
+                                                    setUploadMode('create');
+                                                    if (editableData.length === 0) {
+                                                        const initialRows = Array(3).fill(null).map(() => {
+                                                            const row: CSVRow = {};
+                                                            editableHeaders.forEach(h => row[h] = '');
+                                                            return row;
+                                                        });
+                                                        setEditableData(initialRows);
+                                                    }
+                                                }}
+                                                style={{
+                                                    padding: '12px 20px',
+                                                    fontSize: '14px',
+                                                    fontWeight: 500,
+                                                    background: 'transparent',
+                                                    border: 'none',
+                                                    borderBottom: uploadMode === 'create' ? '2px solid #1a1a1a' : '2px solid transparent',
+                                                    color: uploadMode === 'create' ? '#1a1a1a' : '#9b9a97',
+                                                    cursor: 'pointer',
+                                                    transition: 'all 0.2s ease'
+                                                }}
+                                            >
+                                                <Edit3 size={16} style={{ display: 'inline', marginRight: '6px', verticalAlign: 'middle' }} />
+                                                Create CSV
+                                            </button>
                                         </div>
-                                        <input 
-                                            ref={csvInputRef}
-                                            type="file" 
-                                            accept=".csv" 
-                                            onChange={handleFileInputChange}
-                                            style={{ display: 'none' }} 
-                                        />
+
+                                        {uploadMode === 'upload' ? (
+                                            <>
+                                                <div 
+                                                    onClick={() => csvInputRef.current?.click()}
+                                                    onDragOver={handleDragOver}
+                                                    onDragLeave={handleDragLeave}
+                                                    onDrop={handleDrop}
+                                                    style={{
+                                                        border: '2px dashed #e5e7eb',
+                                                        borderRadius: '12px',
+                                                        padding: '60px 40px',
+                                                        textAlign: 'center',
+                                                        cursor: 'pointer',
+                                                        transition: 'all 0.2s ease-out',
+                                                        background: dragOver ? '#e5e5e5' : '#F7F7F5',
+                                                        borderColor: dragOver ? '#1a1a1a' : '#e5e7eb'
+                                                    }}
+                                                >
+                                                    <div style={{ marginBottom: '20px' }}>
+                                                        <Upload style={{ width: '64px', height: '64px', strokeWidth: 1.5, color: '#9b9a97', margin: '0 auto' }} />
+                                                    </div>
+                                                    <div style={{ fontSize: '16px', fontWeight: 500, color: '#373737', marginBottom: '8px' }}>
+                                                        Drag & drop your CSV file here, or click to upload
+                                                    </div>
+                                                    <div style={{ fontSize: '14px', color: '#787774' }}>
+                                                        Maximum 5 rows for bulk generation
+                                                    </div>
+                                                </div>
+                                                <input 
+                                                    ref={csvInputRef}
+                                                    type="file" 
+                                                    accept=".csv" 
+                                                    onChange={handleFileInputChange}
+                                                    style={{ display: 'none' }} 
+                                                />
+                                            </>
+                                        ) : (
+                                            <div style={{
+                                                background: '#F7F7F5',
+                                                border: '1px solid #e5e7eb',
+                                                borderRadius: '12px',
+                                                padding: '20px'
+                                            }}>
+                                                <div style={{ marginBottom: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                                    <div style={{ fontSize: '13px', color: '#787774' }}>
+                                                        Create your data inline (max 5 rows)
+                                                    </div>
+                                                    <div style={{ display: 'flex', gap: '8px' }}>
+                                                        <button
+                                                            onClick={addColumn}
+                                                            disabled={editableHeaders.length >= 6}
+                                                            style={{
+                                                                padding: '6px 12px',
+                                                                fontSize: '13px',
+                                                                fontWeight: 500,
+                                                                background: '#ffffff',
+                                                                border: '1px solid #e5e7eb',
+                                                                borderRadius: '6px',
+                                                                color: '#373737',
+                                                                cursor: editableHeaders.length >= 6 ? 'not-allowed' : 'pointer',
+                                                                opacity: editableHeaders.length >= 6 ? 0.5 : 1
+                                                            }}
+                                                        >
+                                                            <Plus size={14} style={{ marginRight: '4px', display: 'inline', verticalAlign: 'middle' }} />
+                                                            Add Column
+                                                        </button>
+                                                        <button
+                                                            onClick={addRow}
+                                                            disabled={editableData.length >= 5}
+                                                            style={{
+                                                                padding: '6px 12px',
+                                                                fontSize: '13px',
+                                                                fontWeight: 500,
+                                                                background: '#1a1a1a',
+                                                                border: 'none',
+                                                                borderRadius: '6px',
+                                                                color: '#ffffff',
+                                                                cursor: editableData.length >= 5 ? 'not-allowed' : 'pointer',
+                                                                opacity: editableData.length >= 5 ? 0.5 : 1
+                                                            }}
+                                                        >
+                                                            <Plus size={14} style={{ marginRight: '4px', display: 'inline', verticalAlign: 'middle' }} />
+                                                            Add Row
+                                                        </button>
+                                                    </div>
+                                                </div>
+
+                                                <div style={{ overflowX: 'auto', background: '#ffffff', borderRadius: '8px', border: '1px solid #e5e7eb' }}>
+                                                    <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                                                        <thead style={{ background: '#fafafa' }}>
+                                                            <tr>
+                                                                <th style={{ padding: '12px 16px', textAlign: 'center', borderBottom: '1px solid #e5e7eb', width: '40px' }}>#</th>
+                                                                {editableHeaders.map((header) => (
+                                                                    <th key={header} style={{ padding: '12px 16px', textAlign: 'left', borderBottom: '1px solid #e5e7eb', minWidth: '200px' }}>
+                                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                                            <input
+                                                                                type="text"
+                                                                                value={header}
+                                                                                onChange={(e) => updateHeaderName(header, e.target.value)}
+                                                                                style={{
+                                                                                    flex: 1,
+                                                                                    fontSize: '13px',
+                                                                                    fontWeight: 600,
+                                                                                    padding: '4px 8px',
+                                                                                    border: '1px solid transparent',
+                                                                                    borderRadius: '4px',
+                                                                                    background: 'transparent',
+                                                                                    color: '#373737'
+                                                                                }}
+                                                                                onFocus={(e) => e.target.style.border = '1px solid #1a1a1a'}
+                                                                                onBlur={(e) => e.target.style.border = '1px solid transparent'}
+                                                                            />
+                                                                            {editableHeaders.length > 1 && (
+                                                                                <button
+                                                                                    onClick={() => removeColumn(header)}
+                                                                                    style={{
+                                                                                        padding: '4px',
+                                                                                        background: 'transparent',
+                                                                                        border: 'none',
+                                                                                        cursor: 'pointer',
+                                                                                        color: '#9b9a97'
+                                                                                    }}
+                                                                                >
+                                                                                    <X size={16} />
+                                                                                </button>
+                                                                            )}
+                                                                        </div>
+                                                                    </th>
+                                                                ))}
+                                                                <th style={{ padding: '12px 16px', textAlign: 'center', borderBottom: '1px solid #e5e7eb', width: '60px' }}>
+                                                                    Actions
+                                                                </th>
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody>
+                                                            {editableData.map((row, rowIndex) => (
+                                                                <tr key={rowIndex}>
+                                                                    <td style={{ padding: '12px 16px', textAlign: 'center', fontSize: '13px', color: '#9b9a97', borderBottom: '1px solid #e5e7eb' }}>
+                                                                        {rowIndex + 1}
+                                                                    </td>
+                                                                    {editableHeaders.map(header => (
+                                                                        <td key={header} style={{ padding: '12px 16px', borderBottom: '1px solid #e5e7eb' }}>
+                                                                            <input
+                                                                                type="text"
+                                                                                value={row[header] || ''}
+                                                                                onChange={(e) => updateCell(rowIndex, header, e.target.value)}
+                                                                                placeholder={`Enter ${header}...`}
+                                                                                style={{
+                                                                                    width: '100%',
+                                                                                    fontSize: '14px',
+                                                                                    padding: '8px 12px',
+                                                                                    border: '1px solid #e5e7eb',
+                                                                                    borderRadius: '6px',
+                                                                                    background: '#ffffff',
+                                                                                    color: '#373737'
+                                                                                }}
+                                                                                onFocus={(e) => e.target.style.borderColor = '#1a1a1a'}
+                                                                                onBlur={(e) => e.target.style.borderColor = '#e5e7eb'}
+                                                                            />
+                                                                        </td>
+                                                                    ))}
+                                                                    <td style={{ padding: '12px 16px', textAlign: 'center', borderBottom: '1px solid #e5e7eb' }}>
+                                                                        <button
+                                                                            onClick={() => removeRow(rowIndex)}
+                                                                            style={{
+                                                                                padding: '6px',
+                                                                                background: 'transparent',
+                                                                                border: 'none',
+                                                                                cursor: 'pointer',
+                                                                                color: '#9b9a97',
+                                                                                borderRadius: '4px'
+                                                                            }}
+                                                                        >
+                                                                            <Trash2 size={16} />
+                                                                        </button>
+                                                                    </td>
+                                                                </tr>
+                                                            ))}
+                                                        </tbody>
+                                                    </table>
+                                                </div>
+
+                                                {editableData.length === 0 && (
+                                                    <div style={{
+                                                        textAlign: 'center',
+                                                        padding: '40px 20px',
+                                                        color: '#9b9a97',
+                                                        fontSize: '14px'
+                                                    }}>
+                                                        No rows yet. Click "Add Row" to start creating your CSV data.
+                                                    </div>
+                                                )}
+
+                                                <div style={{ marginTop: '16px', display: 'flex', justifyContent: 'flex-end' }}>
+                                                    <button
+                                                        onClick={confirmCSVEditor}
+                                                        disabled={editableData.length === 0}
+                                                        style={{
+                                                            padding: '10px 24px',
+                                                            fontSize: '14px',
+                                                            fontWeight: 500,
+                                                            background: '#1a1a1a',
+                                                            border: 'none',
+                                                            borderRadius: '8px',
+                                                            color: '#ffffff',
+                                                            cursor: editableData.length === 0 ? 'not-allowed' : 'pointer',
+                                                            opacity: editableData.length === 0 ? 0.5 : 1
+                                                        }}
+                                                    >
+                                                        Confirm & Continue
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        )}
                                     </>
                                 ) : (
                                     <>
@@ -489,8 +835,23 @@ export default function CSVWizard() {
                                                                 />
                                                             </td>
                                                             {headers.map(header => (
-                                                                <td key={header} style={{ padding: '14px 16px', fontSize: '14px', color: '#787774', borderBottom: '1px solid #e5e7eb' }}>
-                                                                    {row[header]}
+                                                                <td key={header} style={{ padding: '14px 16px', borderBottom: '1px solid #e5e7eb' }}>
+                                                                    <input
+                                                                        type="text"
+                                                                        value={row[header] || ''}
+                                                                        onChange={(e) => updateCellValue(rowIndex, header, e.target.value)}
+                                                                        style={{
+                                                                            width: '100%',
+                                                                            fontSize: '14px',
+                                                                            padding: '8px 12px',
+                                                                            border: '1px solid #e5e7eb',
+                                                                            borderRadius: '6px',
+                                                                            background: '#ffffff',
+                                                                            color: '#373737'
+                                                                        }}
+                                                                        onFocus={(e) => e.target.style.borderColor = '#1a1a1a'}
+                                                                        onBlur={(e) => e.target.style.borderColor = '#e5e7eb'}
+                                                                    />
                                                                 </td>
                                                             ))}
                                                         </tr>

@@ -47,7 +47,10 @@ return [
 
     'gemini' => [
         'api_key' => env('GEMINI_API_KEY'),
-        'model' => env('GEMINI_MODEL', 'gemini-pro-vision'),
+        // Text/analysis model
+        'model' => env('GEMINI_MODEL', 'gemini-2.0-flash-exp'),
+        // Image generation model (used by Style Mirror)
+        'image_model' => env('GEMINI_IMAGE_MODEL', 'gemini-2.5-flash-image'),
         'rate_limit' => env('GEMINI_RATE_LIMIT', 30), // Requests per minute
     ],
 

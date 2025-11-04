@@ -1,6 +1,7 @@
 import { Head, Link, router } from '@inertiajs/react';
 import { ArrowLeft, ArrowRight, Upload, X, Zap } from 'lucide-react';
 import { useState, useRef, DragEvent, ChangeEvent } from 'react';
+import images from '@/routes/projects/wizards/images';
 
 export default function ImagesWizard() {
     const [currentStep, setCurrentStep] = useState(1);
@@ -9,6 +10,7 @@ export default function ImagesWizard() {
     const [styleImageFiles, setStyleImageFiles] = useState<File[]>([]);
     const [contentDescription, setContentDescription] = useState('');
     const [dragOver, setDragOver] = useState(false);
+    const [isSubmitting, setIsSubmitting] = useState(false);
     
     const imageInputRef = useRef<HTMLInputElement>(null);
 
@@ -68,6 +70,9 @@ export default function ImagesWizard() {
         if (projectName.trim().length === 0) return;
         if (styleImageFiles.length < 5) return;
         if (contentDescription.trim().length === 0) return;
+        if (isSubmitting) return;
+
+        setIsSubmitting(true);
 
         const fd = new FormData();
         fd.append('project_name', projectName.trim());
@@ -76,9 +81,10 @@ export default function ImagesWizard() {
         // fd.append('format', 'square');
         styleImageFiles.slice(0, 10).forEach((f) => fd.append('reference_images[]', f));
 
-        router.post('/projects/wizards/images', fd, {
+        router.post(images.store.url(), fd, {
             forceFormData: true,
             preserveScroll: true,
+            onError: () => setIsSubmitting(false),
         });
     };
 
@@ -282,8 +288,21 @@ export default function ImagesWizard() {
 
                                 {styleImages.length > 0 && (
                                     <>
-                                        <div style={{ fontSize: '14px', fontWeight: 500, color: '#373737', marginBottom: '12px' }}>
+                                        <div style={{ 
+                                            fontSize: '14px', 
+                                            fontWeight: 500, 
+                                            color: styleImages.length < 5 ? '#dc2626' : '#373737', 
+                                            marginBottom: '12px',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: '6px'
+                                        }}>
                                             {styleImages.length} image{styleImages.length !== 1 ? 's' : ''} uploaded
+                                            {styleImages.length < 5 && (
+                                                <span style={{ fontSize: '13px', fontWeight: 400, color: '#dc2626' }}>
+                                                    (minimum 5 required)
+                                                </span>
+                                            )}
                                         </div>
                                         <div style={{
                                             display: 'grid',
@@ -429,13 +448,13 @@ export default function ImagesWizard() {
                         </button>
                         <button 
                             onClick={nextStep}
-                            disabled={!canProceed()}
+                            disabled={!canProceed() || isSubmitting}
                             style={{
                                 padding: '10px 24px',
                                 borderRadius: '8px',
                                 fontSize: '14px',
                                 fontWeight: 500,
-                                cursor: !canProceed() ? 'not-allowed' : 'pointer',
+                                cursor: !canProceed() || isSubmitting ? 'not-allowed' : 'pointer',
                                 transition: 'all 0.2s ease-out',
                                 display: 'inline-flex',
                                 alignItems: 'center',
@@ -443,12 +462,12 @@ export default function ImagesWizard() {
                                 background: '#1a1a1a',
                                 color: 'white',
                                 border: '1px solid #1a1a1a',
-                                opacity: !canProceed() ? 0.5 : 1
+                                opacity: !canProceed() || isSubmitting ? 0.5 : 1
                             }}
                         >
                             {currentStep === 3 ? (
                                 <>
-                                    Start Generation
+                                    {isSubmitting ? 'Starting Generation...' : 'Start Generation'}
                                     <Zap size={16} />
                                 </>
                             ) : (

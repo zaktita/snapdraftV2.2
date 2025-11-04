@@ -22,7 +22,7 @@ class StoreProjectRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'title' => 'required|string|max:255',
+            'name' => 'required|string|max:255',
             'description' => 'nullable|string|max:2000',
             'settings' => 'nullable|array',
             
@@ -46,8 +46,8 @@ class StoreProjectRequest extends FormRequest
     public function messages(): array
     {
         return [
-            'title.required' => 'Project title is required.',
-            'title.max' => 'Project title cannot exceed 255 characters.',
+            'name.required' => 'Project name is required.',
+            'name.max' => 'Project name cannot exceed 255 characters.',
             'brand_references.max' => 'You can upload a maximum of 10 brand reference images.',
             'brand_references.*.image' => 'All brand references must be valid images.',
             'brand_references.*.mimes' => 'Brand references must be in JPG, PNG, or WebP format.',

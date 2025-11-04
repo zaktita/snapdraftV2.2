@@ -1,0 +1,773 @@
+import express from 'express';
+import multer from 'multer';
+import cors from 'cors';
+import path from 'path';
+import fs from 'fs';
+import { fileURLToPath } from 'url';
+import { GoogleGenerativeAI } from "@google/generative-ai";
+import { GoogleAIFileManager } from "@google/generative-ai/server";
+import csv from 'csv-parser';
+import dotenv from 'dotenv';
+
+dotenv.config();
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+const app = express();
+const port = 3000;
+
+// Middleware
+app.use(cors());
+app.use(express.json({ limit: '50mb' }));
+app.use(express.static(__dirname));
+
+// Configure multer for file uploads
+const storage = multer.diskStorage({
+    destination: (req, file, cb) => {
+        const uploadDir = path.join(__dirname, 'uploads');
+        if (!fs.existsSync(uploadDir)) {
+            fs.mkdirSync(uploadDir, { recursive: true });
+        }
+        cb(null, uploadDir);
+    },
+    filename: (req, file, cb) => {
+        cb(null, Date.now() + '-' + file.originalname);
+    }
+});
+
+const upload = multer({ storage });
+
+// Initialize AI services
+let gemini;
+
+try {
+    gemini = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY);
+    console.log('✅ Gemini initialized');
+} catch (error) {
+    console.log('❌ Gemini initialization failed:', error.message);
+}
+
+// Helper function to convert file to GenerativeAI format
+function fileToGenerativePart(buffer, mimeType) {
+    return {
+        inlineData: {
+            data: buffer.toString("base64"),
+            mimeType
+        },
+    };
+}
+
+// Generate random image name
+function generateRandomImageName() {
+    const adjectives = ['awesome', 'brilliant', 'creative', 'dynamic', 'elegant', 'fantastic', 'gorgeous', 'incredible', 'marvelous', 'outstanding', 'perfect', 'radiant', 'stunning', 'vibrant', 'wonderful'];
+    const nouns = ['vision', 'design', 'artwork', 'creation', 'masterpiece', 'visual', 'image', 'graphic', 'composition', 'piece', 'work', 'canvas', 'display', 'showcase', 'presentation'];
+    
+    const adjective = adjectives[Math.floor(Math.random() * adjectives.length)];
+    const noun = nouns[Math.floor(Math.random() * nouns.length)];
+    const number = Math.floor(Math.random() * 9999) + 1;
+    
+    return `${adjective}-${noun}-${number}`;
+}
+
+// Helper function to parse CSV data
+function parseCSV(csvContent) {
+    return new Promise((resolve, reject) => {
+        const results = [];
+        const parser = csv();
+        
+        parser.on('data', (data) => results.push(data));
+        parser.on('end', () => resolve(results));
+        parser.on('error', reject);
+        
+        parser.write(csvContent);
+        parser.end();
+    });
+}
+
+// Simple prompt generation function
+function generateSimplePrompt(row, hasProducts, productNames = []) {
+    let prompt = `generate a creative visual for this caption : ${row.description}
+
+keep the branding, colors and style similar the reference images
+keep the text to a minimum on the visual.
+no need to include the caption text on the image.
+make sure the text is correct and properly spelled.`;
+
+    if (hasProducts && productNames.length > 0) {
+        if (productNames.length === 1) {
+            prompt += `
+
+use the image named ${productNames[0]} as the featured product.
+don't use any other products except the products provided.`;
+        } else {
+            prompt += 
+            `use the images named ${productNames.join(', ')} as the featured products.
+            don't use any other products except the products provided.`;
+        }
+    }
+
+    return prompt;
+}
+
+// Style Mirror generation function (simplified)
+async function generateWithStyleMirror(referenceImages, productImages, csvData) {
+    if (!gemini) {
+        throw new Error('Gemini not initialized');
+    }
+
+    console.log('🪞 Style Mirror: Generating with brand consistency...');
+
+    const model = gemini.getGenerativeModel({ model: "gemini-2.5-flash-image" });
+    const results = [];
+    const hasProducts = productImages && productImages.length > 0;
+    
+    // Extract product names from filenames (remove extension)
+    const productNames = hasProducts ? productImages.map(img => {
+        const filename = img.filename || 'product';
+        return filename.replace(/\.[^/.]+$/, ''); // Remove file extension
+    }) : [];
+    
+    for (let i = 0; i < csvData.length; i++) {
+        const row = csvData[i];
+
+        try {
+            // Generate simple prompt with dynamic product names
+            const simplePrompt = generateSimplePrompt(row, hasProducts, productNames);
+
+            // Prepare reference images
+            const referenceImageParts = referenceImages.slice(0, 5).map(img => 
+                fileToGenerativePart(Buffer.from(img.data, 'base64'), img.mimeType)
+            );
+
+            // Prepare product images if available
+            const productImageParts = hasProducts ? productImages.map(img => 
+                fileToGenerativePart(Buffer.from(img.data, 'base64'), img.mimeType)
+            ) : [];
+
+            console.log(`🪞 Style Mirror: ${i + 1}/${csvData.length}: "${row.title}"`);
+
+            const startTime = Date.now();
+            const result = await model.generateContent([
+                simplePrompt,
+                ...referenceImageParts,
+                ...productImageParts
+            ]);
+
+            const generationTime = Date.now() - startTime;
+            const response = await result.response;
+
+            // Check if we got a valid response
+            if (response && response.candidates && response.candidates.length > 0) {
+                const candidate = response.candidates[0];
+                
+                if (candidate.content && candidate.content.parts) {
+                    for (const part of candidate.content.parts) {
+                        if (part.inlineData && part.inlineData.data) {
+                            const imageBuffer = Buffer.from(part.inlineData.data, "base64");
+                            const dataUrl = `data:${part.inlineData.mimeType};base64,${part.inlineData.data}`;
+
+                            results.push({
+                                title: row.title,
+                                description: row.description,
+                                format: row.format,
+                                success: true,
+                                type: 'image',
+                                imageUrl: dataUrl,
+                                imageSize: imageBuffer.length,
+                                imageName: generateRandomImageName(), // Add random name
+                                modelUsed: 'Gemini 2.5 Flash Image (Style Mirror)',
+                                brandConsistency: true,
+                                styleMirror: true,
+                                simplePrompt: simplePrompt,
+                                tokenUsage: {
+                                    promptTokens: response.usageMetadata?.promptTokenCount || 0,
+                                    candidateTokens: response.usageMetadata?.candidatesTokenCount || 0,
+                                    totalTokens: response.usageMetadata?.totalTokenCount || 0,
+                                    generationTimeMs: generationTime
+                                },
+                                generationMetadata: {
+                                    promptLength: simplePrompt.length,
+                                    referenceImagesCount: referenceImageParts.length,
+                                    productImagesCount: productImageParts.length,
+                                    provider: 'Gemini',
+                                    generationApproach: 'simple-prompt-style-mirror'
+                                }
+                            });
+
+                            console.log(`✅ Style Mirror image generated (${Math.round(imageBuffer.length / 1024)}KB)`);
+                            break;
+                        }
+                    }
+                } else {
+                    results.push({
+                        title: row.title,
+                        description: row.description,
+                        format: row.format,
+                        success: false,
+                        error: 'No valid image content in response',
+                        modelUsed: 'Gemini 2.5 Flash Image (Style Mirror)'
+                    });
+                }
+            } else {
+                results.push({
+                    title: row.title,
+                    description: row.description,
+                    format: row.format,
+                    success: false,
+                    error: 'No valid response from model',
+                    modelUsed: 'Gemini 2.5 Flash Image (Style Mirror)'
+                });
+            }
+
+        } catch (error) {
+            console.error(`❌ Style Mirror error for "${row.title}":`, error);
+            results.push({
+                title: row.title,
+                description: row.description,
+                format: row.format,
+                success: false,
+                error: error.message,
+                modelUsed: 'Gemini 2.5 Flash Image (Style Mirror)'
+            });
+        }
+
+        // Rate limiting
+        if (i < csvData.length - 1) {
+            await new Promise(resolve => setTimeout(resolve, 2000));
+        }
+    }
+
+    const successfulImages = results.filter(r => r.success && r.type === 'image').length;
+    console.log(`🎉 Style Mirror completed: ${successfulImages}/${csvData.length} successful`);
+
+    return results;
+}
+
+// Routes
+app.get('/', (req, res) => {
+    res.sendFile(path.join(__dirname, 'style-mirror.html'));
+});
+
+app.get('/style-mirror', (req, res) => {
+    res.sendFile(path.join(__dirname, 'style-mirror.html'));
+});
+
+app.get('/project-tool', (req, res) => {
+    res.sendFile(path.join(__dirname, 'project-tool.html'));
+});
+
+app.get('/dashboard', (req, res) => {
+    res.sendFile(path.join(__dirname, 'dashboard.html'));
+});
+
+app.get('/projects', (req, res) => {
+    res.sendFile(path.join(__dirname, 'projects.html'));
+});
+
+// Generate images with JSON data (for client-side uploads)
+app.post('/api/generate', async (req, res) => {
+    try {
+        console.log('🎯 JSON Generation request received');
+        
+        const { referenceImages, productImages, csvData } = req.body;
+
+        if (!referenceImages || referenceImages.length === 0) {
+            return res.status(400).json({ error: 'At least one reference image is required' });
+        }
+
+        if (!csvData || csvData.length === 0) {
+            return res.status(400).json({ error: 'Content data is required' });
+        }
+
+        console.log(`📊 Processing: ${referenceImages.length} reference images, ${productImages ? productImages.length : 0} product images, ${csvData.length} content items`);
+
+        // Generate with Style Mirror
+        const results = await generateWithStyleMirror(referenceImages, productImages || [], csvData);
+
+        res.json({
+            success: true,
+            results,
+            summary: {
+                totalRequests: csvData.length,
+                successfulImages: results.filter(r => r.success && r.type === 'image').length,
+                failedRequests: results.filter(r => !r.success).length,
+                generationMethod: 'Style Mirror',
+                modelUsed: 'Gemini 2.5 Flash Image'
+            }
+        });
+
+    } catch (error) {
+        console.error('❌ Generation error:', error);
+        res.status(500).json({ 
+            success: false, 
+            error: error.message 
+        });
+    }
+});
+
+// Edit image endpoint
+app.post('/api/edit-image', async (req, res) => {
+    try {
+        console.log('✏️ Image edit request received');
+        
+        const { originalImage, editPrompt, referenceImages, originalTitle, originalDescription, originalFormat } = req.body;
+
+        if (!originalImage) {
+            return res.status(400).json({ error: 'Original image is required' });
+        }
+
+        if (!editPrompt || editPrompt.trim() === '') {
+            return res.status(400).json({ error: 'Edit prompt is required' });
+        }
+
+        if (!gemini) {
+            throw new Error('Gemini not initialized');
+        }
+
+        console.log(`🎨 Editing image with prompt: "${editPrompt}"`);
+
+        const model = gemini.getGenerativeModel({ model: "gemini-2.5-flash-image" });
+
+        // Convert original image data URL to buffer for Gemini
+        const dataParts = originalImage.split(',');
+        if (dataParts.length !== 2) {
+            throw new Error('Invalid image data format');
+        }
+        
+        // Extract mime type from data URL
+        const mimeTypeMatch = dataParts[0].match(/data:([^;]+)/);
+        const mimeType = mimeTypeMatch ? mimeTypeMatch[1] : 'image/png';
+        
+        const originalImageBuffer = Buffer.from(dataParts[1], 'base64');
+        const originalImagePart = fileToGenerativePart(originalImageBuffer, mimeType);
+
+        // Prepare reference images for brand consistency
+        const referenceImageParts = referenceImages ? referenceImages.slice(0, 3).map(img => 
+            fileToGenerativePart(Buffer.from(img.data, 'base64'), img.mimeType)
+        ) : [];
+
+        // Create edit prompt
+        let fullPrompt = `Edit this image based on the following instructions: ${editPrompt}
+
+Keep the overall composition and maintain brand consistency`;
+
+        if (referenceImages && referenceImages.length > 0) {
+            fullPrompt += `
+
+Use the reference images provided to maintain the brand style, colors, and visual identity while applying the requested changes.`;
+        }
+
+        fullPrompt += `
+
+Apply the changes while maintaining professional quality and visual appeal.`;
+
+        // Prepare content for Gemini
+        const content = [fullPrompt, originalImagePart, ...referenceImageParts];
+
+        console.log(`🎯 Sending edit request to Gemini...`);
+        const startTime = Date.now();
+        
+        const response = await model.generateContent(content);
+        const result = await response.response;
+        const generationTime = Date.now() - startTime;
+
+        if (result && result.candidates && result.candidates.length > 0) {
+            const candidate = result.candidates[0];
+            
+            if (candidate.content && candidate.content.parts) {
+                for (const part of candidate.content.parts) {
+                    if (part.inlineData && part.inlineData.data) {
+                        const imageBuffer = Buffer.from(part.inlineData.data, "base64");
+                        const dataUrl = `data:${part.inlineData.mimeType};base64,${part.inlineData.data}`;
+
+                        console.log(`✅ Image edited successfully (${Math.round(imageBuffer.length / 1024)}KB)`);
+
+                        return res.json({
+                            success: true,
+                            imageUrl: dataUrl,
+                            imageSize: imageBuffer.length,
+                            imageName: generateRandomImageName(), // Add random name for edited image
+                            editPrompt: editPrompt,
+                            generationTime: generationTime,
+                            tokenUsage: {
+                                promptTokens: response.usageMetadata?.promptTokenCount || 0,
+                                candidateTokens: response.usageMetadata?.candidatesTokenCount || 0,
+                                totalTokens: response.usageMetadata?.totalTokenCount || 0,
+                                generationTimeMs: generationTime
+                            }
+                        });
+                    }
+                }
+            }
+        }
+
+        throw new Error('No valid edited image generated');
+
+    } catch (error) {
+        console.error('❌ Image edit error:', error);
+        res.status(500).json({ 
+            success: false, 
+            error: error.message 
+        });
+    }
+});
+
+// Generate images with file uploads (legacy endpoint)
+app.post('/api/generate-files', upload.fields([
+    { name: 'referenceImages', maxCount: 10 },
+    { name: 'productImages', maxCount: 5 },
+    { name: 'csvFile', maxCount: 1 }
+]), async (req, res) => {
+    try {
+        console.log('🎯 Generation request received');
+
+        // Process reference images
+        const referenceImages = [];
+        if (req.files.referenceImages) {
+            for (const file of req.files.referenceImages) {
+                const buffer = fs.readFileSync(file.path);
+                referenceImages.push({
+                    data: buffer.toString('base64'),
+                    mimeType: file.mimetype
+                });
+                fs.unlinkSync(file.path);
+            }
+        }
+
+        // Process product images
+        const productImages = [];
+        if (req.files.productImages) {
+            for (const file of req.files.productImages) {
+                const buffer = fs.readFileSync(file.path);
+                productImages.push({
+                    data: buffer.toString('base64'),
+                    mimeType: file.mimetype,
+                    filename: file.originalname
+                });
+                fs.unlinkSync(file.path);
+            }
+        }
+
+        // Process CSV
+        let csvData = [];
+        if (req.files.csvFile && req.files.csvFile[0]) {
+            const csvContent = fs.readFileSync(req.files.csvFile[0].path, 'utf-8');
+            csvData = await parseCSV(csvContent);
+            fs.unlinkSync(req.files.csvFile[0].path);
+        }
+
+        if (referenceImages.length === 0) {
+            return res.status(400).json({ error: 'At least one reference image is required' });
+        }
+
+        if (csvData.length === 0) {
+            return res.status(400).json({ error: 'CSV file is required' });
+        }
+
+        console.log(`📊 Processing: ${referenceImages.length} reference images, ${productImages.length} product images, ${csvData.length} CSV rows`);
+
+        // Generate with Style Mirror
+        const results = await generateWithStyleMirror(referenceImages, productImages, csvData);
+
+        res.json({
+            success: true,
+            results,
+            summary: {
+                totalRequests: csvData.length,
+                successfulImages: results.filter(r => r.success && r.type === 'image').length,
+                failedRequests: results.filter(r => !r.success).length,
+                generationMethod: 'Style Mirror',
+                modelUsed: 'Gemini 2.5 Flash Image'
+            }
+        });
+
+    } catch (error) {
+        console.error('❌ Generation error:', error);
+        res.status(500).json({ 
+            success: false, 
+            error: error.message 
+        });
+    }
+});
+
+// Generative Fill endpoint
+app.post('/api/generative-fill', async (req, res) => {
+    try {
+        console.log('🎨 Generative fill request received');
+        
+        const { originalImage, prompt, selectionArea, referenceImages } = req.body;
+
+        if (!originalImage) {
+            return res.status(400).json({ error: 'Original image is required' });
+        }
+
+        if (!prompt || prompt.trim() === '') {
+            return res.status(400).json({ error: 'Fill prompt is required' });
+        }
+
+        if (!gemini) {
+            throw new Error('Gemini not initialized');
+        }
+
+        console.log(`✨ Applying generative fill: "${prompt}"`);
+
+        const model = gemini.getGenerativeModel({ model: "gemini-2.5-flash-image" });
+
+        // Convert original image data URL to buffer for Gemini
+        const dataParts = originalImage.split(',');
+        if (dataParts.length !== 2) {
+            throw new Error('Invalid image data format');
+        }
+        
+        // Extract mime type from data URL
+        const mimeTypeMatch = dataParts[0].match(/data:([^;]+)/);
+        const mimeType = mimeTypeMatch ? mimeTypeMatch[1] : 'image/png';
+        
+        const originalImageBuffer = Buffer.from(dataParts[1], 'base64');
+        const originalImagePart = fileToGenerativePart(originalImageBuffer, mimeType);
+
+        // Prepare reference images for brand consistency
+        const referenceImageParts = referenceImages ? referenceImages.slice(0, 3).map(img => 
+            fileToGenerativePart(Buffer.from(img.data, 'base64'), img.mimeType)
+        ) : [];
+
+        // Create generative fill prompt
+        let fullPrompt = `IMPORTANT: Only modify the specified rectangular area in this image. Do not change anything outside the selection area.
+
+Selection area coordinates: x=${Math.round(selectionArea.x)}, y=${Math.round(selectionArea.y)}, width=${Math.round(selectionArea.width)}, height=${Math.round(selectionArea.height)}
+
+Task: ${prompt}
+
+Instructions:
+1. Focus ONLY on the specified rectangular selection area
+2. Keep everything outside this area exactly the same
+3. Make the changes blend naturally with the surrounding area
+4. Maintain the original image quality and style
+5. Ensure seamless integration at the selection boundaries
+
+The result should show the original image with only the selected area modified according to the prompt.`;
+
+        if (referenceImages && referenceImages.length > 0) {
+            fullPrompt += `
+
+Use the reference images to maintain brand consistency in colors, style, and visual identity while applying the generative fill.`;
+        }
+
+        if (selectionArea) {
+            fullPrompt += `
+
+Focus the fill operation on the area around coordinates: x=${Math.round(selectionArea.x)}, y=${Math.round(selectionArea.y)}, width=${Math.round(selectionArea.width)}, height=${Math.round(selectionArea.height)}.`;
+        }
+
+        fullPrompt += `
+
+Ensure the result looks natural and professional with seamless integration.`;
+
+        // Prepare content for Gemini
+        const content = [fullPrompt, originalImagePart, ...referenceImageParts];
+
+        console.log(`🎯 Sending generative fill request to Gemini...`);
+        const startTime = Date.now();
+        
+        const response = await model.generateContent(content);
+        const result = await response.response;
+        const generationTime = Date.now() - startTime;
+
+        if (result && result.candidates && result.candidates.length > 0) {
+            const candidate = result.candidates[0];
+            
+            if (candidate.content && candidate.content.parts) {
+                for (const part of candidate.content.parts) {
+                    if (part.inlineData && part.inlineData.data) {
+                        const imageBuffer = Buffer.from(part.inlineData.data, "base64");
+                        const dataUrl = `data:${part.inlineData.mimeType};base64,${part.inlineData.data}`;
+
+                        console.log(`✅ Generative fill applied successfully (${Math.round(imageBuffer.length / 1024)}KB)`);
+
+                        return res.json({
+                            success: true,
+                            imageUrl: dataUrl,
+                            imageSize: imageBuffer.length,
+                            imageName: generateRandomImageName(),
+                            fillPrompt: prompt,
+                            generationTime: generationTime,
+                            tokenUsage: {
+                                promptTokens: response.usageMetadata?.promptTokenCount || 0,
+                                candidateTokens: response.usageMetadata?.candidatesTokenCount || 0,
+                                totalTokens: response.usageMetadata?.totalTokenCount || 0,
+                                generationTimeMs: generationTime
+                            }
+                        });
+                    }
+                }
+            }
+        }
+
+        throw new Error('No valid filled image generated');
+
+    } catch (error) {
+        console.error('❌ Generative fill error:', error);
+        res.status(500).json({ 
+            success: false, 
+            error: error.message 
+        });
+    }
+});
+
+// Mask-based generation endpoint (for canvas editor)
+app.post('/api/generate-with-mask', async (req, res) => {
+    try {
+        console.log('🎨 Mask-based generation request received');
+        
+        const { originalImage, mask, prompt, brushStrokes, imageSize, referenceImages } = req.body;
+
+        if (!originalImage) {
+            return res.status(400).json({ error: 'Original image is required' });
+        }
+
+        if (!mask) {
+            return res.status(400).json({ error: 'Mask image is required' });
+        }
+
+        if (!prompt || prompt.trim() === '') {
+            return res.status(400).json({ error: 'Generation prompt is required' });
+        }
+
+        if (!gemini) {
+            throw new Error('Gemini not initialized');
+        }
+
+        console.log(`🖌️ Applying mask-based generation: "${prompt}"`);
+        console.log(`📐 Image size: ${imageSize?.width}x${imageSize?.height}, Brush strokes: ${brushStrokes}`);
+
+        const model = gemini.getGenerativeModel({ model: "gemini-2.5-flash-image" });
+
+        // Convert original image data URL to buffer for Gemini
+        const originalDataParts = originalImage.split(',');
+        if (originalDataParts.length !== 2) {
+            throw new Error('Invalid original image data format');
+        }
+        
+        const originalMimeTypeMatch = originalDataParts[0].match(/data:([^;]+)/);
+        const originalMimeType = originalMimeTypeMatch ? originalMimeTypeMatch[1] : 'image/png';
+        const originalImageBuffer = Buffer.from(originalDataParts[1], 'base64');
+        console.log(`📷 Original image: ${originalMimeType}, ${Math.round(originalImageBuffer.length / 1024)}KB`);
+        const originalImagePart = fileToGenerativePart(originalImageBuffer, originalMimeType);
+
+        // Convert mask image data URL to buffer for Gemini
+        const maskDataParts = mask.split(',');
+        if (maskDataParts.length !== 2) {
+            throw new Error('Invalid mask image data format');
+        }
+        
+        const maskMimeTypeMatch = maskDataParts[0].match(/data:([^;]+)/);
+        const maskMimeType = maskMimeTypeMatch ? maskMimeTypeMatch[1] : 'image/png';
+        const maskImageBuffer = Buffer.from(maskDataParts[1], 'base64');
+        console.log(`🎭 Mask image: ${maskMimeType}, ${Math.round(maskImageBuffer.length / 1024)}KB`);
+        const maskImagePart = fileToGenerativePart(maskImageBuffer, maskMimeType);
+
+        // Prepare reference images for brand consistency (if provided)
+        const referenceImageParts = referenceImages ? referenceImages.slice(0, 3).map(img => 
+            fileToGenerativePart(Buffer.from(img.data, 'base64'), img.mimeType)
+        ) : [];
+
+        // Create comprehensive prompt for mask-based generation
+        let fullPrompt = `I am providing you with TWO images:
+
+IMAGE 1: Original image that needs editing
+IMAGE 2: Black and white mask where WHITE areas show what to modify/generate
+
+TASK: ${prompt}
+
+CRITICAL INSTRUCTIONS:
+1. Look at the ORIGINAL IMAGE (first image) to understand the scene, lighting, style, and context
+2. Look at the MASK IMAGE (second image) - WHITE areas indicate where to generate new content
+3. Generate new content ONLY in the WHITE masked regions
+4. Keep BLACK masked areas exactly as they appear in the original
+5. Ensure seamless blending - match lighting, shadows, perspective, and style
+6. Return a COMPLETE image with the masked areas properly filled
+
+TECHNICAL DETAILS:
+- Brush strokes used: ${brushStrokes || 0}
+- Image dimensions: ${imageSize?.width || 'unknown'}x${imageSize?.height || 'unknown'}
+- Processing: Inpainting/Object replacement
+
+The result should look like a professionally edited photograph with no visible seams or artifacts.`;
+
+        if (referenceImages && referenceImages.length > 0) {
+            fullPrompt += `
+
+Use the reference images provided to maintain brand consistency in colors, style, and visual identity while applying the requested changes.`;
+        }
+
+        // Prepare content for Gemini
+        const content = [fullPrompt, originalImagePart, maskImagePart, ...referenceImageParts];
+
+        console.log(`🎯 Sending mask-based generation request to Gemini...`);
+        const startTime = Date.now();
+        
+        const response = await model.generateContent(content);
+        const result = await response.response;
+        const generationTime = Date.now() - startTime;
+
+        if (result && result.candidates && result.candidates.length > 0) {
+            const candidate = result.candidates[0];
+            
+            if (candidate.content && candidate.content.parts) {
+                for (const part of candidate.content.parts) {
+                    if (part.inlineData && part.inlineData.mimeType && part.inlineData.mimeType.startsWith('image/')) {
+                        const imageBase64 = part.inlineData.data;
+                        const imageUrl = `data:${part.inlineData.mimeType};base64,${imageBase64}`;
+                        
+                        console.log(`✅ Mask-based generation completed in ${generationTime}ms`);
+                        
+                        return res.json({
+                            success: true,
+                            generatedImage: imageUrl,
+                            originalPrompt: prompt,
+                            maskData: {
+                                brushStrokes: brushStrokes || 0,
+                                imageSize: imageSize || {}
+                            },
+                            processing: {
+                                model: 'gemini-2.5-flash-image',
+                                timestamp: new Date().toISOString(),
+                                generationTime: generationTime
+                            },
+                            tokenUsage: {
+                                promptTokens: response.usageMetadata?.promptTokenCount || 0,
+                                candidateTokens: response.usageMetadata?.candidatesTokenCount || 0,
+                                totalTokens: response.usageMetadata?.totalTokenCount || 0,
+                                generationTimeMs: generationTime
+                            }
+                        });
+                    }
+                }
+            }
+        }
+
+        throw new Error('No valid generated image received from Gemini');
+
+    } catch (error) {
+        console.error('❌ Mask-based generation error:', error);
+        res.status(500).json({ 
+            success: false, 
+            error: error.message,
+            details: 'Failed to generate image with mask using Gemini'
+        });
+    }
+});
+
+
+
+// Start server
+app.listen(port, () => {
+    console.log(`🚀 SnapDraft server running at http://localhost:${port}`);
+    console.log('📊 Simplified AI Image Generation Platform');
+    console.log(`   - Gemini Flash Image: ${process.env.GOOGLE_API_KEY ? '✅ Ready' : '❌ Not configured'} (Simple prompt generation)`);
+    console.log('   - Brand-consistent image generation using reference images');
+    console.log('\n🌐 Open your browser and go to http://localhost:3000');
+});
+
+export default app;

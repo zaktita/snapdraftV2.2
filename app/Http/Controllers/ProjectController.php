@@ -11,9 +11,11 @@ use Inertia\Inertia;
 use Inertia\Response;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Redirect;
+use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 
 class ProjectController extends Controller
 {
+    use AuthorizesRequests;
     public function __construct(
         protected FileUploadService $fileUploadService
     ) {}
@@ -24,6 +26,21 @@ class ProjectController extends Controller
     public function index(Request $request): Response
     {
         $query = Auth::user()->projects();
+
+        // Apply search
+        if ($request->has('search') && $request->search) {
+            $search = $request->search;
+            $query->where(function($q) use ($search) {
+                $q->where('name', 'like', "%{$search}%")
+                  ->orWhere('title', 'like', "%{$search}%")
+                  ->orWhere('description', 'like', "%{$search}%");
+            });
+        }
+
+        // Apply format filter
+        if ($request->has('format') && $request->format) {
+            $query->where('format', $request->format);
+        }
 
         // Apply filters
         if ($request->has('filter')) {
@@ -37,8 +54,8 @@ class ProjectController extends Controller
             }
         }
 
-        // Apply sorting
-        $sortBy = $request->get('sort', 'date-desc');
+        // Apply sorting (default: favorites first, then most recent)
+        $sortBy = $request->get('sort', 'default');
         switch ($sortBy) {
             case 'date-asc':
                 $query->orderBy('created_at', 'asc');
@@ -56,14 +73,18 @@ class ProjectController extends Controller
                 $query->orderBy('images_count', 'desc');
                 break;
             default:
-                $query->latest();
+                // Default: favorites first, then most recent
+                $query->orderBy('is_favorite', 'desc')
+                      ->orderBy('created_at', 'desc');
         }
 
         // Paginate results (20 per page)
         $projects = $query->paginate(20)->through(function ($project) {
             return [
                 'id' => $project->id,
+                'name' => $project->name,
                 'title' => $project->title,
+                'format' => $project->format,
                 'featured_image' => $project->featured_image ? asset('storage/' . $project->featured_image) : null,
                 'created_at' => $project->created_at->toISOString(),
                 'images_count' => $project->images_count,
@@ -93,9 +114,11 @@ class ProjectController extends Controller
 
         // Create the project
         $project = Auth::user()->projects()->create([
-            'title' => $validated['title'],
+            'name' => $validated['name'],
+            'title' => $validated['name'], // Use name as title for now
             'description' => $validated['description'] ?? null,
             'settings' => $validated['settings'] ?? null,
+            'format' => $validated['format'] ?? null,
         ]);
 
         // Handle brand reference uploads if present
@@ -206,7 +229,10 @@ class ProjectController extends Controller
         
         $project->update(['is_favorite' => !$project->is_favorite]);
 
-        return back();
+        return response()->json([
+            'success' => true,
+            'is_favorite' => $project->is_favorite
+        ]);
     }
 
     /**
