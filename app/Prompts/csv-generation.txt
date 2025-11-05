@@ -1,0 +1,6 @@
+generate a creative visual for this caption : {caption}
+
+keep the branding, colors and style similar the reference images
+keep the text to a minimum on the visual.
+no need to include the caption text on the image.
+make sure the text is correct and properly spelled.

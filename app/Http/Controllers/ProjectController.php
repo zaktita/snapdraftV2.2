@@ -143,7 +143,7 @@ class ProjectController extends Controller
     /**
      * Display the specified project.
      */
-    public function show(string $id): Response
+    public function show(Request $request, string $id): Response
     {
         $project = Project::with(['images' => function ($query) {
             $query->orderBy('order')->orderBy('created_at');
@@ -172,6 +172,9 @@ class ProjectController extends Controller
                     ];
                 }),
             ],
+            // Pass optimistic UI flags from query params
+            'justCreated' => $request->query('justCreated', false),
+            'expectedImages' => (int) $request->query('expectedImages', 0),
         ]);
     }
 
@@ -264,8 +267,10 @@ class ProjectController extends Controller
 
             case 'images':
             case 'text':
-                // For Images/Text wizard, generate a single new image
-                \App\Jobs\GenerateSingleImageJob::dispatch($project);
+                // For Images/Text wizard, generate a single new image using project description
+                $prompt = $project->description;
+                $format = $project->settings['format'] ?? 'square';
+                \App\Jobs\GenerateSingleImageJob::dispatch($project, $prompt, $format);
                 return back()->with('success', 'Image generation started! Check back soon.');
 
             default:

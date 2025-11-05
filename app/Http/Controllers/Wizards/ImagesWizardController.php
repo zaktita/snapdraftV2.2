@@ -52,8 +52,10 @@ class ImagesWizardController extends Controller
             ]);
         }
 
-        // Queue AI processing job
-        \App\Jobs\AnalyzeBrandStyleJob::dispatch($project);
+        // Queue AI processing job with the description as the prompt
+        $prompt = $validated['content_description'];
+        $format = $validated['format'] ?? 'square';
+        \App\Jobs\GenerateSingleImageJob::dispatch($project, $prompt, $format);
 
         return redirect()->route('projects.show', $project->id)
             ->with('success', 'Project created! AI generation will begin shortly.');

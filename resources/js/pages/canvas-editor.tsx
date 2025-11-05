@@ -1,5 +1,15 @@
 import { Head, router } from '@inertiajs/react';
 import { useEffect, useRef, useState } from 'react';
+// Utility to parse query params
+function getQueryParams() {
+    if (typeof window === 'undefined') return {};
+    const params = new URLSearchParams(window.location.search);
+    return {
+        projectId: params.get('projectId') ? Number(params.get('projectId')) : undefined,
+        imageUrl: params.get('image') || undefined,
+        projectTitle: params.get('title') || undefined,
+    };
+}
 import { 
     ArrowLeft, Download, RotateCcw, Undo2, Redo2, Save, 
     ZoomIn, ZoomOut, Maximize2, MousePointer, PenTool, 
@@ -31,7 +41,12 @@ interface BrushLine {
     objectId?: number | null;
 }
 
-export default function CanvasEditor({ projectId, imageUrl, projectTitle = 'Untitled' }: CanvasEditorProps) {
+export default function CanvasEditor(props: CanvasEditorProps) {
+    // Read query params if present
+    const query = getQueryParams();
+    const projectId = props.projectId ?? query.projectId;
+    const imageUrl = props.imageUrl ?? query.imageUrl;
+    const projectTitle = props.projectTitle ?? query.projectTitle ?? 'Untitled';
     // Canvas refs
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -109,6 +124,11 @@ export default function CanvasEditor({ projectId, imageUrl, projectTitle = 'Unti
         resolve: null
     });
 
+    // Debug confirmModal state changes
+    useEffect(() => {
+        console.log('[State] confirmModal.isOpen:', confirmModal.isOpen, { title: confirmModal.title });
+    }, [confirmModal.isOpen]);
+
     const [isGenerating, setIsGenerating] = useState(false);
 
     // Initialize canvas
@@ -118,11 +138,6 @@ export default function CanvasEditor({ projectId, imageUrl, projectTitle = 'Unti
             const context = canvasEl.getContext('2d');
             setCanvas(canvasEl);
             setCtx(context);
-            
-            // Load image if URL provided
-            if (imageUrl) {
-                loadImageFromUrl(imageUrl);
-            }
         }
 
         // Keyboard shortcuts
@@ -240,6 +255,13 @@ export default function CanvasEditor({ projectId, imageUrl, projectTitle = 'Unti
         };
     }, [undoStack, redoStack, lines, selectedObject]);
 
+    // Load image from URL when canvas and imageUrl are ready
+    useEffect(() => {
+        if (canvas && imageUrl) {
+            loadImageFromUrl(imageUrl);
+        }
+    }, [canvas, imageUrl]);
+
     // Resize canvas
     useEffect(() => {
         if (canvas) {
@@ -335,7 +357,33 @@ export default function CanvasEditor({ projectId, imageUrl, projectTitle = 'Unti
         if (canvas && ctx) {
             drawScene();
         }
-    }, [canvas, ctx, canvasObjects, lines, scale, panX, panY, selectedObject, brushSize, cursorPosition, currentTool, isSpacePressed, isDragging]);
+    }, [canvas, ctx, canvasObjects, lines, scale, panX, panY, selectedObject, brushSize, cursorPosition, currentTool, isSpacePressed, isDragging, isGenerating]);
+
+    // Debug important state changes
+    useEffect(() => {
+        if (selectedObject) {
+            console.log('[State] selectedObject changed', { id: selectedObject.id, isMainImage: !!selectedObject.isMainImage, x: selectedObject.x, y: selectedObject.y });
+        } else {
+            console.log('[State] selectedObject changed: null');
+        }
+    }, [selectedObject]);
+
+    useEffect(() => {
+        console.log('[State] isGenerating:', isGenerating);
+    }, [isGenerating]);
+
+    useEffect(() => {
+        console.log('[State] currentTool:', currentTool);
+    }, [currentTool]);
+
+    useEffect(() => {
+        console.log('[State] lines length:', lines.length);
+    }, [lines.length]);
+
+    useEffect(() => {
+        const hasMask = !!(selectedObject && lines.some(l => l.objectId === selectedObject.id));
+        console.log('[State] hasMaskForSelection:', hasMask);
+    }, [selectedObject, lines]);
 
     const resizeCanvas = () => {
         if (!canvas) return;
@@ -350,6 +398,7 @@ export default function CanvasEditor({ projectId, imageUrl, projectTitle = 'Unti
         const img = new Image();
         img.crossOrigin = 'anonymous';
         img.onload = () => {
+            console.log('[Canvas] Main image loaded', { width: img.width, height: img.height, src: src.slice(0, 60) + '...' });
             setImage(img);
             setIsImageReady(false);
             
@@ -389,6 +438,7 @@ export default function CanvasEditor({ projectId, imageUrl, projectTitle = 'Unti
                 setShowUploadZone(false);
                 setLines([]);
                 setIsImageReady(true);
+                console.log('[Canvas] Main image object created and selected', { id: mainImageObj.id, scale: newScale, panX: centeredPanX, panY: centeredPanY });
             });
         };
         img.src = src;
@@ -419,6 +469,10 @@ export default function CanvasEditor({ projectId, imageUrl, projectTitle = 'Unti
         if (!ctx || !canvas) return;
         
         ctx.clearRect(0, 0, canvas.width, canvas.height);
+        // Debug draw info occasionally
+        if ((performance.now() % 1000) < 16) {
+            console.log('[Canvas] drawScene', { objects: canvasObjects.length, lines: lines.length, scale, panX, panY, selectedId: selectedObject?.id });
+        }
         
         // Draw all canvas objects
         canvasObjects.forEach(obj => drawCanvasObject(obj));
@@ -553,6 +607,7 @@ export default function CanvasEditor({ projectId, imageUrl, projectTitle = 'Unti
         const rect = canvas.getBoundingClientRect();
         const x = e.clientX - rect.left;
         const y = e.clientY - rect.top;
+        console.log('[Canvas] mouseDown', { x, y, button: e.button, tool: currentTool, isSpacePressed });
 
         // Pan with space+drag or middle mouse button
         if (e.button === 1 || (e.button === 0 && isSpacePressed)) {
@@ -567,12 +622,14 @@ export default function CanvasEditor({ projectId, imageUrl, projectTitle = 'Unti
 
         const clickedObject = getObjectAtPoint(x, y);
         if (clickedObject) {
+            console.log('[Canvas] Clicked object', { id: clickedObject.id, isMainImage: !!clickedObject.isMainImage });
             setSelectedObject(clickedObject);
 
             if (currentTool === 'retouch' && clickedObject === selectedObject) {
                 const imagePos = screenToObjectCoordinates(x, y, clickedObject);
                 if (isPointInObject(imagePos.x, imagePos.y, clickedObject)) {
                     setIsPainting(true);
+                    console.log('[Paint] Start new line', { objectId: clickedObject.id, x: imagePos.x, y: imagePos.y });
                     startNewLine(imagePos.x, imagePos.y, clickedObject.id);
                 }
             } else if (currentTool === 'select') {
@@ -583,6 +640,7 @@ export default function CanvasEditor({ projectId, imageUrl, projectTitle = 'Unti
                 setDragOffset({ x: x - objScreenX, y: y - objScreenY });
             }
         } else {
+            console.log('[Canvas] Clicked empty area');
             setSelectedObject(null);
             setDraggedObject(null);
         }
@@ -673,6 +731,7 @@ export default function CanvasEditor({ projectId, imageUrl, projectTitle = 'Unti
         setCanvasObjects(prev => [...prev, newObj]);
         setSelectedObject(newObj);
         setShowUploadZone(false);
+        console.log('[Canvas] Added image to canvas', { id: newObj.id, label, x: targetX, y: targetY, w: img.width, h: img.height });
     };
 
     const handleWheel = (e: React.WheelEvent<HTMLCanvasElement>) => {
@@ -716,6 +775,7 @@ export default function CanvasEditor({ projectId, imageUrl, projectTitle = 'Unti
             tool: 'brush',
             objectId: objectId || null
         };
+        console.log('[Paint] New line created', { id: newLine.id, objectId: newLine.objectId, brushSize: newLine.brushSize, opacity: newLine.brushOpacity });
         setLines(prev => [...prev, newLine]);
     };
 
@@ -820,22 +880,43 @@ export default function CanvasEditor({ projectId, imageUrl, projectTitle = 'Unti
 
         // Reset alpha
         maskCtx.globalAlpha = 1;
+        console.log('[Mask] Created mask canvas', { width: maskCanvas.width, height: maskCanvas.height, strokes: relevant.length });
         return maskCanvas;
+    };
+
+    const computeMaskStats = (maskCanvas: HTMLCanvasElement) => {
+        const maskCtx = maskCanvas.getContext('2d');
+        if (!maskCtx) return null;
+        const { width, height } = maskCanvas;
+        const imgData = maskCtx.getImageData(0, 0, width, height);
+        const data = imgData.data;
+        let count = 0;
+        for (let i = 0; i < data.length; i += 4) {
+            const r = data[i], g = data[i + 1], b = data[i + 2];
+            if (r + g + b > 30) count++;
+        }
+        const total = width * height;
+        const pct = total > 0 ? Math.round((count / total) * 10000) / 100 : 0;
+        return { whitePixels: count, totalPixels: total, coveragePct: pct };
     };
 
     // Download the mask for the currently selected object
     const downloadMask = () => {
         if (!selectedObject) {
             alert('Please select an image first.');
+            console.log('[Mask] Download attempted without selection');
             return;
         }
         const relevant = lines.filter(l => l.objectId === selectedObject.id);
         if (relevant.length === 0) {
             alert('No brush strokes found for the selected image.');
+            console.log('[Mask] Download attempted without mask');
             return;
         }
         const maskCanvas = createMaskCanvas(selectedObject);
         if (!maskCanvas) return;
+        const stats = computeMaskStats(maskCanvas);
+        console.log('[Mask] Downloading mask', stats);
         const url = maskCanvas.toDataURL('image/png');
         const a = document.createElement('a');
         a.href = url;
@@ -853,6 +934,7 @@ export default function CanvasEditor({ projectId, imageUrl, projectTitle = 'Unti
         defaultValue: string = ''
     ): Promise<string> => {
         return new Promise((resolve) => {
+            console.log('[Prompt] Open', { title, description });
             setPromptModal({
                 isOpen: true,
                 title,
@@ -880,6 +962,7 @@ export default function CanvasEditor({ projectId, imageUrl, projectTitle = 'Unti
         isDanger: boolean = false
     ): Promise<boolean> => {
         return new Promise((resolve) => {
+            console.log('[Confirm] Open', { title, message });
             setConfirmModal({
                 isOpen: true,
                 title,
@@ -895,31 +978,27 @@ export default function CanvasEditor({ projectId, imageUrl, projectTitle = 'Unti
     const handleErase = async () => {
         if (!selectedObject) {
             showAlert('No Selection', 'Please select an image first.', 'warning');
+            console.log('[Erase] No selection');
             return;
         }
 
         const relevant = lines.filter(l => l.objectId === selectedObject.id);
         if (relevant.length === 0) {
             showAlert('No Mask', 'Please paint over the areas you want to erase first.', 'warning');
+            console.log('[Erase] No mask for selected object');
             return;
         }
 
-        // Confirm before erasing
-        const confirmed = await showConfirm(
-            'Erase Areas?',
-            'This will permanently remove the painted areas from the image. This action cannot be undone.',
-            'Erase',
-            true
-        );
-
-        if (!confirmed) return;
-
+        // Start erasing immediately without confirmation  
         setIsGenerating(true);
+        console.log('[Erase] Starting erase with strokes', { strokeCount: relevant.length, points: relevant.reduce((a, l) => a + l.points.length / 2, 0) });
         
         try {
             // Create mask
             const maskCanvas = createMaskCanvas(selectedObject);
             if (!maskCanvas) throw new Error('Failed to create mask');
+            const stats = computeMaskStats(maskCanvas);
+            console.log('[Erase] Mask stats', stats);
 
             // Convert images to base64
             const originalCanvas = document.createElement('canvas');
@@ -928,9 +1007,22 @@ export default function CanvasEditor({ projectId, imageUrl, projectTitle = 'Unti
             const originalCtx = originalCanvas.getContext('2d');
             if (!originalCtx) throw new Error('Failed to create canvas context');
             originalCtx.drawImage(selectedObject.image, 0, 0);
-            
-            const originalImage = originalCanvas.toDataURL('image/png');
-            const maskImage = maskCanvas.toDataURL('image/png');
+            let originalImage = '';
+            let maskImage = '';
+            try {
+                originalImage = originalCanvas.toDataURL('image/png');
+            } catch (e) {
+                console.error('[AI Generate] toDataURL failed for original image, likely CORS taint', e);
+                showAlert('Image Security Error', 'Cannot read the original image due to browser security (CORS). Try uploading a local image or ensure the image URL allows cross-origin access.', 'error');
+                return;
+            }
+            try {
+                maskImage = maskCanvas.toDataURL('image/png');
+            } catch (e) {
+                console.error('[AI Generate] toDataURL failed for mask image', e);
+                showAlert('Mask Error', 'Failed to serialize the mask image.', 'error');
+                return;
+            }
 
             // Make API call
             const response = await fetch('/api/generate-with-mask', {
@@ -956,24 +1048,27 @@ export default function CanvasEditor({ projectId, imageUrl, projectTitle = 'Unti
             }
 
             const result = await response.json();
+            console.log('[Erase] API result', result);
             
             // Display generated result
             if (result.generatedImage) {
-                const newImage = new Image();
+                const newImage = new window.Image();
                 newImage.onload = () => {
-                    // Replace selected object's image
-                    const objIndex = canvasObjects.findIndex(obj => obj.id === selectedObject.id);
-                    if (objIndex !== -1) {
-                        const updatedObjects = [...canvasObjects];
-                        updatedObjects[objIndex] = {
-                            ...updatedObjects[objIndex],
-                            image: newImage
+                    // Add generated image as a new object next to the original
+                    const sourceObject = selectedObject;
+                    if (sourceObject) {
+                        const generatedObj = {
+                            id: Date.now() + Math.random(),
+                            image: newImage,
+                            x: sourceObject.x + sourceObject.image.width + 20, // 20px gap
+                            y: sourceObject.y,
+                            label: `${sourceObject.label || 'Image'} (Edited)`,
+                            isMainImage: false
                         };
-                        setCanvasObjects(updatedObjects);
-                        setSelectedObject(updatedObjects[objIndex]);
-                        
+                        setCanvasObjects(prev => [...prev, generatedObj]);
+                        setSelectedObject(generatedObj);
                         // Clear brush strokes for this object
-                        setLines(lines.filter(l => l.objectId !== selectedObject.id));
+                        setLines(lines.filter(l => l.objectId !== sourceObject.id));
                     }
                 };
                 newImage.src = result.generatedImage;
@@ -983,18 +1078,21 @@ export default function CanvasEditor({ projectId, imageUrl, projectTitle = 'Unti
             showAlert('Error', error instanceof Error ? error.message : 'Failed to erase areas', 'error');
         } finally {
             setIsGenerating(false);
+            console.log('[Erase] Finished');
         }
     };
 
     const handleReplaceText = async () => {
         if (!selectedObject) {
             showAlert('No Selection', 'Please select an image first.', 'warning');
+            console.log('[ReplaceText] No selection');
             return;
         }
 
         const relevant = lines.filter(l => l.objectId === selectedObject.id);
         if (relevant.length === 0) {
             showAlert('No Mask', 'Please paint over the text you want to replace.', 'warning');
+            console.log('[ReplaceText] No mask for selected object');
             return;
         }
 
@@ -1006,23 +1104,18 @@ export default function CanvasEditor({ projectId, imageUrl, projectTitle = 'Unti
                 'Your text here'
             );
 
-            if (!textToReplace) return;
+            if (!textToReplace) { console.log('[ReplaceText] Prompt cancelled by user'); return; }
+            console.log('[ReplaceText] Prompt value', textToReplace);
 
-            // Confirm before replacing
-            const confirmed = await showConfirm(
-                'Replace Text?',
-                `This will replace the selected area with: "${textToReplace}". Continue?`,
-                'Replace',
-                false
-            );
-
-            if (!confirmed) return;
-
+            // Start generation immediately without confirmation
             setIsGenerating(true);
+            console.log('[ReplaceText] Starting with strokes', { strokeCount: relevant.length });
 
             // Create mask
             const maskCanvas = createMaskCanvas(selectedObject);
             if (!maskCanvas) throw new Error('Failed to create mask');
+            const stats = computeMaskStats(maskCanvas);
+            console.log('[ReplaceText] Mask stats', stats);
 
             // Convert images to base64
             const originalCanvas = document.createElement('canvas');
@@ -1036,49 +1129,85 @@ export default function CanvasEditor({ projectId, imageUrl, projectTitle = 'Unti
             const maskImage = maskCanvas.toDataURL('image/png');
 
             // Make API call
-            const response = await fetch('/api/generate-with-mask', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
-                },
-                body: JSON.stringify({
-                    originalImage,
-                    mask: maskImage,
-                    prompt: `Replace with text: "${textToReplace}"`,
-                    brushStrokes: relevant,
-                    imageSize: {
-                        width: selectedObject.image.width,
-                        height: selectedObject.image.height
-                    }
-                })
-            });
+            console.log('[ReplaceText] Sending API request...');
+            let response;
+            try {
+                response = await fetch('/api/generate-with-mask', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
+                    },
+                    body: JSON.stringify({
+                        originalImage,
+                        mask: maskImage,
+                        prompt: `inpaint the masked area with "${textToReplace}" make sure it's spelled correctly`,
+                        brushStrokes: relevant,
+                        imageSize: {
+                            width: selectedObject.image.width,
+                            height: selectedObject.image.height
+                        }
+                    })
+                });
+            } catch (fetchError) {
+                console.error('[ReplaceText] Fetch error:', fetchError);
+                throw new Error(`Network error: ${fetchError instanceof Error ? fetchError.message : 'Unknown'}`);
+            }
 
+            console.log('[ReplaceText] Response received:', response);
+
+            console.log('[ReplaceText] Response status:', response.status, response.statusText);
+            
             if (!response.ok) {
-                throw new Error(`API error: ${response.statusText}`);
+                let errorText = 'Unknown error';
+                try {
+                    errorText = await response.text();
+                    console.error('[ReplaceText] Error response body:', errorText);
+                } catch (e) {
+                    console.error('[ReplaceText] Could not read error response');
+                }
+                throw new Error(`API error (${response.status}): ${errorText.substring(0, 200)}`);
             }
 
             const result = await response.json();
+            console.log('[ReplaceText] API result', result);
             
             // Display generated result
             if (result.generatedImage) {
+                console.log('[ReplaceText] Loading generated image...');
                 const newImage = new Image();
                 newImage.onload = () => {
-                    // Replace selected object's image
-                    const objIndex = canvasObjects.findIndex(obj => obj.id === selectedObject.id);
-                    if (objIndex !== -1) {
-                        const updatedObjects = [...canvasObjects];
-                        updatedObjects[objIndex] = {
-                            ...updatedObjects[objIndex],
-                            image: newImage
-                        };
-                        setCanvasObjects(updatedObjects);
-                        setSelectedObject(updatedObjects[objIndex]);
+                    console.log('[ReplaceText] Image loaded, dimensions:', newImage.width, 'x', newImage.height);
+                    // Add generated image as a new object next to the original
+                    const sourceObject = selectedObject;
+                    if (sourceObject) {
+                        const generatedObj = {
+                            id: Date.now() + Math.random(),
+                            image: newImage,
+                            x: sourceObject.x + sourceObject.image.width + 20, // 20px gap to the right
+                            y: sourceObject.y,
+                            label: `${sourceObject.label || 'Image'} (Edited)`,
+                            isMainImage: false
+                        } as CanvasObject;
+                        console.log('[ReplaceText] Adding generated object next to source');
+                        setCanvasObjects(prev => [...prev, generatedObj]);
+                        setSelectedObject(generatedObj);
                         
-                        // Clear brush strokes for this object
-                        setLines(lines.filter(l => l.objectId !== selectedObject.id));
+                        // Clear brush strokes for the source object
+                        const oldLineCount = lines.length;
+                        const filteredLines = lines.filter(l => l.objectId !== sourceObject.id);
+                        console.log('[ReplaceText] Clearing lines:', oldLineCount, '→', filteredLines.length);
+                        setLines(filteredLines);
+                        
+                        // Force redraw
+                        console.log('[ReplaceText] Triggering canvas redraw');
+                        if (ctx) drawScene();
                     }
                 };
+                newImage.onerror = (e) => {
+                    console.error('[ReplaceText] Image load error:', e);
+                };
+                console.log('[ReplaceText] Setting image src...');
                 newImage.src = result.generatedImage;
             }
         } catch (error) {
@@ -1087,18 +1216,21 @@ export default function CanvasEditor({ projectId, imageUrl, projectTitle = 'Unti
             showAlert('Error', error instanceof Error ? error.message : 'Failed to replace text', 'error');
         } finally {
             setIsGenerating(false);
+            console.log('[ReplaceText] Finished');
         }
     };
 
     const handleGenerate = async () => {
         if (!selectedObject) {
             showAlert('No Selection', 'Please select an image first.', 'warning');
+            console.log('[AI Generate] No selected object');
             return;
         }
 
         const relevant = lines.filter(l => l.objectId === selectedObject.id);
         if (relevant.length === 0) {
             showAlert('No Mask', 'Please paint over the areas you want to regenerate.', 'warning');
+            console.log('[AI Generate] No mask/brush strokes found');
             return;
         }
 
@@ -1110,34 +1242,37 @@ export default function CanvasEditor({ projectId, imageUrl, projectTitle = 'Unti
                 ''
             );
 
-            if (!prompt) return;
+            if (!prompt) {
+                console.log('[AI Generate] Prompt cancelled by user');
+                return;
+            }
 
-            // Confirm before generating
-            const confirmed = await showConfirm(
-                'Generate with AI?',
-                `This will use AI to generate content based on: "${prompt}". Continue?`,
-                'Generate',
-                false
-            );
-
-            if (!confirmed) return;
-
+            // Start generation immediately without confirmation
             setIsGenerating(true);
+            console.log('[AI Generate] Starting generation...');
 
             // Create mask
             const maskCanvas = createMaskCanvas(selectedObject);
-            if (!maskCanvas) throw new Error('Failed to create mask');
+            if (!maskCanvas) {
+                console.error('[AI Generate] Failed to create mask');
+                throw new Error('Failed to create mask');
+            }
 
             // Convert images to base64
             const originalCanvas = document.createElement('canvas');
             originalCanvas.width = selectedObject.image.width;
             originalCanvas.height = selectedObject.image.height;
             const originalCtx = originalCanvas.getContext('2d');
-            if (!originalCtx) throw new Error('Failed to create canvas context');
+            if (!originalCtx) {
+                console.error('[AI Generate] Failed to create canvas context');
+                throw new Error('Failed to create canvas context');
+            }
             originalCtx.drawImage(selectedObject.image, 0, 0);
             
             const originalImage = originalCanvas.toDataURL('image/png');
             const maskImage = maskCanvas.toDataURL('image/png');
+
+            console.log('[AI Generate] Sending API request...', { prompt, originalImageLength: originalImage.length, maskImageLength: maskImage.length });
 
             // Make API call
             const response = await fetch('/api/generate-with-mask', {
@@ -1158,16 +1293,21 @@ export default function CanvasEditor({ projectId, imageUrl, projectTitle = 'Unti
                 })
             });
 
+            console.log('[AI Generate] API response status:', response.status);
             if (!response.ok) {
+                console.error('[AI Generate] API error:', response.statusText);
                 throw new Error(`API error: ${response.statusText}`);
             }
 
             const result = await response.json();
+            console.log('[AI Generate] API result:', result);
             
             // Display generated result
             if (result.generatedImage) {
+                console.log('[AI Generate] Received generated image, loading...');
                 const newImage = new Image();
                 newImage.onload = () => {
+                    console.log('[AI Generate] New image loaded, updating canvas...');
                     // Replace selected object's image
                     const objIndex = canvasObjects.findIndex(obj => obj.id === selectedObject.id);
                     if (objIndex !== -1) {
@@ -1181,16 +1321,24 @@ export default function CanvasEditor({ projectId, imageUrl, projectTitle = 'Unti
                         
                         // Clear brush strokes for this object
                         setLines(lines.filter(l => l.objectId !== selectedObject.id));
+                    } else {
+                        console.error('[AI Generate] Selected object not found in canvasObjects');
                     }
                 };
+                newImage.onerror = (e) => {
+                    console.error('[AI Generate] Error loading generated image', e);
+                };
                 newImage.src = result.generatedImage;
+            } else {
+                console.error('[AI Generate] No generatedImage in API result');
             }
         } catch (error) {
             if (error === null) return; // User cancelled
-            console.error('Generate error:', error);
+            console.error('[AI Generate] Generate error:', error);
             showAlert('Error', error instanceof Error ? error.message : 'Failed to generate image', 'error');
         } finally {
             setIsGenerating(false);
+            console.log('[AI Generate] Generation finished');
         }
     };
 
@@ -1279,7 +1427,8 @@ export default function CanvasEditor({ projectId, imageUrl, projectTitle = 'Unti
                 fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", "Oxygen", "Ubuntu", "Cantarell", sans-serif',
                 backgroundColor: '#FAF9F7',
                 overflow: 'hidden',
-                color: '#37352f'
+                color: '#37352f',
+                position: 'relative'
             }}>
                 {/* Top Header */}
                 <div style={{
@@ -1389,6 +1538,26 @@ export default function CanvasEditor({ projectId, imageUrl, projectTitle = 'Unti
 
                 {/* Main Container */}
                 <div style={{ flex: 1, display: 'flex', position: 'relative', overflow: 'hidden' }}>
+                    {/* Skeleton Loader Overlay */}
+                    {isGenerating && (
+                        <div style={{
+                            position: 'absolute',
+                            top: 0,
+                            left: 0,
+                            width: '100%',
+                            height: '100%',
+                            zIndex: 1000,
+                            background: 'rgba(255,255,255,0.7)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                        }}>
+                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '24px' }}>
+                                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#aaa" strokeWidth="2" className="animate-spin"><circle cx="12" cy="12" r="10" stroke="#aaa" strokeWidth="4" fill="none" /></svg>
+                                <div style={{ fontSize: '18px', color: '#37352f', fontWeight: 500 }}>Generating with AI...</div>
+                            </div>
+                        </div>
+                    )}
                     {/* Sidebar */}
                     <div style={{
                         position: 'absolute',
@@ -1441,6 +1610,39 @@ export default function CanvasEditor({ projectId, imageUrl, projectTitle = 'Unti
                                     }}>Tools</div>
                                 )}
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', alignItems: sidebarCollapsed ? 'center' : 'stretch' }}>
+                                    {/* AI Generate Quick Action */}
+                                    <button
+                                        style={{
+                                            padding: '10px 14px',
+                                            background: isGenerating ? '#f3f3f3' : '#373737',
+                                            color: isGenerating ? '#aaa' : 'white',
+                                            border: 'none',
+                                            borderRadius: '6px',
+                                            fontWeight: 500,
+                                            fontSize: '15px',
+                                            marginBottom: '10px',
+                                            cursor: isGenerating ? 'not-allowed' : 'pointer',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: '10px',
+                                            justifyContent: 'center',
+                                            boxShadow: isGenerating ? 'none' : '0 2px 4px rgba(0,0,0,0.06)'
+                                        }}
+                                        disabled={isGenerating}
+                                        onClick={() => { console.log('[UI] AI Generate button clicked'); handleGenerate(); }}
+                                    >
+                                        {isGenerating ? (
+                                            <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#aaa" strokeWidth="2" className="animate-spin"><circle cx="12" cy="12" r="10" stroke="#aaa" strokeWidth="4" fill="none" /></svg>
+                                                Generating...
+                                            </span>
+                                        ) : (
+                                            <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" /></svg>
+                                                AI Generate
+                                            </span>
+                                        )}
+                                    </button>
                                     <ToolButton 
                                         icon={<MousePointer size={18} />} 
                                         label="Select" 
@@ -1708,25 +1910,25 @@ export default function CanvasEditor({ projectId, imageUrl, projectTitle = 'Unti
                                     <FloatingActionButton 
                                         icon={<Eraser size={16} />} 
                                         label="Erase" 
-                                        onClick={handleErase}
+                                        onClick={() => { console.log('[UI] Floating Erase clicked'); handleErase(); }}
                                         disabled={isGenerating || !(selectedObject && lines.some(l => l.objectId === selectedObject.id))}
                                     />
                                     <FloatingActionButton 
                                         icon={<Type size={16} />} 
                                         label="Replace Text" 
-                                        onClick={handleReplaceText}
+                                        onClick={() => { console.log('[UI] Floating Replace Text clicked'); handleReplaceText(); }}
                                         disabled={isGenerating || !(selectedObject && lines.some(l => l.objectId === selectedObject.id))}
                                     />
                                     <FloatingActionButton 
                                         icon={<Wand2 size={16} />} 
                                         label="Generate" 
-                                        onClick={handleGenerate}
+                                        onClick={() => { console.log('[UI] Floating Generate clicked'); handleGenerate(); }}
                                         disabled={isGenerating || !(selectedObject && lines.some(l => l.objectId === selectedObject.id))}
                                     />
                                     <FloatingActionButton 
                                         icon={<Download size={16} />} 
                                         label="Download Mask" 
-                                        onClick={downloadMask}
+                                        onClick={() => { console.log('[UI] Floating Download Mask clicked'); downloadMask(); }}
                                         disabled={isGenerating || !(selectedObject && lines.some(l => l.objectId === selectedObject.id))}
                                     />
                                 </div>
@@ -1752,12 +1954,14 @@ export default function CanvasEditor({ projectId, imageUrl, projectTitle = 'Unti
                     if (promptModal.resolve) {
                         promptModal.resolve(null as any);
                     }
+                    console.log('[Prompt] Close (cancel)');
                     setPromptModal(prev => ({ ...prev, isOpen: false, resolve: null }));
                 }}
                 onSubmit={(value) => {
                     if (promptModal.resolve) {
                         promptModal.resolve(value);
                     }
+                    console.log('[Prompt] Submit', value);
                     setPromptModal(prev => ({ ...prev, isOpen: false, resolve: null }));
                 }}
                 title={promptModal.title}
@@ -1780,12 +1984,14 @@ export default function CanvasEditor({ projectId, imageUrl, projectTitle = 'Unti
                     if (confirmModal.resolve) {
                         confirmModal.resolve(false);
                     }
+                    console.log('[Confirm] Close (cancel)');
                     setConfirmModal(prev => ({ ...prev, isOpen: false, resolve: null }));
                 }}
                 onConfirm={() => {
                     if (confirmModal.resolve) {
                         confirmModal.resolve(true);
                     }
+                    console.log('[Confirm] Confirm (yes)');
                     setConfirmModal(prev => ({ ...prev, isOpen: false, resolve: null }));
                 }}
                 title={confirmModal.title}

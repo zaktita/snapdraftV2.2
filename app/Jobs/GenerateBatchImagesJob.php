@@ -38,17 +38,27 @@ class GenerateBatchImagesJob implements ShouldQueue
                 return;
             }
 
-            // Create array of generation jobs with rate limiting
+            // Create array of generation jobs
             $jobs = [];
-            foreach ($csvData as $index => $row) {
+            $jobIndex = 0;
+            foreach ($csvData as $row) {
+                // Skip rows with empty title AND description
+                $title = trim($row['title'] ?? '');
+                $description = trim($row['description'] ?? '');
+                
+                if (empty($title) && empty($description)) {
+                    Log::debug('Skipping empty CSV row', ['row' => $row]);
+                    continue;
+                }
+                
                 $prompt = $this->buildPrompt($row);
                 $format = $row['format'] ?? 'square';
 
-                // Add delay between jobs (2 seconds per image for rate limiting)
-                $job = (new GenerateSingleImageJob($this->project, $prompt, $format))
-                    ->delay(now()->addSeconds($index * 2));
+                // Create job without delay - queue worker will process sequentially
+                $job = new GenerateSingleImageJob($this->project, $prompt, $format);
 
                 $jobs[] = $job;
+                $jobIndex++;
             }
 
             // Dispatch batch of jobs without callbacks (to avoid closure serialization issues)

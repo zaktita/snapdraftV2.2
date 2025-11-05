@@ -90,11 +90,15 @@ class CSVWizardController extends Controller
             ]),
         ]);
 
-        // Queue AI processing job
+        // Queue AI processing job (dispatches immediately)
         \App\Jobs\GenerateBatchImagesJob::dispatch($project);
 
-        return redirect()->route('projects.show', $project->id)
-            ->with('success', 'Project created! AI generation will begin shortly.');
+        // Redirect with flash data for optimistic UI
+        return redirect()->route('projects.show', [
+            'project' => $project->id,
+            'justCreated' => true,
+            'expectedImages' => count($csvData),
+        ])->with('success', 'Generation started! Images will appear as they complete.');
     }
 
     /**
@@ -110,7 +114,22 @@ class CSVWizardController extends Controller
                 if (!$header) {
                     $header = $row;
                 } else {
-                    $data[] = array_combine($header, $row);
+                    // Combine header with row data
+                    $rowData = array_combine($header, $row);
+                    
+                    // Filter out empty rows (rows where all values are empty)
+                    $hasData = false;
+                    foreach ($rowData as $value) {
+                        if (!empty(trim($value))) {
+                            $hasData = true;
+                            break;
+                        }
+                    }
+                    
+                    // Only add rows that have at least one non-empty value
+                    if ($hasData) {
+                        $data[] = $rowData;
+                    }
                 }
             }
             fclose($handle);

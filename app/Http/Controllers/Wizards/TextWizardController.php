@@ -55,14 +55,10 @@ class TextWizardController extends Controller
             }
         }
 
-        // Queue AI processing job
-        if ($request->hasFile('reference_images')) {
-            // With references: analyze style first, then generate
-            \App\Jobs\AnalyzeBrandStyleJob::dispatch($project);
-        } else {
-            // No references: generate directly
-            \App\Jobs\GenerateSingleImageJob::dispatch($project);
-        }
+        // Queue AI processing job with the description as the prompt
+        $prompt = $validated['idea_description'];
+        $format = $validated['format'];
+        \App\Jobs\GenerateSingleImageJob::dispatch($project, $prompt, $format);
 
         return redirect()->route('projects.show', $project->id)
             ->with('success', 'Project created! AI generation will begin shortly.');

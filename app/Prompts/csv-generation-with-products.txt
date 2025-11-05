@@ -1,0 +1,9 @@
+generate a creative visual for this caption : {caption}
+
+keep the branding, colors and style similar the reference images
+keep the text to a minimum on the visual.
+no need to include the caption text on the image.
+make sure the text is correct and properly spelled.
+
+use the image{product_count_suffix} named {product_names} as the featured product{product_count_suffix}.
+don't use any other products except the products provided.

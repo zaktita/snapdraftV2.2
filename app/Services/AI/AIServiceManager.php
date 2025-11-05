@@ -125,6 +125,48 @@ class AIServiceManager
     }
 
     /**
+     * Edit image with mask (inpainting).
+     */
+    public function editWithMask(string $originalImagePath, string $maskImagePath, string $prompt): array
+    {
+        try {
+            Log::info('AIServiceManager: Attempting masked image edit with primary service');
+            
+            // Use GoogleGeminiService's editWithMask method
+            if (method_exists($this->primaryService, 'editWithMask')) {
+                return $this->primaryService->editWithMask(
+                    $originalImagePath,
+                    $maskImagePath,
+                    $prompt
+                );
+            }
+
+            throw new \Exception('Primary service does not support editWithMask');
+        } catch (\Exception $e) {
+            Log::error('AIServiceManager: Primary service failed for masked image edit', [
+                'error' => $e->getMessage(),
+            ]);
+
+            if ($this->fallbackService && method_exists($this->fallbackService, 'editWithMask')) {
+                Log::info('AIServiceManager: Attempting masked image edit with fallback service');
+                try {
+                    return $this->fallbackService->editWithMask(
+                        $originalImagePath,
+                        $maskImagePath,
+                        $prompt
+                    );
+                } catch (\Exception $fallbackError) {
+                    Log::error('AIServiceManager: Fallback service also failed', [
+                        'error' => $fallbackError->getMessage(),
+                    ]);
+                }
+            }
+
+            throw new \Exception('All AI services failed for masked image edit: ' . $e->getMessage());
+        }
+    }
+
+    /**
      * Get the name of the currently active service.
      */
     public function getActiveServiceName(): string

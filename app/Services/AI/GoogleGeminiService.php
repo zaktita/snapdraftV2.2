@@ -2,6 +2,7 @@
 
 namespace App\Services\AI;
 
+use App\Services\PromptService;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
@@ -12,14 +13,16 @@ class GoogleGeminiService implements AIServiceInterface
     // Text/analysis model
     protected string $textModel = 'gemini-2.0-flash-exp';
     // Image generation model (from server.js.example)
-    protected string $imageModel = 'gemini-2.5-flash-image';
+    protected string $imageModel = 'gemini-2.5-flash-image-preview';
     protected string $baseUrl = 'https://generativelanguage.googleapis.com/v1beta';
+    protected PromptService $promptService;
 
-    public function __construct()
+    public function __construct(PromptService $promptService)
     {
         $this->apiKey = config('services.gemini.api_key');
         $this->textModel = config('services.gemini.model', 'gemini-2.0-flash-exp');
-        $this->imageModel = config('services.gemini.image_model', 'gemini-2.5-flash-image');
+        $this->imageModel = config('services.gemini.image_model', 'gemini-2.5-flash-image-preview');
+        $this->promptService = $promptService;
     }
 
     /**
@@ -52,13 +55,8 @@ class GoogleGeminiService implements AIServiceInterface
                 throw new \Exception('No valid images found for brand analysis');
             }
 
-            // Create analysis prompt
-            $prompt = "Analyze these brand reference images and extract the visual style. Identify:\n\n";
-            $prompt .= "1. Color palette (primary, secondary, accent colors with hex codes)\n";
-            $prompt .= "2. Typography style (modern, classic, playful, professional)\n";
-            $prompt .= "3. Composition patterns (layout, balance, whitespace)\n";
-            $prompt .= "4. Overall mood and tone (elegant, bold, minimal, etc.)\n\n";
-            $prompt .= "Return ONLY a valid JSON object with keys: colors, typography, composition, mood";
+            // Get analysis prompt from PromptService
+            $prompt = $this->promptService->brandAnalysis();
 
             // Build request
             $contents = [
@@ -205,23 +203,8 @@ class GoogleGeminiService implements AIServiceInterface
                 }
             }
 
-            // Build the generation prompt (adapted from server.js.example)
-            $fullPrompt = "generate a creative visual for this caption : {$prompt}\n\n";
-            $fullPrompt .= "keep the branding, colors and style similar the reference images\n";
-            $fullPrompt .= "keep the text to a minimum on the visual.\n";
-            $fullPrompt .= "no need to include the caption text on the image.\n";
-            $fullPrompt .= "make sure the text is correct and properly spelled.";
-
-            if (!empty($productNames)) {
-                if (count($productNames) === 1) {
-                    $fullPrompt .= "\n\nuse the image named {$productNames[0]} as the featured product.\n";
-                    $fullPrompt .= "don't use any other products except the products provided.";
-                } else {
-                    $productList = implode(', ', $productNames);
-                    $fullPrompt .= "\n\nuse the images named {$productList} as the featured products.\n";
-                    $fullPrompt .= "don't use any other products except the products provided.";
-                }
-            }
+            // Build the generation prompt using PromptService
+            $fullPrompt = $this->promptService->csvGeneration($prompt, $productNames);
 
             // Build request parts
             $parts = array_merge(
@@ -319,6 +302,107 @@ class GoogleGeminiService implements AIServiceInterface
         } catch (\Exception $e) {
             Log::error('Error converting file to base64', ['path' => $filePath, 'error' => $e->getMessage()]);
             return null;
+        }
+    }
+
+    /**
+     * Edit image with mask (inpainting/outpainting).
+     * Uses Gemini's imagen-3.0-generate-001 model for image editing.
+     */
+    public function editWithMask(string $originalImagePath, string $maskImagePath, string $prompt): array
+    {
+        if (!$this->isAvailable()) {
+            throw new \Exception('Google Gemini API is not configured');
+        }
+
+        Log::info('GoogleGeminiService::editWithMask called', [
+            'prompt' => substr($prompt, 0, 100),
+        ]);
+
+        try {
+            // Convert original image to base64
+            $originalData = $this->fileToBase64($originalImagePath);
+            if (!$originalData) {
+                throw new \Exception('Failed to read original image');
+            }
+
+            // Convert mask to base64
+            $maskData = $this->fileToBase64($maskImagePath);
+            if (!$maskData) {
+                throw new \Exception('Failed to read mask image');
+            }
+
+            // Use Imagen 3 for image editing
+            $editModel = 'imagen-3.0-generate-001';
+            $url = "{$this->baseUrl}/models/{$editModel}:predict";
+
+            // Build the edit request
+            $payload = [
+                'instances' => [
+                    [
+                        'prompt' => $prompt,
+                        'image' => [
+                            'bytesBase64Encoded' => $originalData['data']
+                        ],
+                        'mask' => [
+                            'image' => [
+                                'bytesBase64Encoded' => $maskData['data']
+                            ]
+                        ]
+                    ]
+                ],
+                'parameters' => [
+                    'sampleCount' => 1,
+                    'aspectRatio' => '1:1',
+                    'mode' => 'INPAINTING'
+                ]
+            ];
+
+            Log::info('Sending Imagen edit request', ['model' => $editModel]);
+
+            $response = Http::timeout(120)
+                ->withHeaders(['Content-Type' => 'application/json'])
+                ->post($url . '?key=' . $this->apiKey, $payload);
+
+            if (!$response->successful()) {
+                $errorBody = $response->body();
+                Log::error('Imagen API error', [
+                    'status' => $response->status(),
+                    'body' => $errorBody
+                ]);
+                throw new \Exception("Imagen API error: {$response->status()} - {$errorBody}");
+            }
+
+            $result = $response->json();
+            
+            if (!isset($result['predictions'][0]['bytesBase64Encoded'])) {
+                Log::error('Unexpected Imagen response structure', ['result' => $result]);
+                throw new \Exception('Invalid response from Imagen API');
+            }
+
+            $imageBase64 = $result['predictions'][0]['bytesBase64Encoded'];
+            
+            // Save the generated image
+            $imageData = base64_decode($imageBase64);
+            $filename = 'generated_' . time() . '_' . uniqid() . '.png';
+            $path = 'generations/' . $filename;
+            Storage::disk('public')->put($path, $imageData);
+
+            Log::info('Image editing completed', ['path' => $path]);
+
+            return [
+                'image_url' => Storage::disk('public')->url($path),
+                'image_path' => $path,
+                'prompt' => $prompt,
+                'model' => $editModel,
+            ];
+
+        } catch (\Exception $e) {
+            Log::error('GoogleGeminiService::editWithMask failed', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            throw $e;
         }
     }
 

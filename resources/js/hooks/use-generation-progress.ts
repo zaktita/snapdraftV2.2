@@ -13,16 +13,22 @@ export interface GenerationProgress {
 
 /**
  * Hook to track AI generation progress for a project.
- * Polls the server every 3 seconds while generation is in progress.
+ * Polls the server every 2 seconds while generation is in progress.
  * 
  * @param projectId - The project ID to track progress for
  * @param enabled - Whether to enable polling (default: true)
+ * @param onComplete - Callback when generation completes
  * @returns Progress data and loading state
  */
-export function useGenerationProgress(projectId: number | null, enabled = true) {
+export function useGenerationProgress(
+    projectId: number | null, 
+    enabled = true,
+    onComplete?: () => void
+) {
     const [progress, setProgress] = useState<GenerationProgress | null>(null);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [wasGenerating, setWasGenerating] = useState(false);
 
     useEffect(() => {
         if (!projectId || !enabled) {
@@ -48,7 +54,15 @@ export function useGenerationProgress(projectId: number | null, enabled = true) 
                 const data = await response.json();
                 
                 if (isMounted) {
+                    const isCurrentlyGenerating = !data.is_complete && data.processing > 0;
+                    
+                    // Check if generation just completed
+                    if (wasGenerating && data.is_complete && onComplete) {
+                        onComplete();
+                    }
+                    
                     setProgress(data);
+                    setWasGenerating(isCurrentlyGenerating);
                     setError(null);
 
                     // Stop polling if generation is complete
@@ -70,8 +84,8 @@ export function useGenerationProgress(projectId: number | null, enabled = true) 
         // Fetch immediately
         fetchProgress();
 
-        // Then poll every 3 seconds
-        intervalId = setInterval(fetchProgress, 3000);
+        // Then poll every 2 seconds (reduced from 3)
+        intervalId = setInterval(fetchProgress, 2000);
 
         return () => {
             isMounted = false;
@@ -79,7 +93,7 @@ export function useGenerationProgress(projectId: number | null, enabled = true) 
                 clearInterval(intervalId);
             }
         };
-    }, [projectId, enabled]);
+    }, [projectId, enabled, wasGenerating, onComplete]);
 
     return {
         progress,

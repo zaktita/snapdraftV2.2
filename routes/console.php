@@ -50,3 +50,42 @@ Artisan::command('ai:test-generate {prompt : The prompt to generate an image}', 
         report($e);
     }
 })->purpose('Generate a test image using the configured AI service');
+
+// Test CSV wizard flow
+Artisan::command('test:csv-wizard', function () {
+    $this->info('Testing CSV wizard flow...');
+    
+    // Get or create test user
+    $user = \App\Models\User::firstOrCreate(
+        ['email' => 'test@example.com'],
+        [
+            'name' => 'Test User',
+            'password' => bcrypt('password'),
+            'credits_remaining' => 100,
+            'credits_total' => 100,
+        ]
+    );
+    
+    // Create test project
+    $project = $user->projects()->create([
+        'title' => 'Test CSV Project',
+        'description' => 'Testing CSV wizard flow',
+        'settings' => [
+            'wizard_type' => 'csv',
+            'csv_data' => [
+                ['title' => 'Summer Sale', 'description' => 'Amazing summer deals', 'format' => 'square'],
+                ['title' => 'Winter Collection', 'description' => 'Cozy winter vibes', 'format' => 'portrait'],
+            ],
+            'csv_rows' => 2,
+        ],
+    ]);
+    
+    $this->info("Project created: {$project->id}");
+    
+    // Dispatch batch job
+    \App\Jobs\GenerateBatchImagesJob::dispatch($project);
+    
+    $this->info('Batch job dispatched! Run queue worker to process: php artisan queue:work');
+    $this->info("View results: http://localhost/projects/{$project->id}");
+    
+})->purpose('Test the CSV wizard generation flow');

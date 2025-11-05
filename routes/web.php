@@ -4,6 +4,7 @@ use App\Http\Controllers\ProjectController;
 use App\Http\Controllers\ImageController;
 use App\Http\Controllers\CanvasController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\ImageEditController;
 use App\Http\Controllers\Wizards\CSVWizardController;
 use App\Http\Controllers\Wizards\ImagesWizardController;
 use App\Http\Controllers\Wizards\TextWizardController;
@@ -11,9 +12,12 @@ use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 use Laravel\Fortify\Features;
 
-// Home route (redirect to dashboard if authenticated, otherwise to login)
+// Home route: show marketing homepage when unauthenticated, dashboard when logged in
 Route::get('/', function () {
-    return auth()->check() ? redirect()->route('dashboard') : redirect()->route('login');
+    if (auth()->check()) {
+        return redirect()->route('dashboard');
+    }
+    return Inertia::render('website/home');
 })->name('home');
 
 Route::middleware(['auth', 'verified'])->group(function () {
@@ -96,6 +100,13 @@ Route::middleware(['auth', 'verified'])->group(function () {
         ->name('canvas.save-edit');
     Route::post('projects/{projectId}/canvas/export', [CanvasController::class, 'exportCanvas'])
         ->name('canvas.export');
+    
+    // AI-powered canvas editing endpoint
+    Route::post('/api/generate-with-mask', [ImageEditController::class, 'generateWithMask'])
+        ->name('api.generate-with-mask');
+    
+    // Test Gemini inpainting
+    Route::get('/test/gemini-inpaint', [ImageEditController::class, 'testInpaint']);
 
     // Subscription & Billing
     Route::prefix('subscription')->name('subscription.')->group(function () {

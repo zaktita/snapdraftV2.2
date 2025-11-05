@@ -1,0 +1,20 @@
+IMPORTANT: Only modify the specified rectangular area in this image. Do not change anything outside the selection area.
+
+Selection area coordinates: x={selection_x}, y={selection_y}, width={selection_width}, height={selection_height}
+
+Task: {task}
+
+Instructions:
+1. Focus ONLY on the specified rectangular selection area
+2. Keep everything outside this area exactly the same
+3. Make the changes blend naturally with the surrounding area
+4. Maintain the original image quality and style
+5. Ensure seamless integration at the selection boundaries
+
+The result should show the original image with only the selected area modified according to the prompt.
+
+Use the reference images to maintain brand consistency in colors, style, and visual identity while applying the generative fill.
+
+Focus the fill operation on the area around coordinates: x={selection_x}, y={selection_y}, width={selection_width}, height={selection_height}.
+
+Ensure the result looks natural and professional with seamless integration.

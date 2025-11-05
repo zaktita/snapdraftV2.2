@@ -306,8 +306,12 @@ export default function CSVWizard() {
 
         router.post(csv.store.url(), fd, {
             forceFormData: true,
-            preserveScroll: true,
+            preserveScroll: false, // Changed to false for redirect
             onError: () => setIsSubmitting(false),
+            onSuccess: () => {
+                // Form submitted successfully, redirect will happen automatically
+                // The onSuccess is called before navigation completes
+            },
         });
     };
 
@@ -821,6 +825,9 @@ export default function CSVWizard() {
                                                                 </div>
                                                             </th>
                                                         ))}
+                                                        <th style={{ padding: '14px 16px', textAlign: 'center', borderBottom: '1px solid #e5e7eb', width: '60px' }}>
+                                                            Actions
+                                                        </th>
                                                     </tr>
                                                 </thead>
                                                 <tbody>
@@ -854,6 +861,62 @@ export default function CSVWizard() {
                                                                     />
                                                                 </td>
                                                             ))}
+                                                            <td style={{ padding: '14px 16px', textAlign: 'center', borderBottom: '1px solid #e5e7eb' }}>
+                                                                <button
+                                                                    onClick={() => {
+                                                                        // Remove row from csvData
+                                                                        const newData = csvData.filter((_, i) => i !== rowIndex);
+                                                                        setCsvData(newData);
+                                                                        
+                                                                        // Update selected rows
+                                                                        const newSelectedRows = new Set<number>();
+                                                                        selectedRows.forEach(index => {
+                                                                            if (index < rowIndex) {
+                                                                                newSelectedRows.add(index);
+                                                                            } else if (index > rowIndex) {
+                                                                                newSelectedRows.add(index - 1);
+                                                                            }
+                                                                        });
+                                                                        setSelectedRows(newSelectedRows);
+                                                                        
+                                                                        // Regenerate CSV file
+                                                                        if (newData.length > 0) {
+                                                                            const headers = Object.keys(newData[0]);
+                                                                            const csvContent = [
+                                                                                headers.join(','),
+                                                                                ...newData.map(row => headers.map(h => `"${row[h] || ''}"`).join(','))
+                                                                            ].join('\n');
+                                                                            const blob = new Blob([csvContent], { type: 'text/csv' });
+                                                                            const file = new File([blob], fileName || 'edited.csv', { type: 'text/csv' });
+                                                                            setCsvFile(file);
+                                                                        }
+                                                                    }}
+                                                                    disabled={csvData.length <= 1}
+                                                                    style={{
+                                                                        padding: '6px',
+                                                                        background: 'transparent',
+                                                                        border: 'none',
+                                                                        cursor: csvData.length <= 1 ? 'not-allowed' : 'pointer',
+                                                                        color: csvData.length <= 1 ? '#d1d5db' : '#9b9a97',
+                                                                        borderRadius: '4px',
+                                                                        opacity: csvData.length <= 1 ? 0.5 : 1,
+                                                                        transition: 'color 0.15s ease'
+                                                                    }}
+                                                                    onMouseEnter={(e) => {
+                                                                        if (csvData.length > 1) {
+                                                                            e.currentTarget.style.color = '#ef4444';
+                                                                        }
+                                                                    }}
+                                                                    onMouseLeave={(e) => {
+                                                                        if (csvData.length > 1) {
+                                                                            e.currentTarget.style.color = '#9b9a97';
+                                                                        }
+                                                                    }}
+                                                                    title={csvData.length <= 1 ? 'Cannot delete the last row' : 'Delete row'}
+                                                                >
+                                                                    <Trash2 size={16} />
+                                                                </button>
+                                                            </td>
                                                         </tr>
                                                     ))}
                                                 </tbody>
@@ -1057,13 +1120,13 @@ export default function CSVWizard() {
                         </button>
                         <button 
                             onClick={nextStep}
-                            disabled={currentStep === 1 && !csvData.length}
+                            disabled={(currentStep === 1 && !csvData.length) || isSubmitting}
                             style={{
                                 padding: '10px 24px',
                                 borderRadius: '8px',
                                 fontSize: '14px',
                                 fontWeight: 500,
-                                cursor: (currentStep === 1 && !csvData.length) ? 'not-allowed' : 'pointer',
+                                cursor: ((currentStep === 1 && !csvData.length) || isSubmitting) ? 'not-allowed' : 'pointer',
                                 transition: 'all 0.2s ease-out',
                                 display: 'inline-flex',
                                 alignItems: 'center',
@@ -1071,10 +1134,23 @@ export default function CSVWizard() {
                                 background: '#1a1a1a',
                                 color: 'white',
                                 border: '1px solid #1a1a1a',
-                                opacity: (currentStep === 1 && !csvData.length) ? 0.5 : 1
+                                opacity: ((currentStep === 1 && !csvData.length) || isSubmitting) ? 0.5 : 1
                             }}
                         >
-                            {currentStep === 4 ? (
+                            {isSubmitting ? (
+                                <>
+                                    <span style={{
+                                        display: 'inline-block',
+                                        width: '16px',
+                                        height: '16px',
+                                        border: '2px solid #ffffff40',
+                                        borderTopColor: '#ffffff',
+                                        borderRadius: '50%',
+                                        animation: 'spin 0.6s linear infinite'
+                                    }} />
+                                    Creating Project...
+                                </>
+                            ) : currentStep === 4 ? (
                                 <>
                                     Generate {selectedRows.size} Image{selectedRows.size !== 1 ? 's' : ''}
                                     <Zap size={16} />
@@ -1099,6 +1175,15 @@ export default function CSVWizard() {
                     to {
                         opacity: 1;
                         transform: translateY(0);
+                    }
+                }
+                
+                @keyframes spin {
+                    from {
+                        transform: rotate(0deg);
+                    }
+                    to {
+                        transform: rotate(360deg);
                     }
                 }
             `}</style>

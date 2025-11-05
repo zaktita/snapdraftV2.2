@@ -1,0 +1,21 @@
+I am providing you with TWO images:
+
+IMAGE 1: Original image that needs editing
+IMAGE 2: Black and white mask where WHITE areas show what to modify/generate
+
+TASK: {task}
+
+CRITICAL INSTRUCTIONS:
+1. Look at the ORIGINAL IMAGE (first image) to understand the scene, lighting, style, and context
+2. Look at the MASK IMAGE (second image) - WHITE areas indicate where to generate new content
+3. Generate new content ONLY in the WHITE masked regions
+4. Keep BLACK masked areas exactly as they appear in the original
+5. Ensure seamless blending - match lighting, shadows, perspective, and style
+6. Return a COMPLETE image with the masked areas properly filled
+
+TECHNICAL DETAILS:
+- Brush strokes used: {brush_strokes}
+- Image dimensions: {image_width}x{image_height}
+- Processing: Inpainting/Object replacement
+
+The result should look like a professionally edited photograph with no visible seams or artifacts.

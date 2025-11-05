@@ -1,0 +1,7 @@
+Edit this image based on the following instructions: {edit_instructions}
+
+Keep the overall composition and maintain brand consistency
+
+Use the reference images provided to maintain the brand style, colors, and visual identity while applying the requested changes.
+
+Apply the changes while maintaining professional quality and visual appeal.

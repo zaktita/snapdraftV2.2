@@ -1,0 +1,8 @@
+Analyze these brand reference images and extract the visual style. Identify:
+
+1. Color palette (primary, secondary, accent colors with hex codes)
+2. Typography style (modern, classic, playful, professional)
+3. Composition patterns (layout, balance, whitespace)
+4. Overall mood and tone (elegant, bold, minimal, etc.)
+
+Return ONLY a valid JSON object with keys: colors, typography, composition, mood

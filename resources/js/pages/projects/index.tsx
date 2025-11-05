@@ -445,7 +445,7 @@ function ProjectCard({ project, formatDate, onToggleFavorite, onDelete, onRename
                 </div>
                 
                 {/* Card Content */}
-                <CardContent className="p-6">
+                <CardContent className="px-6">
                     {isEditing ? (
                         <input
                             ref={inputRef}
