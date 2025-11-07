@@ -52,7 +52,7 @@ export function CreditsCard() {
                 <Button
                     asChild
                     size="sm"
-                    className="w-full bg-[#1F2937] hover:bg-[#111827] text-white"
+                    className="w-full bg-sidebar-primary text-sidebar-primary-foreground hover:bg-neutral-900 hover:text-sidebar-primary-foreground/90 transition-colors duration-150"
                 >
                     <Link href={tier === 'free' ? '/subscription/plans' : '/subscription/portal'} prefetch>
                         {tier === 'free' ? 'Upgrade Plan' : 'Manage Billing'}

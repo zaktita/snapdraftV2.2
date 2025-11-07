@@ -180,7 +180,7 @@ export function AppSidebar() {
                     <SidebarMenuItem className="mt-2">
                         <SidebarMenuButton
                             asChild
-                            className="bg-sidebar-primary text-sidebar-primary-foreground hover:bg-sidebar-primary/90"
+                            className="hover:bg-sidebar-primary hover:text-sidebar-primary-foreground bg-neutral-900 text-sidebar-primary-foreground/90 transition-colors duration-150"
                         >
                             <Link href="/projects/create" prefetch>
                                 <FolderPlus />

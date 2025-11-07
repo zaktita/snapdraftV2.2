@@ -206,7 +206,7 @@ export default function Dashboard({ stats, recent_projects }: DashboardProps) {
                             )}
 
                             <div className="mt-3">
-                                <Button asChild className="w-full bg-[#1F2937] hover:bg-[#111827] text-white" size="sm">
+                                <Button asChild className="w-full bg-sidebar-primary text-sidebar-primary-foreground hover:bg-neutral-900 hover:text-sidebar-primary-foreground/90 transition-colors duration-150" size="sm">
                                     <Link href={stats.subscription_tier === 'free' ? '/subscription/plans' : '/subscription/portal'}>
                                         {stats.subscription_tier === 'free' ? (
                                             <>
