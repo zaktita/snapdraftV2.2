@@ -37,7 +37,7 @@ export function CreditsCard() {
                     <Progress
                         value={usagePercent}
                         className="h-1 bg-[#F3F4F6]"
-                        indicatorClassName="bg-[#9CA3AF]"
+                        indicatorClassName="bg-sidebar-primary"
                         aria-label="Credit usage"
                     />
                     <p className="mt-1 text-sm text-[#374151]">
