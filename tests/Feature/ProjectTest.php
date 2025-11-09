@@ -19,7 +19,7 @@ class ProjectTest extends TestCase
         $response = $this->actingAs($user)->get(route('projects.index'));
 
         $response->assertOk();
-        $response->assertInertia(fn ($page) => $page->component('projects/index'));
+        $response->assertInertia(fn($page) => $page->component('projects/index'));
     }
 
     /** @test */
@@ -104,6 +104,37 @@ class ProjectTest extends TestCase
     }
 
     /** @test */
+    public function user_can_view_own_project()
+    {
+        $user = User::factory()->create();
+        $project = Project::factory()->create(['user_id' => $user->id]);
+
+        $response = $this->actingAs($user)
+            ->get(route('projects.show', $project));
+
+        $response->assertOk();
+        $response->assertInertia(
+            fn($page) =>
+            $page->component('projects/show')
+                ->has('project')
+                ->where('project.id', $project->id)
+        );
+    }
+
+    /** @test */
+    public function user_cannot_view_others_project()
+    {
+        $owner = User::factory()->create();
+        $otherUser = User::factory()->create();
+        $project = Project::factory()->create(['user_id' => $owner->id]);
+
+        $response = $this->actingAs($otherUser)
+            ->get(route('projects.show', $project));
+
+        $response->assertForbidden();
+    }
+
+    /** @test */
     public function user_can_delete_own_project()
     {
         $user = User::factory()->create();
@@ -152,13 +183,13 @@ class ProjectTest extends TestCase
     public function projects_are_ordered_by_favorites_then_recent()
     {
         $user = User::factory()->create();
-        
+
         $normalProject = Project::factory()->create([
             'user_id' => $user->id,
             'is_favorite' => false,
             'created_at' => now()->subDays(2),
         ]);
-        
+
         $favoriteProject = Project::factory()->create([
             'user_id' => $user->id,
             'is_favorite' => true,
@@ -169,7 +200,7 @@ class ProjectTest extends TestCase
 
         $response->assertOk();
         $projects = $response->viewData('page')['props']['projects']['data'];
-        
+
         $this->assertEquals($favoriteProject->id, $projects[0]['id']);
     }
 
@@ -177,12 +208,12 @@ class ProjectTest extends TestCase
     public function user_can_search_projects()
     {
         $user = User::factory()->create();
-        
+
         Project::factory()->create([
             'user_id' => $user->id,
             'name' => 'Summer Campaign',
         ]);
-        
+
         Project::factory()->create([
             'user_id' => $user->id,
             'name' => 'Winter Campaign',
@@ -193,7 +224,7 @@ class ProjectTest extends TestCase
 
         $response->assertOk();
         $projects = $response->viewData('page')['props']['projects']['data'];
-        
+
         $this->assertCount(1, $projects);
         $this->assertEquals('Summer Campaign', $projects[0]['name']);
     }
@@ -202,12 +233,12 @@ class ProjectTest extends TestCase
     public function user_can_filter_projects_by_format()
     {
         $user = User::factory()->create();
-        
+
         Project::factory()->create([
             'user_id' => $user->id,
             'format' => 'square',
         ]);
-        
+
         Project::factory()->create([
             'user_id' => $user->id,
             'format' => 'landscape',
@@ -218,7 +249,7 @@ class ProjectTest extends TestCase
 
         $response->assertOk();
         $projects = $response->viewData('page')['props']['projects']['data'];
-        
+
         $this->assertCount(1, $projects);
         $this->assertEquals('square', $projects[0]['format']);
     }
@@ -228,14 +259,15 @@ class ProjectTest extends TestCase
     {
         $user = User::factory()->create();
         $project = Project::factory()->create(['user_id' => $user->id]);
-        
+
         // Create some images for the project (assuming Image model exists)
         // $project->images()->createMany([...]);
 
         $response = $this->actingAs($user)->get(route('projects.show', $project));
 
         $response->assertOk();
-        $response->assertInertia(fn ($page) => 
+        $response->assertInertia(
+            fn($page) =>
             $page->component('projects/show')
                 ->has('project.images_count')
         );

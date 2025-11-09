@@ -19,10 +19,13 @@ class DashboardController extends Controller
         $favoriteProjects = Project::where('user_id', $user->id)
             ->where('is_favorite', true)
             ->count();
-        
-        // Get recent projects
+
+        // Get recent projects with optimized query (avoid N+1)
         $recentProjects = Project::where('user_id', $user->id)
-            ->with('images')
+            ->withCount('images')
+            ->with(['images' => function ($query) {
+                $query->orderBy('order')->orderBy('created_at')->limit(1);
+            }])
             ->latest()
             ->take(6)
             ->get()
@@ -32,7 +35,7 @@ class DashboardController extends Controller
                     'title' => $project->title,
                     'description' => $project->description,
                     'is_favorite' => $project->is_favorite,
-                    'images_count' => $project->images->count(),
+                    'images_count' => $project->images_count, // Use cached count from withCount
                     'thumbnail' => $project->images->first()?->thumbnail_url,
                     'created_at' => $project->created_at->diffForHumans(),
                 ];

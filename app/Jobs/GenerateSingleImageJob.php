@@ -18,6 +18,20 @@ class GenerateSingleImageJob implements ShouldQueue
     use Batchable, Queueable;
 
     /**
+     * The number of times the job may be attempted.
+     *
+     * @var int
+     */
+    public $tries = 3;
+
+    /**
+     * The number of seconds to wait before retrying the job.
+     *
+     * @var array
+     */
+    public $backoff = [60, 300, 900]; // 1 minute, 5 minutes, 15 minutes
+
+    /**
      * Create a new job instance.
      */
     public function __construct(
@@ -46,7 +60,7 @@ class GenerateSingleImageJob implements ShouldQueue
                 'user_id' => $user->id,
                 'project_id' => $this->project->id,
             ]);
-            
+
             GenerationHistory::create([
                 'user_id' => $this->project->user_id,
                 'project_id' => $this->project->id,
@@ -54,7 +68,7 @@ class GenerateSingleImageJob implements ShouldQueue
                 'status' => 'failed',
                 'error_message' => 'Insufficient credits',
             ]);
-            
+
             return;
         }
 
@@ -94,7 +108,7 @@ class GenerateSingleImageJob implements ShouldQueue
             // Save the generated image
             if (isset($result['image_data'])) {
                 $imageData = base64_decode($result['image_data']);
-                $extension = match($result['mime_type']) {
+                $extension = match ($result['mime_type']) {
                     'image/jpeg' => 'jpg',
                     'image/png' => 'png',
                     'image/webp' => 'webp',
@@ -148,7 +162,6 @@ class GenerateSingleImageJob implements ShouldQueue
             } else {
                 throw new \Exception('No image data in AI service response');
             }
-
         } catch (\Exception $e) {
             Log::error('Image generation failed', [
                 'project_id' => $this->project->id,
@@ -184,6 +197,56 @@ class GenerateSingleImageJob implements ShouldQueue
             'project_id' => $this->project->id,
             'prompt' => $this->prompt,
             'error' => $exception->getMessage(),
+            'attempts' => $this->attempts(),
         ]);
+
+        // Send email notification to project owner
+        try {
+            \Illuminate\Support\Facades\Mail::to($this->project->user->email)
+                ->send(new \App\Mail\JobFailedNotification(
+                    jobType: 'Single Image Generation',
+                    projectName: $this->project->name ?? $this->project->title,
+                    projectId: $this->project->id,
+                    errorMessage: $this->getUserFriendlyError($exception),
+                    attemptNumber: $this->attempts()
+                ));
+        } catch (\Exception $mailException) {
+            Log::error('Failed to send job failure notification email', [
+                'project_id' => $this->project->id,
+                'mail_error' => $mailException->getMessage(),
+            ]);
+        }
+    }
+
+    /**
+     * Convert technical error to user-friendly message
+     */
+    protected function getUserFriendlyError(\Throwable $exception): string
+    {
+        $message = $exception->getMessage();
+
+        // Map common errors to user-friendly messages
+        if (str_contains($message, '429') || str_contains($message, 'rate limit')) {
+            return 'Our AI service is experiencing high demand. Please try again in a few minutes.';
+        }
+
+        if (str_contains($message, '401') || str_contains($message, 'authentication')) {
+            return 'There was an authentication issue with our AI service. Our team has been notified.';
+        }
+
+        if (str_contains($message, '500') || str_contains($message, 'server error')) {
+            return 'Our AI service encountered a temporary error. Please try again later.';
+        }
+
+        if (str_contains($message, 'timeout') || str_contains($message, 'timed out')) {
+            return 'The image generation took too long and timed out. Please try again with a simpler prompt.';
+        }
+
+        if (str_contains($message, 'credit') || str_contains($message, 'insufficient')) {
+            return 'You have insufficient credits to complete this generation. Please upgrade your plan.';
+        }
+
+        // Generic fallback
+        return 'An unexpected error occurred during image generation. Our team has been notified and is investigating.';
     }
 }

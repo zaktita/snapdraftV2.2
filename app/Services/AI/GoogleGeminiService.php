@@ -2,6 +2,7 @@
 
 namespace App\Services\AI;
 
+use App\Exceptions\AIServiceUnavailableException;
 use App\Services\PromptService;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -31,7 +32,9 @@ class GoogleGeminiService implements AIServiceInterface
     public function analyzeBrandStyle(array $imageUrls): array
     {
         if (!$this->isAvailable()) {
-            throw new \Exception('Google Gemini API is not configured');
+            throw new AIServiceUnavailableException(
+                'Google Gemini API is not configured. Please add GEMINI_API_KEY to your .env file.'
+            );
         }
 
         Log::info('GoogleGeminiService::analyzeBrandStyle called', ['image_count' => count($imageUrls)]);
@@ -86,10 +89,10 @@ class GoogleGeminiService implements AIServiceInterface
             }
 
             $result = $response->json();
-            
+
             // Extract text response
             $text = $result['candidates'][0]['content']['parts'][0]['text'] ?? null;
-            
+
             if (!$text) {
                 throw new \Exception('No text response from Gemini');
             }
@@ -120,7 +123,6 @@ class GoogleGeminiService implements AIServiceInterface
             Log::info('Brand analysis completed', ['style' => $styleData]);
 
             return $styleData;
-
         } catch (\Exception $e) {
             Log::error('Brand analysis failed', ['error' => $e->getMessage()]);
             throw $e;
@@ -133,7 +135,9 @@ class GoogleGeminiService implements AIServiceInterface
     public function generateImage(string $prompt, ?array $styleGuide = null, string $format = 'square'): array
     {
         if (!$this->isAvailable()) {
-            throw new \Exception('Google Gemini API is not configured');
+            throw new AIServiceUnavailableException(
+                'Google Gemini API is not configured. Please add GEMINI_API_KEY to your .env file.'
+            );
         }
 
         Log::info('GoogleGeminiService::generateImage called', [
@@ -144,7 +148,7 @@ class GoogleGeminiService implements AIServiceInterface
 
         // This method is for text-to-image which Gemini doesn't directly support
         // Instead, we need to use generateWithReferences for image generation
-        throw new \Exception('Use generateWithReferences method for image generation with Gemini');
+        throw new AIServiceUnavailableException('Use generateWithReferences method for image generation with Gemini');
     }
 
     /**
@@ -270,7 +274,6 @@ class GoogleGeminiService implements AIServiceInterface
             }
 
             throw new \Exception('No image data in Gemini response');
-
         } catch (\Exception $e) {
             Log::error('Image generation failed', ['error' => $e->getMessage()]);
             throw $e;
@@ -374,14 +377,14 @@ class GoogleGeminiService implements AIServiceInterface
             }
 
             $result = $response->json();
-            
+
             if (!isset($result['predictions'][0]['bytesBase64Encoded'])) {
                 Log::error('Unexpected Imagen response structure', ['result' => $result]);
                 throw new \Exception('Invalid response from Imagen API');
             }
 
             $imageBase64 = $result['predictions'][0]['bytesBase64Encoded'];
-            
+
             // Save the generated image
             $imageData = base64_decode($imageBase64);
             $filename = 'generated_' . time() . '_' . uniqid() . '.png';
@@ -396,7 +399,6 @@ class GoogleGeminiService implements AIServiceInterface
                 'prompt' => $prompt,
                 'model' => $editModel,
             ];
-
         } catch (\Exception $e) {
             Log::error('GoogleGeminiService::editWithMask failed', [
                 'error' => $e->getMessage(),
@@ -428,7 +430,7 @@ class GoogleGeminiService implements AIServiceInterface
     protected function generatePlaceholderImage(string $prompt, string $format): array
     {
         // Determine image dimensions based on format
-        $dimensions = match($format) {
+        $dimensions = match ($format) {
             'square' => ['width' => 1080, 'height' => 1080],
             'portrait' => ['width' => 1080, 'height' => 1350],
             'landscape' => ['width' => 1200, 'height' => 628],
@@ -438,27 +440,27 @@ class GoogleGeminiService implements AIServiceInterface
 
         // Create a simple colored rectangle as placeholder
         $image = imagecreatetruecolor($dimensions['width'], $dimensions['height']);
-        
+
         // Set a gradient-like background
         $colors = [
             imagecolorallocate($image, 66, 135, 245),  // Blue
             imagecolorallocate($image, 99, 102, 241),  // Indigo
             imagecolorallocate($image, 139, 92, 246),  // Purple
         ];
-        
+
         $colorIndex = abs(crc32($prompt)) % count($colors);
         $bgColor = $colors[$colorIndex];
         imagefilledrectangle($image, 0, 0, $dimensions['width'], $dimensions['height'], $bgColor);
-        
+
         // Add text overlay
         $white = imagecolorallocate($image, 255, 255, 255);
         $textColor = $white;
-        
+
         // Add "TEST MODE" watermark
         $fontSize = 24;
         $testText = "TEST MODE - Configure GEMINI_API_KEY";
         imagettftext($image, $fontSize, 0, 50, 80, $textColor, $this->getSystemFont(), $testText);
-        
+
         // Add prompt text (wrapped)
         $promptLines = $this->wrapText($prompt, 40);
         $y = 180;
@@ -466,17 +468,17 @@ class GoogleGeminiService implements AIServiceInterface
             imagettftext($image, 32, 0, 50, $y, $textColor, $this->getSystemFont(), $line);
             $y += 50;
         }
-        
+
         // Add format info
         $formatText = "Format: {$format} ({$dimensions['width']}x{$dimensions['height']})";
         imagettftext($image, 18, 0, 50, $dimensions['height'] - 50, $textColor, $this->getSystemFont(), $formatText);
-        
+
         // Convert to PNG
         ob_start();
         imagepng($image);
         $imageData = ob_get_clean();
         imagedestroy($image);
-        
+
         return [
             'image_data' => base64_encode($imageData),
             'mime_type' => 'image/png',
@@ -554,4 +556,3 @@ class GoogleGeminiService implements AIServiceInterface
         return $client;
     }
 }
-

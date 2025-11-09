@@ -36,7 +36,8 @@ class CSVWizardController extends Controller
 
         // Create the project
         $project = Auth::user()->projects()->create([
-            'title' => $validated['project_name'],
+            'name' => $validated['project_name'],
+            'title' => $validated['project_name'], // title is required, name is the newer field
             'description' => 'Created via CSV Wizard',
             'settings' => [
                 'wizard_type' => 'csv',
@@ -48,7 +49,7 @@ class CSVWizardController extends Controller
         $referenceDir = 'projects/' . $project->id . '/references';
         foreach ($request->file('reference_images') as $index => $file) {
             $uploadResult = $this->fileUploadService->uploadImage($file, $referenceDir);
-            
+
             $project->brandReferences()->create([
                 'url' => $uploadResult['url'],
                 'thumbnail_url' => $uploadResult['thumbnail_url'],
@@ -61,7 +62,7 @@ class CSVWizardController extends Controller
             $productDir = 'projects/' . $project->id . '/products';
             foreach ($request->file('product_images') as $index => $file) {
                 $uploadResult = $this->fileUploadService->uploadImage($file, $productDir);
-                
+
                 // Store as regular images for now (or create separate product_images table)
                 $project->images()->create([
                     'url' => $uploadResult['url'],
@@ -103,29 +104,51 @@ class CSVWizardController extends Controller
 
     /**
      * Parse CSV file and return structured data.
+     * Sanitizes all cell content to prevent XSS attacks.
      */
     protected function parseCSV(string $filePath): array
     {
         $data = [];
         $header = null;
+        $maxCellLength = 1000; // Maximum characters per cell
 
         if (($handle = fopen($filePath, 'r')) !== false) {
             while (($row = fgetcsv($handle, 1000, ',')) !== false) {
                 if (!$header) {
-                    $header = $row;
+                    // Sanitize header names
+                    $header = array_map(function ($value) {
+                        return trim(strip_tags($value));
+                    }, $row);
                 } else {
                     // Combine header with row data
                     $rowData = array_combine($header, $row);
-                    
+
+                    // Sanitize each cell value to prevent XSS
+                    $rowData = array_map(function ($value) use ($maxCellLength) {
+                        // Trim whitespace
+                        $value = trim($value);
+
+                        // Limit length
+                        if (strlen($value) > $maxCellLength) {
+                            $value = substr($value, 0, $maxCellLength);
+                        }
+
+                        // Remove HTML tags and encode special characters
+                        $value = strip_tags($value);
+                        $value = htmlspecialchars($value, ENT_QUOTES, 'UTF-8');
+
+                        return $value;
+                    }, $rowData);
+
                     // Filter out empty rows (rows where all values are empty)
                     $hasData = false;
                     foreach ($rowData as $value) {
-                        if (!empty(trim($value))) {
+                        if (!empty($value)) {
                             $hasData = true;
                             break;
                         }
                     }
-                    
+
                     // Only add rows that have at least one non-empty value
                     if ($hasData) {
                         $data[] = $rowData;

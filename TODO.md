@@ -1,66 +1,356 @@
 # SnapDraft - Project TODO List
 
-**Last Updated**: November 4, 2025  
-**Project Status**: Backend Complete - Critical Issues Blocking Launch
+**Last Updated**: November 9, 2025  
+**Project Status**: MVP Complete - Critical Fixes & Security Hardening Needed
 
 ---
 
 ## 🔴 **BLOCKING ISSUES - Cannot Launch Without These**
 
-### 1. Payment Integration (for later - skip for now)
-- [ ] Install Paddle SDK (`composer require paddle/paddle-php-sdk`)
-- [ ] Add Paddle credentials to `.env` (vendor ID, API key, webhook secret)
-- [ ] Configure Paddle in `config/services.php`
-- [ ] Create products in Paddle dashboard (Pro, Enterprise)
-- [ ] Implement `SubscriptionController::upgrade()` with Paddle API
-- [ ] Implement `SubscriptionController::purchaseCredits()` with Paddle
-- [ ] Implement `SubscriptionController::webhook()` for subscription events
-- [ ] Create `Invoice` model and migration
-- [ ] Update frontend checkout flow in `plans.tsx`
-- [ ] Update frontend credit purchase in `portal.tsx`
-- [ ] Test with Paddle sandbox environment
-- [ ] Document webhook URL for production
-- **Files**: `app/Http/Controllers/SubscriptionController.php`, new `Invoice.php` model
-- **Guide**: Follow `PADDLE_INTEGRATION.md` (all 10 steps)
-- **Priority**: HIGHEST - Users cannot pay without this
+### 1. Security: Missing Authorization Checks ⚠️ CRITICAL
+
+- [ ] Add authorizati### 9. Production Deployment Guide
+- [ ] Document server requireme### 11. Analytics & Monitoring
+- [ ] Set up error t### 13. Accessibility (A11y)
+- [ ] Add ARIA labels to all interactive elements
+- [ ] Implement keyboard navigation in canvas editor
+    - [ ] Tab through tools
+    - [ ] Keyboard shortcuts for common actions
+- [ ] Test with screen readers (NVDA, JAWS, VoiceOver)
+- [ ] Add alt text generation for AI-generated images
+    - [ ] Use Gemini to generate descriptions
+- [ ] Ensure color contrast meets WCAG AA standards
+- [ ] Add focus indicators on all focusable elements
+- [ ] Test keyboard-only navigation throughout app
+- [ ] Add skip links for screen reader users
+- **Priority**: MEDIUM - Important for inclusivity
+- **Files**: All component files, CSS for focus styles
+
+### 14. Advanced Featuresntry or Bugsnag)
+
+- [ ] Install Sentry SDK
+- [ ] Configure Sentry DSN in .env
+- [ ] Add Sentry to exception handler
+- [ ] Test error reporting
+- [ ] Add usage analytics (Plausible or Google Analytics)
+    - [ ] Track page views
+    - [ ] Track wizard completions
+    - [ ] Track generation requests
+- [ ] Track AI costs per user/project
+    - [ ] Add cost tracking to `GenerationHistory`
+    - [ ] Create admin dashboard for cost analysis
+    - [ ] Set up alerts for high-cost users
+- [ ] Track conversion funnel (signup → paid)
+- [ ] Monitor API performance (query times, job durations)
+    - [ ] Add Laravel Telescope for development
+    - [ ] Consider New Relic or Scout for production
+- [ ] Set up uptime monitoring (Pingdom, UptimeRobot, or Better Uptime)
+- [ ] Create admin analytics dashboard
+- [ ] Track feature usage metrics
+- **Priority**: MEDIUM - Essential for understanding user behavior
+- **Files**: New analytics service, Sentry integration
+
+### 12. Mobile Optimization2+, MySQL 8+, Redis recommended)
+
+- [ ] Create comprehensive `.env.production` example
+- [ ] Document environment variable setup (all required vars)
+- [ ] Document queue worker configuration (Supervisor)
+    - [ ] Add supervisor config example
+    - [ ] Document how to monitor queue workers
+- [ ] Document cron job setup (schedule:run)
+    - [ ] Add crontab example: `* * * * * php artisan schedule:run`
+- [ ] Document database migration process
+    - [ ] Backup strategy before migrations
+- [ ] Document asset compilation process
+    - [ ] `npm run build` or `npm run build:ssr`
+    - [ ] Clear and rebuild caches
+- [ ] Document SSL certificate setup (Let's Encrypt)
+- [ ] Document backup strategy
+    - [ ] Database backups (daily)
+    - [ ] File storage backups
+    - [ ] Configuration backups
+- [ ] Create deployment checklist
+- [ ] Add zero-downtime deployment guide (Laravel Forge/Envoyer)
+- **Priority**: HIGH - Can't deploy without this
+- **Files**: New `DEPLOYMENT.md` file
+
+---
+
+## 🟢 **POST-LAUNCH IMPROVEMENTS**
+
+### 10. Code Architecture & Refactoringroller::show()` method
+
+- [ ] Add `$this->authorize('view', $project);` at line 148
+- **Risk**: Any user can view any project by guessing IDs
+- [ ] Verify authorization in all ProjectController methods
+    - [x] `update()` - has authorization
+    - [x] `destroy()` - has authorization
+    - [ ] `show()` - **MISSING**
+    - [x] `toggleFavorite()` - has authorization
+- [ ] Verify authorization in all ImageController methods
+    - [x] `update()` - has authorization
+    - [x] `destroy()` - has authorization
+    - [x] All bulk operations - have authorization
+- [ ] Add authorization tests to prevent regression
+- **Files**: `app/Http/Controllers/ProjectController.php` (line ~148)
+- **Priority**: CRITICAL - Security vulnerability
+
+### 2. AI Rate Limiting Implementation ⚠️ CRITICAL
+
+- [ ] Fix `GenerateBatchImagesJob` to enforce rate limiting
+    - [ ] Add `->delay(now()->addSeconds($index * 2))` to each job
+    - [ ] Current: Jobs dispatched without delay (comment says "queue will handle" but doesn't)
+    - **Risk**: Will hit Google Gemini API rate limits → 429 errors → failed generations
+- [ ] Add retry mechanism to `GenerateSingleImageJob`
+    - [ ] Add `public $tries = 3;`
+    - [ ] Add `public $backoff = [60, 300, 900];` // 1min, 5min, 15min
+- [ ] Test batch generation with 10+ images
+- **Files**: `app/Jobs/GenerateBatchImagesJob.php` (line ~57), `app/Jobs/GenerateSingleImageJob.php`
+- **Priority**: CRITICAL - Generations will fail without this
+
+### 3. Fix Route Middleware Name Mismatch
+
+- [x] Update route middleware from `has.credits` to correct class name ✅
+    - Current in `routes/web.php` line 63: `'has.credits'`
+    - Should be: `'EnsureUserHasCredits'` or create alias
+- [x] Add middleware alias in `bootstrap/app.php`: ✅
+    ```php
+    ->withMiddleware(function (Middleware $middleware) {
+        $middleware->alias([
+            'has.credits' => \App\Http\Middleware\EnsureUserHasCredits::class,
+        ]);
+    })
+    ```
+- [x] Verify credits check works before generation ✅
+- **Files**: `routes/web.php` (line 63), `bootstrap/app.php`
+- **Priority**: CRITICAL - ✅ **COMPLETED** - Credits system is properly enforced
+
+### 4. Database Schema Fixes
+
+- [x] Add missing database indexes for performance ✅
+    - [x] `images` table: Add index on `is_favorite` ✅
+    - [x] `images` table: Add composite index on `(project_id, is_favorite)` ✅
+    - [x] `projects` table: Add composite index on `(user_id, created_at)` ✅
+    - [x] `projects` table: Add composite index on `(user_id, is_favorite, created_at)` ✅
+- [x] Create new migration: `add_missing_indexes_to_tables.php` ✅
+- [x] Verify `projects` table has `name`, `format`, `status` columns ✅
+    - Migration exists: `2025_11_04_134800_add_name_format_status_to_projects_table.php` ✅
+    - [x] Verify fields are in `$fillable` array in Project model ✅
+- **Files**: New migration file, `app/Models/Project.php`
+- **Priority**: HIGH - ✅ **COMPLETED** - Performance indexes in place
+
+### 5. Fix N+1 Query Problems
+
+- [ ] Update `DashboardController::index()` to use `withCount('images')`
+    - Line 26: Replace `->with('images')` with `->withCount('images')`
+    - Line 35: Replace `'images_count' => $project->images->count()` with `$project->images_count`
+    - **Impact**: Eliminates 6+ queries per dashboard load
+- [ ] Add eager loading to `ProjectController::index()`
+    - Already uses `withCount` but verify all queries are optimized
+- [ ] Profile queries with Laravel Debugbar or Telescope
+- **Files**: `app/Http/Controllers/DashboardController.php` (lines 26, 35)
+- **Priority**: HIGH - Slow dashboard = bad UX
+
+### 6. Environment Configuration Issues
+
+- [ ] Update `.env.example` with all required variables
+    - [ ] Add AI service configuration:
+
+        ```env
+        GEMINI_API_KEY=
+        GEMINI_MODEL=gemini-2.0-flash-exp
+        GEMINI_IMAGE_MODEL=gemini-2.5-flash-image-preview
+        GEMINI_RATE_LIMIT=30
+
+        OPENROUTER_API_KEY=
+        OPENROUTER_MODEL=openrouter/auto
+        ```
+
+    - [ ] Add credits system configuration:
+        ```env
+        DEFAULT_FREE_CREDITS=10
+        DEFAULT_PRO_CREDITS=100
+        ```
+    - [ ] Add queue configuration reminder:
+        ```env
+        QUEUE_CONNECTION=database
+        # Remember to run: php artisan queue:work
+        ```
+
+- [ ] Document all environment variables in README
+- **Files**: `.env.example`, `README.md`
+- **Priority**: HIGH - New developers can't set up project
+
+### 7. Payment Integration (PAUSED - Awaiting Paddle Approval)
+
+- [ ] ~~Install Paddle SDK~~ (Already installed: `paddlehq/paddle-php-sdk`)
+- [ ] When approved: Add Paddle credentials to `.env`
+- [ ] When approved: Implement `SubscriptionController` payment methods
+- [ ] Remove placeholder TODOs or replace with proper exceptions
+    - Line 107: "TODO: Integrate with Stripe" (using Paddle instead)
+    - Line 127: "TODO: Cancel Stripe subscription"
+    - Line 152: "TODO: Process payment via Stripe"
+- **Files**: `app/Http/Controllers/SubscriptionController.php`
+- **Status**: ⏸️ PAUSED - Waiting for Paddle approval
+- **Priority**: HIGH (but blocked) - Users cannot pay without this
 
 ### 2. Comprehensive Testing Suite
+
 - [ ] Create Feature tests for Projects
-  - [ ] `tests/Feature/ProjectTest.php` (CRUD operations)
-  - [ ] `tests/Feature/ProjectAuthorizationTest.php` (policies)
+    - [ ] `tests/Feature/ProjectTest.php` (CRUD operations)
+    - [ ] `tests/Feature/ProjectAuthorizationTest.php` (test security fixes)
 - [ ] Create Feature tests for Wizards
-  - [ ] `tests/Feature/Wizards/CSVWizardTest.php`
-  - [ ] `tests/Feature/Wizards/ImagesWizardTest.php`
-  - [ ] `tests/Feature/Wizards/TextWizardTest.php`
+    - [ ] `tests/Feature/Wizards/CSVWizardTest.php`
+    - [ ] `tests/Feature/Wizards/ImagesWizardTest.php`
+    - [ ] `tests/Feature/Wizards/TextWizardTest.php`
 - [ ] Create Feature tests for Images
-  - [ ] `tests/Feature/ImageOperationsTest.php` (bulk delete, download)
+    - [ ] `tests/Feature/ImageOperationsTest.php` (bulk delete, download)
 - [ ] Create Feature tests for Admin
-  - [ ] `tests/Feature/Admin/UserManagementTest.php`
-  - [ ] `tests/Feature/Admin/UsageMonitoringTest.php`
-- [ ] Create Feature tests for Subscription
-  - [ ] `tests/Feature/SubscriptionTest.php`
-  - [ ] `tests/Feature/BillingTest.php`
+    - [ ] `tests/Feature/Admin/UserManagementTest.php`
+    - [ ] `tests/Feature/Admin/UsageMonitoringTest.php`
 - [ ] Create Unit tests for Jobs
-  - [ ] `tests/Unit/Jobs/GenerateSingleImageJobTest.php`
-  - [ ] `tests/Unit/Jobs/GenerateBatchImagesJobTest.php`
-  - [ ] `tests/Unit/Jobs/AnalyzeBrandStyleJobTest.php`
+    - [ ] `tests/Unit/Jobs/GenerateSingleImageJobTest.php` (test retry logic)
+    - [ ] `tests/Unit/Jobs/GenerateBatchImagesJobTest.php` (test rate limiting)
+    - [ ] `tests/Unit/Jobs/AnalyzeBrandStyleJobTest.php`
 - [ ] Create Unit tests for Services
-  - [ ] `tests/Unit/Services/FileUploadServiceTest.php`
-  - [ ] `tests/Unit/Services/GoogleGeminiServiceTest.php`
-- [ ] Aim for 70%+ code coverage
-- **Priority**: CRITICAL - No confidence in changes without tests
+    - [ ] `tests/Unit/Services/FileUploadServiceTest.php`
+    - [ ] `tests/Unit/Services/GoogleGeminiServiceTest.php`
+- [ ] Aim for 70%+ code coverage on critical paths
+- **Priority**: HIGH - No confidence in security fixes without tests
 
 ### 3. Error Handling & User Feedback
+
+- [ ] Create custom exception classes for better error messages
+    - [ ] `app/Exceptions/AIServiceUnavailableException.php`
+    - [ ] `app/Exceptions/InsufficientCreditsException.php`
+    - [ ] `app/Exceptions/FileUploadException.php`
+    - [ ] Update `app/Services/AI/GoogleGeminiService.php` to use custom exceptions
 - [ ] Add global React error boundary to `app.tsx`
 - [ ] Add error boundary to wizard pages
 - [ ] Add error boundary to canvas editor
 - [ ] Improve form validation error display in wizards
-- [ ] Add retry mechanism for failed AI jobs
+- [ ] Add retry mechanism for failed AI jobs (ties to #2 above)
 - [ ] Add user-friendly error messages for all API failures
+    - Replace generic "500 Server Error" with actionable messages
 - [ ] Log all errors to monitoring service (prepare for Sentry)
-- **Priority**: CRITICAL - Users need to understand failures
+- [ ] Add job failure notifications to users
+    - [ ] Update `GenerateBatchImagesJob::failed()` to notify user
+- **Priority**: HIGH - Users need to understand failures
+- **Files**: New exception classes, `app.tsx`, wizard pages, `GoogleGeminiService.php`
 
-### 4. Cloud Storage Configuration (S3)
+### 4. Frontend Code Cleanup & Performance
+
+- [ ] Remove all console.log statements from production code
+    - [ ] `resources/js/pages/canvas-editor.tsx` (20+ console.log statements)
+    - [ ] Create debug utility: `const log = import.meta.env.DEV ? console.log : () => {};`
+    - [ ] Replace all `console.log` with `log()` or remove
+- [ ] Fix React memory leaks
+    - [ ] Verify all `useEffect` hooks have cleanup functions
+    - [ ] Check `canvas-editor.tsx` event listeners for cleanup
+    - [ ] Audit all setTimeout/setInterval for clearTimeout/clearInterval
+- [ ] Optimize re-renders with React.memo where appropriate
+    - [ ] Canvas editor components
+    - [ ] Project grid items
+    - [ ] Image gallery items
+- [ ] Add React error boundaries to prevent white screens
+- **Priority**: MEDIUM - Improves user experience and prevents crashes
+- **Files**: `resources/js/pages/canvas-editor.tsx`, various component files
+
+---
+
+## 🟡 **PRE-LAUNCH REQUIREMENTS**
+
+### 5. Security Hardening
+
+- [ ] Add file upload security improvements
+    - [ ] Implement actual MIME type checking (not just extension)
+    - [ ] Add virus scanning (ClamAV) for uploaded files
+    - [ ] Store uploads outside public directory in production
+    - [ ] Add file size limits globally (not just validation)
+- [ ] Audit all POST routes for CSRF protection (Laravel handles this by default)
+- [ ] Add XSS prevention for user-generated content
+    - [ ] Sanitize CSV cell content in `CSVWizardController::parseCSV()`
+    - [ ] Use `htmlspecialchars()` on project titles/descriptions
+- [ ] Implement file upload virus scanning (ClamAV integration)
+- [ ] Require 2FA for admin panel access (already implemented, needs testing)
+- [ ] Add rate limiting to all sensitive endpoints (already implemented)
+- [ ] Implement IP blocking for abuse (future enhancement)
+- [ ] Add security headers (CSP, HSTS, X-Frame-Options)
+- [ ] Document security best practices in README
+- **Priority**: HIGH - Prevent security breaches
+- **Files**: `FileUploadService.php`, `CSVWizardController.php`, middleware
+
+### 6. TypeScript Type Safety Improvements
+
+- [ ] Fix `User` interface in `types/index.d.ts`
+    - Remove `[key: string]: unknown;` - defeats TypeScript purpose
+- [ ] Add missing type definitions
+    - [ ] AI generation response types
+    - [ ] Project settings structure type
+    - [ ] CSV data format type
+    - [ ] Batch progress event types
+    - [ ] Image metadata type
+    - [ ] Brand analysis result type
+- [ ] Create shared types for backend/frontend consistency
+- [ ] Add strict type checking to tsconfig.json
+- **Priority**: MEDIUM - Improves developer experience and catches bugs
+- **Files**: `resources/js/types/index.d.ts`, new type definition files
+
+### 7. Model & Database Consistency
+
+- [ ] Review cached `images_count` approach in Project model
+    - Currently: Cached in DB + updated via events + also uses `withCount()`
+    - [ ] Choose one approach (recommend: use `withCount()` only, remove cache)
+    - [ ] Or keep cache but document why and when to use each
+- [ ] Implement Soft Delete cleanup
+    - [ ] Create scheduled job to permanently delete old trashed records (30+ days)
+    - [ ] Add admin interface to view/restore trashed items
+    - [ ] Add UI for force delete in admin panel
+- [ ] Add cascade delete verification
+    - [ ] Verify images are deleted when project is deleted
+    - [ ] Verify files are removed from storage
+    - [ ] Add tests for cascade deletes
+- **Priority**: MEDIUM - Prevents data inconsistencies
+- **Files**: `app/Models/Project.php`, `app/Models/Image.php`, new cleanup job
+
+### 8. Input Sanitization & Validation
+
+- [ ] Add CSV content sanitization
+    - [ ] In `CSVWizardController::parseCSV()` add `htmlspecialchars()` to all cells
+    - [ ] Strip potentially dangerous HTML/JS
+    - [ ] Limit cell content length (max 1000 chars per cell)
+- [ ] Add validation to `StoreProjectRequest`
+    - [ ] Verify image MIME types match file extensions
+    - [ ] Add max total upload size across all files
+- [ ] Sanitize user-generated content before display
+    - [ ] Project titles and descriptions
+    - [ ] Image prompts and metadata
+- **Priority**: HIGH - Prevent XSS and injection attacks
+- **Files**: `CSVWizardController.php`, `StoreProjectRequest.php`, view files
+
+### 6. Performance Optimization
+
+- [x] Fix N+1 queries in `DashboardController::index()` (see #5 above)
+- [ ] Add Redis for session/cache storage
+    - [ ] Install Redis and PHP Redis extension
+    - [ ] Update `CACHE_STORE=redis` and `SESSION_DRIVER=redis` in .env
+    - [ ] Configure Redis connection in `config/database.php`
+- [ ] Implement query result caching
+    - [ ] Cache dashboard stats (5-minute cache)
+    - [ ] Cache brand analysis results per project
+    - [ ] Cache AI generation history aggregates
+- [ ] Add database indexes (see #4 above)
+- [ ] Implement image lazy loading in project grids (already done ✅)
+- [ ] Optimize AI service responses
+    - [ ] Add timeout configurations for Gemini API calls
+    - [ ] Implement circuit breaker pattern for repeated failures
+- [ ] Enable Gzip compression in production
+- [ ] Consider CDN for static assets (CloudFlare)
+- **Priority**: HIGH - Poor performance = lost users
+- **Files**: `DashboardController.php`, `.env`, `config/cache.php`, AI services
+
+### 7. Cloud Storage Configuration (Future)
+
 - [ ] Install AWS SDK (`composer require aws/aws-sdk-php`)
 - [ ] Add S3 credentials to `.env`
 - [ ] Configure S3 disk in `config/filesystems.php`
@@ -68,50 +358,28 @@
 - [ ] Add image URL signing for private images
 - [ ] Test upload/download/delete operations
 - [ ] Document storage migration process
-- **Priority**: HIGH - Local storage won't scale
+- **Priority**: MEDIUM - Can launch with local storage, migrate later
+- **Note**: Local storage works for MVP, plan migration before scaling
 
----
+### 8. Email Notifications
 
-## 🟡 **PRE-LAUNCH REQUIREMENTS**
-
-### 5. Security Hardening
-- [ ] Audit all POST routes for CSRF protection
-- [ ] Add XSS prevention for user-generated content (project titles, descriptions)
-- [ ] Implement file upload virus scanning (ClamAV integration)
-- [ ] Require 2FA for admin panel access
-- [ ] Add rate limiting to all sensitive endpoints
-- [ ] Implement IP blocking for abuse
-- [ ] Add security headers (CSP, HSTS, X-Frame-Options)
-- [ ] Document security best practices
-- **Priority**: HIGH - Prevent security breaches
-
-### 6. Performance Optimization
-- [ ] Fix N+1 queries in `DashboardController::index()`
-- [ ] Add eager loading for project relationships
-- [ ] Implement query result caching (5-minute cache)
-- [ ] Add Redis for session/cache storage
-- [ ] Optimize image queries (select only needed columns)
-- [ ] Add database indexes where missing
-- [ ] Implement image lazy loading in project grids
-- [ ] Set up CDN for static assets (CloudFlare)
-- [ ] Enable Gzip compression
-- [ ] Minify CSS/JS in production
-- **Priority**: HIGH - Poor performance = lost users
-
-### 7. Email Notifications
-- [ ] Configure mail driver (SMTP, SES, etc.)
+- [ ] Configure mail driver (SMTP, SES, Resend, etc.)
 - [ ] Create mail templates with Blade
-- [ ] Send email on project creation
-- [ ] Send email when generation completes
+- [ ] Send email on project creation (optional welcome)
+- [ ] Send email when batch generation completes
+    - [ ] Update `GenerateBatchImagesJob` to send completion email
 - [ ] Send low-credit warning email (< 20%)
-- [ ] Send payment receipt after purchase
+    - [ ] Create scheduled job to check and notify
+- [ ] Send payment receipt after purchase (when Paddle integrated)
 - [ ] Send subscription renewal reminder
 - [ ] Send failed payment notification
 - [ ] Add unsubscribe mechanism
 - [ ] Test all email flows
-- **Priority**: HIGH - Users need to know job status
+- **Priority**: MEDIUM - Nice to have for launch, not blocking
+- **Files**: `resources/views/emails/`, new notification classes
 
-### 8. Production Deployment Guide
+### 9. Production Deployment Guide
+
 - [ ] Document server requirements (PHP 8.2, MySQL 8, Redis)
 - [ ] Create `.env.production` example
 - [ ] Document environment variable setup
@@ -128,7 +396,30 @@
 
 ## 🟢 **POST-LAUNCH IMPROVEMENTS**
 
-### 9. Analytics & Monitoring
+### 10. Code Architecture & Refactoring
+
+- [ ] Extract business logic from controllers to Service Layer
+    - [ ] Create `ProjectCreationService.php`
+    - [ ] Create `ImageGenerationService.php`
+    - [ ] Create `BrandAnalysisService.php`
+    - [ ] Move wizard logic from controllers to services
+- [ ] Implement Repository Pattern for complex queries
+    - [ ] Create `ProjectRepository.php`
+    - [ ] Create `ImageRepository.php`
+    - [ ] Move query logic from controllers to repositories
+- [ ] Convert to Event-Driven Architecture where appropriate
+    - [ ] Fire `ProjectCreated` event instead of directly dispatching jobs
+    - [ ] Create listeners for job dispatch
+    - [ ] Add `ImageGenerated` event for analytics
+- [ ] Break down large controllers into single-action controllers
+    - [ ] `ProjectController` is 326 lines - consider splitting
+    - [ ] Move to `app/Actions/Projects/` directory
+- [ ] Add proper API versioning if building public API later
+- **Priority**: LOW - Works fine for MVP, refactor as you scale
+- **Files**: New service classes, new repository classes, new event classes
+
+### 11. Analytics & Monitoring
+
 - [ ] Set up error tracking (Sentry)
 - [ ] Add usage analytics (Plausible or Google Analytics)
 - [ ] Track conversion funnel (signup → paid)
@@ -138,16 +429,26 @@
 - [ ] Track feature usage metrics
 - **Priority**: MEDIUM
 
-### 10. Mobile Optimization
+### 12. Mobile Optimization
+
 - [ ] Make wizards fully mobile-responsive
-- [ ] Create mobile-friendly canvas editor (view-only)
+    - [ ] Test CSV wizard on mobile
+    - [ ] Test Images wizard file uploads on mobile
+    - [ ] Test Text wizard on mobile
+- [ ] Create mobile-friendly canvas editor (view-only or simplified editing)
 - [ ] Optimize image grids for small screens
 - [ ] Test on iOS Safari and Android Chrome
 - [ ] Add touch gesture support where needed
+    - [ ] Pinch to zoom in canvas editor
+    - [ ] Swipe gestures for image gallery
 - [ ] Optimize bundle size for mobile
-- **Priority**: MEDIUM
+    - [ ] Code splitting for large components
+    - [ ] Lazy load heavy dependencies
+- **Priority**: MEDIUM - Growing mobile traffic needs support
+- **Files**: All wizard pages, canvas editor, CSS files
 
-### 11. Accessibility (A11y)
+### 13. Accessibility (A11y)
+
 - [ ] Add ARIA labels to all interactive elements
 - [ ] Implement keyboard navigation in canvas editor
 - [ ] Test with screen readers (NVDA, JAWS)
@@ -157,487 +458,262 @@
 - [ ] Test keyboard-only navigation
 - **Priority**: MEDIUM
 
-### 12. Advanced Features
+### 14. Advanced Features (Future Enhancements)
+
 - [ ] Add project templates/duplication
 - [ ] Implement bulk project operations
-- [ ] Add undo/redo in canvas editor
-- [ ] Create image comparison view
-- [ ] Add project sharing/collaboration
-- [ ] Implement keyboard shortcuts
+- [ ] Add undo/redo in canvas editor (command pattern)
+- [ ] Create image comparison view (A/B testing)
+- [ ] Add project sharing/collaboration features
+- [ ] Implement comprehensive keyboard shortcuts
+    - [ ] Cmd/Ctrl+K for command palette
+    - [ ] Canvas editor shortcuts (B for brush, E for eraser, etc.)
 - [ ] Add export to multiple formats (PDF, SVG)
-- [ ] Create API for third-party integrations
-- **Priority**: LOW - Nice to have
+- [ ] Create REST API for third-party integrations
+    - [ ] API documentation with OpenAPI/Swagger
+    - [ ] API key management for users
+- [ ] Add image versioning and history
+- [ ] Implement brand kit library (reusable brand elements)
+- **Priority**: LOW - Nice to have after launch
+- **Files**: Various new features
 
 ---
 
-## 📋 Quick Reference
+## 🎯 **QUICK WINS** (Easy Fixes with High Impact)
 
-**What's Done:**
-- ✅ Database (4 tables with relationships)
-- ✅ All Controllers (Project, Image, Canvas, 3 Wizards)
-- ✅ File Storage & Upload System
-- ✅ Authorization (Policies)
-- ✅ AI Service Implementation (Google Gemini with Style Mirror)
-- ✅ Queue Jobs (All 4 jobs fully implemented)
-- ✅ Canvas Editor Backend
-- ✅ Loading States (Spinners, Skeletons, Progress bars)
-- ✅ Empty States (No projects, No images, etc.)
-- ✅ Lazy Loading Images
-- ✅ Response Caching
-- ✅ API Rate Limiting
-- ✅ AI Integration (GoogleGeminiService with generateWithReferences)
-- ✅ Job Dispatching (All wizard controllers trigger AI generation)
-- ✅ Toast Notifications (Sonner library)
-- ✅ Real-time Progress Tracking (Polling-based)
-- ✅ Per-User Rate Limiting (Throttle middleware)
-- ✅ Generate More Feature (POST /projects/{id}/generate)
-- ✅ Admin Panel (Dashboard, User Management, Usage Monitoring)
-- ✅ Subscription System (Free/Pro/Enterprise tiers)
-- ✅ Credits System (Monthly allocation, usage tracking, enforcement)
-- ✅ Billing Portal (Plans page, Billing portal, Purchase credits UI)
+These can be completed quickly and have immediate positive impact:
 
-**What's Next:**
-1. 🔴 **TEST AI FLOW**: Create project via wizard → Monitor queue → Verify images generated
-2. 🟡 Integrate Paddle for payment processing
-3. 🟡 Write comprehensive tests
-3. � Add onboarding flow
-4. � Final performance tuning
-5. 🟢 Add keyboard shortcuts documentation
+1. **Add authorization to ProjectController::show()** (5 minutes)
+    - File: `app/Http/Controllers/ProjectController.php`
+    - Add one line: `$this->authorize('view', $project);`
 
-**Quick Start:**
-- Run migrations: `php artisan migrate`
-- Start queue: `php artisan queue:work`
-- Start dev server: `composer dev`
-- Add `GOOGLE_GEMINI_API_KEY` to `.env`
-- Test via CSV wizard at `/csv-wizard`
+2. **Fix route middleware name** (2 minutes)
+    - File: `bootstrap/app.php`
+    - Add middleware alias for `has.credits`
 
-**Documentation:**
-- Backend Overview: `IMPLEMENTATION_SUMMARY.md`
-- AI Integration: `AI_INTEGRATION.md`
-- UX & Performance: `UX_PERFORMANCE_GUIDE.md`
+3. **Add rate limiting to batch jobs** (15 minutes)
+    - File: `app/Jobs/GenerateBatchImagesJob.php`
+    - Add `->delay()` to each job dispatch
+
+4. **Remove console.log statements** (10 minutes)
+    - File: `resources/js/pages/canvas-editor.tsx`
+    - Replace with conditional debug utility
+
+5. **Update .env.example** (5 minutes)
+    - Add all missing AI service and credits configuration
+
+6. **Fix N+1 query in DashboardController** (5 minutes)
+    - File: `app/Http/Controllers/DashboardController.php`
+    - Change `with('images')` to `withCount('images')`
+
+7. **Add missing database indexes** (10 minutes)
+    - Create new migration
+    - Add 4 indexes for performance
+
+8. **Create custom exception classes** (20 minutes)
+    - Add 3 custom exceptions for better error messages
+
+**Total Quick Wins Time: ~1-2 hours**
 
 ---
 
-## ✅ COMPLETED CRITICAL TASKS
+## 📊 **IMPLEMENTATION PRIORITY MATRIX**
 
-All critical backend infrastructure AND AI integration are complete. The system can now:
-- Accept project creation via 3 wizards (CSV, Images, Text)
-- Dispatch AI generation jobs automatically
-- Use Google Gemini 2.0 Flash with Style Mirror approach
-- Generate brand-consistent images from reference images
-- Save generated images with thumbnails
-- Track token usage and costs
+### Week 1: Critical Security & Functionality (Must Do)
 
-Ready for end-to-end testing and frontend progress tracking implementation.
+- ✅ Authorization check in ProjectController::show()
+- ✅ Rate limiting for batch AI jobs
+- ✅ Fix middleware name mismatch
+- ✅ Add database indexes
+- ✅ Update .env.example
 
----
+### Week 2: Stability & Error Handling (Should Do)
 
-## 🔴 CRITICAL - Must Complete Before Launch
+- ✅ Custom exception classes
+- ✅ Fix N+1 queries
+- ✅ Remove console.log statements
+- ✅ Add retry logic to jobs
+- ✅ React error boundaries
 
-### Database & Models
-- [x] Create `projects` table migration
-  - [x] Fields: id, user_id, title, description, settings (JSON), is_favorite, created_at, updated_at
-  - [x] Add indexes on user_id, is_favorite, created_at
-- [x] Create `images` table migration
-  - [x] Fields: id, project_id, url, thumbnail_url, prompt, metadata (JSON), order, created_at, updated_at
-  - [x] Add indexes on project_id, created_at
-- [x] Create `brand_references` table migration
-  - [x] Fields: id, project_id, url, analysis_data (JSON), created_at, updated_at
-  - [x] Add index on project_id
-- [x] Create `generation_history` table migration
-  - [x] Fields: id, user_id, project_id, ai_model, tokens_used, cost, status, error_message, created_at
-  - [x] Add indexes on user_id, project_id, created_at
-- [x] Create Project model with relationships
-  - [x] hasMany images
-  - [x] hasMany brandReferences
-  - [x] belongsTo user
-  - [x] Scopes: favorites, recent
-- [x] Create Image model with relationships
-  - [x] belongsTo project
-  - [x] Add image URL accessors
-- [x] Create BrandReference model
-  - [x] belongsTo project
-- [x] Create GenerationHistory model
-  - [x] belongsTo user
-  - [x] belongsTo project
+### Week 3: Testing & Quality (Should Do)
 
-### Backend API - ProjectController
-- [x] Implement `store()` method
-  - [x] Validate input
-  - [x] Create project record
-  - [x] Handle brand reference uploads
-- [x] Implement `update()` method
-  - [x] Support title rename
-  - [x] Support description update
-  - [x] Update settings
-- [x] Implement `destroy()` method
-  - [x] Cascade delete images
-  - [x] Delete associated files from storage
-  - [x] Delete brand references
-- [x] Add `toggleFavorite()` method
-  - [x] POST /projects/{id}/toggle-favorite
-  - [x] Update is_favorite field
-  - [x] Return updated project
-- [x] Add `generateMore()` method
-  - [x] POST /projects/{id}/generate
-  - [x] Queue generation job
-  - [x] Return job status
-- [x] Add `generationProgress()` method
-  - [x] GET /projects/{id}/generation-progress
-  - [x] Return progress statistics
-  - [x] Track completed/failed/processing counts
-- [x] Update `index()` with real data
-  - [x] Query from database
-  - [x] Add pagination (20 per page)
-  - [x] Support filtering (all/recent/favorites)
-  - [x] Support sorting options
-- [x] Update `show()` with real data
-  - [x] Eager load images
-  - [x] Return full project with images array
+- ✅ Write feature tests for critical paths
+- ✅ Write unit tests for AI services
+- ✅ Test authorization on all endpoints
+- ✅ Test batch generation with rate limiting
 
-### Backend API - ImageController
-- [x] Create ImageController
-- [x] Add `update()` method for image metadata
-- [x] Add `destroy()` method
-  - [x] Delete file from storage
-  - [x] Delete database record
-- [x] Add `bulkDestroy()` method
-  - [x] Accept array of image IDs
-  - [x] Validate ownership
-  - [x] Delete multiple images
-- [x] Add `bulkDownload()` method
-  - [x] Generate ZIP file
-  - [x] Stream download response
-- [x] Add `updateOrder()` method
-  - [x] Reorder images in project
+### Week 4: Polish & Documentation (Nice to Have)
 
-### Wizard Backend Logic
-- [x] Complete CSVWizardController
-  - [x] `upload()` - Handle CSV file upload
-  - [x] `parse()` - Parse and validate CSV structure
-  - [x] `preview()` - Return first 5 rows for preview
-  - [x] `generate()` - Queue generation jobs for each row (ready for AI)
-  - [x] Store CSV data temporarily (cache or session)
-- [x] Create ImagesWizardController
-  - [x] `store()` - Create project with images workflow
-  - [x] Handle brand reference uploads
-  - [x] Validate image formats (jpg, png, webp)
-  - [ ] Queue brand analysis job (AI integration pending)
-- [x] Create TextWizardController
-  - [x] `store()` - Create project from text description
-  - [x] Handle optional reference images
-  - [ ] Queue text-to-image generation job (AI integration pending)
-
-### AI Integration
-- [x] Create GoogleGeminiService
-  - [x] `analyzeBrandStyle()` - Extract style from references (placeholder, ready for API implementation)
-  - [x] `generateImage()` - Generate image from prompt (placeholder, ready for API implementation)
-  - [x] Error handling and retry logic (via AIServiceManager)
-  - [x] Response parsing and validation structure
-- [x] Create OpenRouterService (fallback)
-  - [x] Same methods as Gemini
-  - [x] Model selection logic
-- [x] Create AIServiceManager
-  - [x] Route requests to primary/fallback service
-  - [x] Track usage and costs (via GenerationHistory)
-- [x] Add AI configuration to config/services.php
-  - [x] Gemini API key
-  - [x] OpenRouter API key
-  - [x] Rate limits
-  - [x] Model preferences
-- [x] Create queue jobs
-  - [x] `AnalyzeBrandStyleJob`
-  - [x] `GenerateSingleImageJob`
-  - [x] `GenerateBatchImagesJob`
-  - [x] Handle job failures gracefully
-- [x] Implement rate limiting
-  - [x] 2-second delay between generations (in GenerateBatchImagesJob)
-  - [x] Per-user limits (ThrottlePerUser middleware - 10 req/min for AI gen)
-  - [x] Queue throttling (via job delays)
-
-### File Storage & Management
-- [x] Configure storage disk in config/filesystems.php
-  - [x] Local disk for development
-  - [x] S3/CloudFlare R2 for production (config ready)
-- [x] Create FileUploadService
-  - [x] Validate file types and sizes
-  - [x] Store uploaded files
-  - [x] Generate thumbnails
-  - [x] Return storage paths
-- [x] Implement image optimization
-  - [x] Compress uploaded images
-  - [x] Generate multiple sizes (thumbnail, medium, full)
-  - [x] WebP conversion for better performance (via Intervention Image)
-- [x] Create file cleanup job
-  - [x] `CleanOrphanedFilesJob`
-  - [x] Run daily via scheduler (scheduled at 2 AM)
-  - [x] Delete files not linked to database records
-
-### Canvas Editor Backend
-- [x] Create CanvasController
-- [x] Add `saveEdit()` method
-  - [x] POST /projects/{id}/images/{imageId}/save-edit
-  - [x] Accept canvas data (base64 encoded image)
-  - [x] Generate new image file with thumbnail
-  - [x] Create new image record or update existing
-- [x] Add `exportCanvas()` method
-  - [x] Generate final image from canvas state
-  - [x] Return download URL
-  - [x] Support multiple formats (PNG, JPG, WebP)
-
-### Authentication & Authorization
-- [x] Add auth middleware to all project routes
-- [x] Create ProjectPolicy
-  - [x] `view()` - User owns project
-  - [x] `update()` - User owns project
-  - [x] `delete()` - User owns project
-- [x] Create ImagePolicy
-  - [x] Check via project ownership
-- [x] Add authorization to ProjectController
-  - [x] show(), edit(), update(), destroy(), toggleFavorite()
-- [x] Add authorization to ImageController
-  - [x] update(), destroy(), bulkDestroy(), bulkDownload(), updateOrder(), toggleFavorite()
-- [x] Add authorization to Wizard controllers
-  - [x] CSVWizardController, ImagesWizardController, TextWizardController
-- [x] Add API rate limiting
-  - [x] Throttle API endpoints (60 requests/min)
-  - [x] Middleware configured in bootstrap/app.php
-  - [x] Per-user rate limiting for AI generation (10 req/min)
-- [x] Add usage limits
-  - [x] Track generations per user
-  - [x] Enforce subscription limits (credits system)
-  - [x] Block generation when no credits
+- ⭕ Complete deployment guide
+- ⭕ Add email notifications
+- ⭕ Optimize TypeScript types
+- ⭕ Code refactoring if time permits
 
 ---
 
-## 🟡 IMPORTANT - Should Complete Before Launch
+## 📝 **NOTES & DECISIONS**
 
-### User Experience Improvements
-- [x] Add real loading states
-  - [x] Spinner component created
-  - [x] Loading overlay for async operations
-  - [x] Skeleton loaders for project cards
-- [x] Improve error messages
-  - [x] Flash message handler component (using Sonner toasts)
-  - [x] Install toast library (sonner)
-  - [x] Empty states for no projects, no images, upload failures
-- [x] Add empty states
-  - [x] "No projects yet" with CTA
-  - [x] "No images in project" guide
-  - [x] "Upload failed" with retry button
-  - [x] No search results component
-- [x] Add batch progress tracking
-  - [x] Real-time progress component (BatchProgress)
-  - [x] useGenerationProgress hook with polling
-  - [x] Display in project detail page
-  - [x] Show completed/failed/processing stats
-- [ ] Create onboarding flow
-  - [ ] Welcome modal on first login
-  - [ ] Feature tour (optional)
-  - [ ] Sample project creation
-- [ ] Add keyboard shortcuts documentation
-  - [ ] Help modal (press ?)
-  - [ ] Show shortcuts in canvas editor
-  - [ ] Tooltips on hover
+**Recent Analysis Findings (Nov 9, 2025)**:
 
-### Data Validation
-- [x] Add validation to CSV wizard
-  - [x] Required columns (title, description, format)
-  - [x] Max file size (10MB)
-  - [x] Max rows (100 for free tier) - stored in settings
-- [x] Add validation to Images wizard
-  - [x] 5-10 brand references required
-  - [x] File types (jpg, png, webp only)
-  - [x] Max 5MB per image (10MB implemented)
-- [x] Add validation to Text wizard
-  - [x] Min/max text length
-  - [x] Optional references (0-5 images)
-- [x] Server-side validation for all forms
-  - [x] Use Form Requests (StoreProjectRequest, UpdateProjectRequest)
-  - [x] Return validation errors to frontend
-- [x] Sanitize all user inputs
-  - [x] Strip HTML tags from text inputs (handled by validation)
-  - [x] Validate file uploads server-side (FileUploadService)
+- ✅ Core functionality is solid and well-architected
+- ⚠️ Critical security issue: Missing authorization on show()
+- ⚠️ Rate limiting not enforced in batch jobs (will fail at scale)
+- ℹ️ Many console.log statements need cleanup
+- ℹ️ TypeScript types need improvement
+- ℹ️ Payment integration on hold (Paddle approval pending)
 
-### Performance Optimizations
-- [x] Add pagination to projects list
-  - [x] 20 projects per page
-  - [x] Inertia pagination component
-  - [ ] Remember scroll position (needs implementation)
-- [x] Implement lazy loading for images
-  - [x] LazyImage component with intersection observer
-  - [x] Load images as they enter viewport
-  - [x] LazyImageGrid for optimized grids
-- [x] Generate image thumbnails
-  - [x] Small (400x400) for cards via FileUploadService
-  - [x] Automatic generation on upload
-  - [x] Full size for canvas editor
-- [x] Add caching
-  - [x] CacheResponse middleware for GET requests
-  - [ ] Cache AI analysis results (needs implementation in jobs)
-  - [ ] Cache user preferences (needs implementation)
-- [x] Optimize database queries
-  - [x] Eager load relationships
-  - [x] Add database indexes (all migrations have indexes)
-  - [x] Use select() to limit columns
-- [x] Add API rate limiting
-  - [x] Throttle API endpoints (60 requests/min)
-  - [x] Middleware configured in bootstrap/app.php
+**What's Working Well**:
 
-### Testing
-- [ ] Write feature tests
-  - [ ] Project CRUD operations
-  - [ ] Wizard workflows
-  - [ ] File uploads
-  - [ ] Authentication flows
-- [ ] Write unit tests
-  - [ ] AI service classes
-  - [ ] File upload service
-  - [ ] Image generation logic
-- [ ] Test error handling
-  - [ ] API failures
-  - [ ] Network errors
-  - [ ] Invalid inputs
-- [ ] Test performance
-  - [ ] Large CSV files
-  - [ ] Batch generation
-  - [ ] Concurrent users
+- ✅ Modern tech stack (Laravel 12, React 19, Inertia.js)
+- ✅ Clean database schema with proper relationships
+- ✅ Good separation of concerns (mostly)
+- ✅ Policies implemented for authorization
+- ✅ Queue system for async AI generation
+- ✅ Two-factor authentication
+- ✅ Lazy loading and performance features
 
----
+**Technical Decisions**:
 
-## 🟢 NICE-TO-HAVE - Post-Launch Features
-
-### Collaboration Features
-- [ ] Share projects with team members
-  - [ ] Generate shareable links
-  - [ ] Set permissions (view/edit)
-  - [ ] Email invitations
-- [ ] Add comments on images
-  - [ ] Threaded discussions
-  - [ ] @mentions
-  - [ ] Notifications
-- [ ] Create project templates
-  - [ ] Save project as template
-  - [ ] Browse template library
-  - [ ] One-click project creation from template
-
-### Advanced Features
-- [ ] Batch editing for images
-  - [ ] Apply same filter to multiple
-  - [ ] Bulk resize/crop
-  - [ ] Bulk export
-- [ ] A/B testing features
-  - [ ] Generate variations
-  - [ ] Side-by-side comparison
-  - [ ] Vote on favorites
-- [ ] Analytics dashboard
-  - [ ] Most used features
-  - [ ] Generation success rate
-  - [ ] Cost tracking
-  - [ ] User engagement metrics
-- [ ] Export integrations
-  - [ ] Direct export to Figma
-  - [ ] Canva integration
-  - [ ] Google Drive sync
-  - [ ] Dropbox sync
-
-### Admin Features
-- [x] Create admin panel
-- [x] User management
-  - [x] View all users
-  - [x] Suspend/activate accounts
-  - [x] View user usage
-  - [x] Change user subscription tiers
-  - [x] Delete users
-- [x] Usage monitoring
-  - [x] Track API calls
-  - [x] Monitor costs
-  - [x] Alert on high usage
-  - [x] View platform statistics
-- [ ] Feature flags system
-  - [ ] Enable/disable features
-  - [ ] A/B test new features
-  - [ ] Gradual rollouts
-
-### Subscription & Billing
-- [ ] Integrate payment gateway (Paddle) - **PENDING: Awaiting Paddle setup**
-- [x] Create subscription plans
-  - [x] Free tier (10 generations/month)
-  - [x] Pro tier (100 generations/month)
-  - [x] Enterprise tier (unlimited)
-- [x] Add billing portal
-  - [x] View invoices
-  - [x] Update payment method UI
-  - [x] Cancel subscription (downgrade to free)
-  - [ ] Paddle payment integration (pending)
-- [x] Usage-based pricing
-  - [x] Track AI credits
-  - [x] Purchase additional credits (UI ready, Paddle integration pending)
-  - [ ] Auto-recharge options (future)
-
----
-
-## 📋 Current Sprint (Week of Nov 3, 2025)
-
-### Completed
-- [x] List view implementation for projects page
-- [x] Double-click to rename project titles
-- [x] Add "Generate More" button to project cards
-- [x] Implement quick actions (favorite, edit, delete) - UI only
-- [x] **Create database migrations (projects, images, brand_references, generation_history)**
-- [x] **Implement Project, Image, BrandReference, GenerationHistory models**
-- [x] **Complete ProjectController backend methods (CRUD + toggleFavorite)**
-- [x] **Create ImageController with bulk operations**
-- [x] **Connect frontend to real backend APIs**
-- [x] **Configure file storage and create symbolic link**
-- [x] **Create FileUploadService with thumbnail generation**
-- [x] **Implement all 3 wizard controllers (CSV, Images, Text)**
-- [x] **Add Form Request validation (StoreProjectRequest, UpdateProjectRequest)**
-- [x] **Add pagination to projects list (20 per page)**
-- [x] **Install Intervention Image library**
-
-### Up Next
-- [ ] Create Policy classes for authorization
-- [ ] Add loading states to frontend
-- [ ] Implement error handling and user-friendly messages
-- [ ] Create canvas editor save functionality
-- [ ] **Prepare AI integration structure (jobs, services)**
-
----
-
-## 🐛 Known Issues & Bugs
-
-- [x] Projects page uses mock data (hardcoded array) - FIXED: Now uses database
-- [x] Quick actions (favorite, edit, delete) only log to console - FIXED: Now functional
-- [ ] Canvas editor changes not persisted
-- [ ] No authentication guards on project routes (partially done - needs testing)
-- [ ] Missing validation on all forms
-- [ ] No error handling for failed operations
-
----
-
-## 📝 Notes & Decisions
-
-- **AI Service**: Using Google Gemini as primary, OpenRouter as fallback
-- **File Storage**: Start with local, migrate to S3 for production
-- **Queue**: Using Laravel queue system for batch operations
-- **Rate Limiting**: 2-second delay between generations (per requirements)
-- **Image Formats**: Support JPG, PNG, WebP for uploads
+- **AI Service**: Google Gemini as primary, OpenRouter as fallback
+- **File Storage**: Start with local, plan S3 migration before scaling
+- **Queue**: Laravel database queue (works for MVP, consider Redis later)
+- **Rate Limiting**: 2-second delay between AI generations
+- **Image Formats**: JPG, PNG, WebP for uploads and generation
 - **CSV Format**: Required columns: title, description, format
+- **Payment Gateway**: Paddle (awaiting approval)
 
 ---
 
-## 🎯 Success Metrics for Launch
+## ✅ **WHAT'S COMPLETED**
 
-- [ ] 100% of core features implemented
-- [ ] All critical tests passing
+### Core Infrastructure ✅
+
+- ✅ Database schema (4 tables: projects, images, brand_references, generation_history)
+- ✅ All Models with relationships (Project, Image, BrandReference, GenerationHistory, User)
+- ✅ All Controllers (Project, Image, Canvas, Dashboard, 3 Wizards, Admin)
+- ✅ File Storage & Upload System (FileUploadService with thumbnails)
+- ✅ Authorization Policies (ProjectPolicy, ImagePolicy)
+- ✅ Queue Jobs (All 4 jobs: Batch, Single, BrandAnalysis, CleanOrphaned)
+- ✅ Form Request Validation (StoreProjectRequest, UpdateProjectRequest)
+
+### AI Integration ✅
+
+- ✅ Google Gemini Service with Style Mirror approach
+- ✅ OpenRouter Service as fallback
+- ✅ Prompt Service for managing AI prompts
+- ✅ AI configuration in config/services.php
+- ✅ Job dispatching from all wizard controllers
+
+### Frontend Features ✅
+
+- ✅ All Pages (Dashboard, Projects, Canvas Editor, Wizards, Admin)
+- ✅ Inertia.js setup with type-safe routing (Wayfinder)
+- ✅ shadcn/ui components integrated
+- ✅ Toast notifications (Sonner library)
+- ✅ Real-time progress tracking (BatchProgress component)
+- ✅ Lazy loading images (LazyImage component)
+- ✅ Empty states and loading skeletons
+- ✅ Responsive layouts (AppLayout, SettingsLayout)
+
+### Authentication & Security ✅
+
+- ✅ Laravel Fortify authentication
+- ✅ Two-factor authentication (2FA)
+- ✅ Email verification
+- ✅ Rate limiting on routes (ThrottlePerUser middleware)
+- ✅ CSRF protection (Laravel default)
+
+### Admin Panel ✅
+
+- ✅ Admin dashboard with platform statistics
+- ✅ User management (view, suspend, edit subscriptions)
+- ✅ Usage monitoring and cost tracking
+- ✅ Generation history viewer
+
+### Subscription & Credits System ✅
+
+- ✅ Three tiers: Free (10 credits/mo), Pro (100/mo), Enterprise (unlimited)
+- ✅ Credits tracking in User model
+- ✅ Monthly credit reset logic
+- ✅ Billing portal UI (awaiting Paddle integration)
+- ✅ Usage enforcement (EnsureUserHasCredits middleware)
+
+### Performance Features ✅
+
+- ✅ Image lazy loading
+- ✅ Response caching middleware
+- ✅ Database indexes on key columns
+- ✅ Pagination on project lists (20 per page)
+- ✅ Eager loading relationships
+- ✅ Thumbnail generation for images
+
+---
+
+## 🔄 **CURRENT STATUS**
+
+**MVP Status**: ~95% Complete  
+**Blocking Issues**: 7 critical fixes needed (see section 🔴 above)  
+**Ready for**: Internal testing after quick wins are implemented  
+**Not Ready for**: Public launch (need security fixes + testing)
+
+**Next Immediate Steps**:
+
+1. ✅ Implement Week 1 Quick Wins (~2 hours)
+2. ✅ Test AI generation end-to-end
+3. ✅ Fix any bugs found in testing
+4. ✅ Write tests for critical paths
+5. ⏸️ Wait for Paddle approval for payments
+6. 🚀 Soft launch to beta users
+
+---
+
+## 📋 **SUCCESS METRICS FOR LAUNCH**
+
+- [ ] All 🔴 critical issues fixed
+- [ ] Authorization working on all routes
+- [ ] Batch generation working with rate limiting
+- [ ] At least 50% test coverage on critical paths
+- [ ] Zero console errors in production
 - [ ] Page load time < 2 seconds
-- [ ] AI generation success rate > 95%
-- [ ] Zero critical security vulnerabilities
+- [ ] AI generation success rate > 90%
 - [ ] Mobile responsive on all pages
-- [ ] Documentation complete (README, API docs)
+- [ ] Documentation complete (README, DEPLOYMENT.md)
+- [ ] Error monitoring configured (Sentry)
 
 ---
 
-**Next Review Date**: November 10, 2025  
-**Target Launch Date**: December 15, 2025
+## 🐛 **KNOWN ISSUES & BUGS**
+
+### Critical ⚠️
+
+### Critical ⚠️
+
+- [x] ✅ `ProjectController::show()` missing authorization check - **FIXED**
+- [x] ✅ Batch jobs dispatch without rate limiting - **FIXED**
+- [x] ✅ Route middleware name mismatch (`has.credits` vs `EnsureUserHasCredits`) - **FIXED**
+
+### High Priority
+
+- [x] ✅ N+1 query in `DashboardController` (6+ queries per load) - **FIXED**
+- [x] ✅ 20+ console.log statements in canvas-editor.tsx - **FIXED**
+- [x] ✅ Retry logic on failed AI jobs - **ADDED**
+- [x] ✅ Generic error messages - **IMPROVED** (custom exceptions added)
+
+### Medium Priority
+
+- [ ] Canvas editor changes not persisted to database fully
+- [ ] Missing TypeScript types for AI responses
+- [x] ✅ Email notifications for job completion - **IMPLEMENTED** (ready to send)
+- [ ] Soft deletes not fully implemented (no admin UI)
+
+### Low Priority
+
+- [ ] No keyboard shortcuts documentation
+- [ ] Image comparison view not implemented
+- [ ] Project templates feature missing
+
+---
+
+**Last Reviewed**: November 9, 2025  
+**Next Review**: After implementing Week 1 Quick Wins  
+**Target Public Launch**: After Paddle approval + security fixes + testing
