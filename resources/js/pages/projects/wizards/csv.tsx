@@ -362,8 +362,8 @@ export default function CSVWizard() {
             
             <div style={{
                 fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", "Oxygen", "Ubuntu", "Cantarell", sans-serif',
-                background: '#F7F7F5',
-                color: '#373737',
+                background: 'var(--color-muted)',
+                color: 'var(--color-foreground)',
                 minHeight: '100vh',
                 display: 'flex',
                 alignItems: 'center',
@@ -371,7 +371,7 @@ export default function CSVWizard() {
                 padding: '40px 20px'
             }}>
                 <div style={{
-                    background: '#ffffff',
+                    background: 'var(--color-card)',
                     borderRadius: '12px',
                     boxShadow: '0 4px 12px rgba(0, 0, 0, 0.08)',
                     maxWidth: '900px',
@@ -381,7 +381,7 @@ export default function CSVWizard() {
                     {/* Header */}
                     <div style={{
                         padding: '32px 40px',
-                        borderBottom: '1px solid #e5e7eb'
+                        borderBottom: '1px solid var(--color-border)'
                     }}>
                         <Link 
                             href="/projects" 
@@ -390,7 +390,7 @@ export default function CSVWizard() {
                                 alignItems: 'center',
                                 gap: '6px',
                                 fontSize: '13px',
-                                color: '#787774',
+                                color: 'var(--color-muted-foreground)',
                                 textDecoration: 'none',
                                 marginBottom: '16px',
                                 transition: 'all 0.2s ease-out'
@@ -402,14 +402,14 @@ export default function CSVWizard() {
                         <h1 style={{
                             fontSize: '24px',
                             fontWeight: 600,
-                            color: '#373737',
+                            color: 'var(--color-foreground)',
                             marginBottom: '6px'
                         }}>
                             {getTitle()}
                         </h1>
                         <p style={{
                             fontSize: '14px',
-                            color: '#787774',
+                            color: 'var(--color-muted-foreground)',
                             lineHeight: 1.5,
                             margin: 0
                         }}>
@@ -420,7 +420,7 @@ export default function CSVWizard() {
                     {/* Progress Bar */}
                     <div style={{
                         padding: '0 40px 24px',
-                        borderBottom: '1px solid #e5e7eb'
+                        borderBottom: '1px solid var(--color-border)'
                     }}>
                         <div style={{
                             display: 'flex',
@@ -443,7 +443,7 @@ export default function CSVWizard() {
                                         style={{
                                             flex: 1,
                                             height: '4px',
-                                            background: className === 'completed' ? '#1a1a1a' : className === 'current' ? '#e5e5e5' : '#e5e7eb',
+                                            background: className === 'completed' ? 'var(--color-primary)' : className === 'current' ? 'var(--color-muted)' : 'var(--color-border)',
                                             borderRadius: '2px',
                                             transition: 'all 0.2s ease-out'
                                         }}
@@ -455,13 +455,13 @@ export default function CSVWizard() {
                             display: 'flex',
                             justifyContent: 'space-between',
                             fontSize: '12px',
-                            color: '#9b9a97',
+                            color: 'var(--color-muted-foreground)',
                             fontWeight: 500
                         }}>
-                            <span style={{ color: (currentStep === 1 && !uploadComplete) || (currentStep === 1 && uploadComplete) ? '#373737' : '#9b9a97' }}>Upload</span>
-                            <span style={{ color: (currentStep === 2) || (currentStep === 1 && uploadComplete) ? '#373737' : '#9b9a97' }}>Review Data</span>
-                            <span style={{ color: currentStep === 3 ? '#373737' : '#9b9a97' }}>Style References</span>
-                            <span style={{ color: currentStep === 4 ? '#373737' : '#9b9a97' }}>Generate</span>
+                            <span style={{ color: (currentStep === 1 && !uploadComplete) || (currentStep === 1 && uploadComplete) ? 'var(--color-foreground)' : 'var(--color-muted-foreground)' }}>Upload</span>
+                            <span style={{ color: (currentStep === 2) || (currentStep === 1 && uploadComplete) ? 'var(--color-foreground)' : 'var(--color-muted-foreground)' }}>Review Data</span>
+                            <span style={{ color: currentStep === 3 ? 'var(--color-foreground)' : 'var(--color-muted-foreground)' }}>Style References</span>
+                            <span style={{ color: currentStep === 4 ? 'var(--color-foreground)' : 'var(--color-muted-foreground)' }}>Generate</span>
                         </div>
                     </div>
 
@@ -476,13 +476,13 @@ export default function CSVWizard() {
                                 {!uploadComplete ? (
                                     <>
                                         {/* Tab Switcher */}
-                                        <div style={{
-                                            display: 'flex',
-                                            gap: '8px',
-                                            marginBottom: '24px',
-                                            borderBottom: '1px solid #e5e7eb',
-                                            paddingBottom: '0'
-                                        }}>
+                                            <div style={{
+                                                display: 'flex',
+                                                gap: '8px',
+                                                marginBottom: '24px',
+                                                borderBottom: '1px solid var(--color-border)',
+                                                paddingBottom: '0'
+                                            }}>
                                             <button
                                                 onClick={() => setUploadMode('upload')}
                                                 style={{
@@ -491,8 +491,8 @@ export default function CSVWizard() {
                                                     fontWeight: 500,
                                                     background: 'transparent',
                                                     border: 'none',
-                                                    borderBottom: uploadMode === 'upload' ? '2px solid #1a1a1a' : '2px solid transparent',
-                                                    color: uploadMode === 'upload' ? '#1a1a1a' : '#9b9a97',
+                                                    borderBottom: uploadMode === 'upload' ? '2px solid var(--color-primary)' : '2px solid transparent',
+                                                    color: uploadMode === 'upload' ? 'var(--color-foreground)' : 'var(--color-muted-foreground)',
                                                     cursor: 'pointer',
                                                     transition: 'all 0.2s ease'
                                                 }}
@@ -518,8 +518,8 @@ export default function CSVWizard() {
                                                     fontWeight: 500,
                                                     background: 'transparent',
                                                     border: 'none',
-                                                    borderBottom: uploadMode === 'create' ? '2px solid #1a1a1a' : '2px solid transparent',
-                                                    color: uploadMode === 'create' ? '#1a1a1a' : '#9b9a97',
+                                                    borderBottom: uploadMode === 'create' ? '2px solid var(--color-primary)' : '2px solid transparent',
+                                                    color: uploadMode === 'create' ? 'var(--color-foreground)' : 'var(--color-muted-foreground)',
                                                     cursor: 'pointer',
                                                     transition: 'all 0.2s ease'
                                                 }}
@@ -537,23 +537,23 @@ export default function CSVWizard() {
                                                     onDragLeave={handleDragLeave}
                                                     onDrop={handleDrop}
                                                     style={{
-                                                        border: '2px dashed #e5e7eb',
+                                                        border: '2px dashed var(--color-border)',
                                                         borderRadius: '12px',
                                                         padding: '60px 40px',
                                                         textAlign: 'center',
                                                         cursor: 'pointer',
                                                         transition: 'all 0.2s ease-out',
-                                                        background: dragOver ? '#e5e5e5' : '#F7F7F5',
-                                                        borderColor: dragOver ? '#1a1a1a' : '#e5e7eb'
+                                                        background: 'var(--color-muted)',
+                                                        borderColor: dragOver ? 'var(--color-primary)' : 'var(--color-border)'
                                                     }}
                                                 >
                                                     <div style={{ marginBottom: '20px' }}>
-                                                        <Upload style={{ width: '64px', height: '64px', strokeWidth: 1.5, color: '#9b9a97', margin: '0 auto' }} />
+                                                        <Upload style={{ width: '64px', height: '64px', strokeWidth: 1.5, color: 'var(--color-muted-foreground)', margin: '0 auto' }} />
                                                     </div>
-                                                    <div style={{ fontSize: '16px', fontWeight: 500, color: '#373737', marginBottom: '8px' }}>
+                                                    <div style={{ fontSize: '16px', fontWeight: 500, color: 'var(--color-foreground)', marginBottom: '8px' }}>
                                                         Drag & drop your CSV file here, or click to upload
                                                     </div>
-                                                    <div style={{ fontSize: '14px', color: '#787774' }}>
+                                                    <div style={{ fontSize: '14px', color: 'var(--color-muted-foreground)' }}>
                                                         Maximum 5 rows for bulk generation
                                                     </div>
                                                 </div>
@@ -567,13 +567,13 @@ export default function CSVWizard() {
                                             </>
                                         ) : (
                                             <div style={{
-                                                background: '#F7F7F5',
-                                                border: '1px solid #e5e7eb',
+                                                background: 'var(--color-muted)',
+                                                border: '1px solid var(--color-border)',
                                                 borderRadius: '12px',
                                                 padding: '20px'
                                             }}>
                                                 <div style={{ marginBottom: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                                    <div style={{ fontSize: '13px', color: '#787774' }}>
+                                                    <div style={{ fontSize: '13px', color: 'var(--color-muted-foreground)' }}>
                                                         Create your data inline (max 5 rows)
                                                     </div>
                                                     <div style={{ display: 'flex', gap: '8px' }}>
@@ -584,10 +584,10 @@ export default function CSVWizard() {
                                                                 padding: '6px 12px',
                                                                 fontSize: '13px',
                                                                 fontWeight: 500,
-                                                                background: '#ffffff',
-                                                                border: '1px solid #e5e7eb',
+                                                                background: 'var(--color-card)',
+                                                                border: '1px solid var(--color-border)',
                                                                 borderRadius: '6px',
-                                                                color: '#373737',
+                                                                color: 'var(--color-foreground)',
                                                                 cursor: editableHeaders.length >= 6 ? 'not-allowed' : 'pointer',
                                                                 opacity: editableHeaders.length >= 6 ? 0.5 : 1
                                                             }}
@@ -602,10 +602,10 @@ export default function CSVWizard() {
                                                                 padding: '6px 12px',
                                                                 fontSize: '13px',
                                                                 fontWeight: 500,
-                                                                background: '#1a1a1a',
+                                                                background: 'var(--color-primary)',
                                                                 border: 'none',
                                                                 borderRadius: '6px',
-                                                                color: '#ffffff',
+                                                                color: 'var(--color-primary-foreground)',
                                                                 cursor: editableData.length >= 5 ? 'not-allowed' : 'pointer',
                                                                 opacity: editableData.length >= 5 ? 0.5 : 1
                                                             }}
@@ -616,13 +616,13 @@ export default function CSVWizard() {
                                                     </div>
                                                 </div>
 
-                                                <div style={{ overflowX: 'auto', background: '#ffffff', borderRadius: '8px', border: '1px solid #e5e7eb' }}>
+                                                <div style={{ overflowX: 'auto', background: 'var(--color-card)', borderRadius: '8px', border: '1px solid var(--color-border)' }}>
                                                     <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                                                        <thead style={{ background: '#fafafa' }}>
+                                                        <thead style={{ background: 'var(--color-muted)' }}>
                                                             <tr>
-                                                                <th style={{ padding: '12px 16px', textAlign: 'center', borderBottom: '1px solid #e5e7eb', width: '40px' }}>#</th>
+                                                                <th style={{ padding: '12px 16px', textAlign: 'center', borderBottom: '1px solid var(--color-border)', width: '40px' }}>#</th>
                                                                 {editableHeaders.map((header) => (
-                                                                    <th key={header} style={{ padding: '12px 16px', textAlign: 'left', borderBottom: '1px solid #e5e7eb', minWidth: '200px' }}>
+                                                                    <th key={header} style={{ padding: '12px 16px', textAlign: 'left', borderBottom: '1px solid var(--color-border)', minWidth: '200px' }}>
                                                                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                                                                             <input
                                                                                 type="text"
@@ -636,9 +636,9 @@ export default function CSVWizard() {
                                                                                     border: '1px solid transparent',
                                                                                     borderRadius: '4px',
                                                                                     background: 'transparent',
-                                                                                    color: '#373737'
+                                                                                    color: 'var(--color-foreground)'
                                                                                 }}
-                                                                                onFocus={(e) => e.target.style.border = '1px solid #1a1a1a'}
+                                                                                onFocus={(e) => e.target.style.border = '1px solid var(--color-primary)'}
                                                                                 onBlur={(e) => e.target.style.border = '1px solid transparent'}
                                                                             />
                                                                             {editableHeaders.length > 1 && (
@@ -649,7 +649,7 @@ export default function CSVWizard() {
                                                                                         background: 'transparent',
                                                                                         border: 'none',
                                                                                         cursor: 'pointer',
-                                                                                        color: '#9b9a97'
+                                                                                        color: 'var(--color-muted-foreground)'
                                                                                     }}
                                                                                 >
                                                                                     <X size={16} />
@@ -658,7 +658,7 @@ export default function CSVWizard() {
                                                                         </div>
                                                                     </th>
                                                                 ))}
-                                                                <th style={{ padding: '12px 16px', textAlign: 'center', borderBottom: '1px solid #e5e7eb', width: '60px' }}>
+                                                                <th style={{ padding: '12px 16px', textAlign: 'center', borderBottom: '1px solid var(--color-border)', width: '60px' }}>
                                                                     Actions
                                                                 </th>
                                                             </tr>
@@ -666,11 +666,11 @@ export default function CSVWizard() {
                                                         <tbody>
                                                             {editableData.map((row, rowIndex) => (
                                                                 <tr key={rowIndex}>
-                                                                    <td style={{ padding: '12px 16px', textAlign: 'center', fontSize: '13px', color: '#9b9a97', borderBottom: '1px solid #e5e7eb' }}>
+                                                                    <td style={{ padding: '12px 16px', textAlign: 'center', fontSize: '13px', color: 'var(--color-muted-foreground)', borderBottom: '1px solid var(--color-border)' }}>
                                                                         {rowIndex + 1}
                                                                     </td>
                                                                     {editableHeaders.map(header => (
-                                                                        <td key={header} style={{ padding: '12px 16px', borderBottom: '1px solid #e5e7eb' }}>
+                                                                        <td key={header} style={{ padding: '12px 16px', borderBottom: '1px solid var(--color-border)' }}>
                                                                             <input
                                                                                 type="text"
                                                                                 value={row[header] || ''}
@@ -680,17 +680,17 @@ export default function CSVWizard() {
                                                                                     width: '100%',
                                                                                     fontSize: '14px',
                                                                                     padding: '8px 12px',
-                                                                                    border: '1px solid #e5e7eb',
+                                                                                    border: '1px solid var(--color-border)',
                                                                                     borderRadius: '6px',
-                                                                                    background: '#ffffff',
-                                                                                    color: '#373737'
+                                                                                    background: 'var(--color-card)',
+                                                                                    color: 'var(--color-foreground)'
                                                                                 }}
-                                                                                onFocus={(e) => e.target.style.borderColor = '#1a1a1a'}
-                                                                                onBlur={(e) => e.target.style.borderColor = '#e5e7eb'}
+                                                                                onFocus={(e) => e.target.style.borderColor = 'var(--color-primary)'}
+                                                                                onBlur={(e) => e.target.style.borderColor = 'var(--color-border)'}
                                                                             />
                                                                         </td>
                                                                     ))}
-                                                                    <td style={{ padding: '12px 16px', textAlign: 'center', borderBottom: '1px solid #e5e7eb' }}>
+                                                                    <td style={{ padding: '12px 16px', textAlign: 'center', borderBottom: '1px solid var(--color-border)' }}>
                                                                         <button
                                                                             onClick={() => removeRow(rowIndex)}
                                                                             style={{
@@ -698,7 +698,7 @@ export default function CSVWizard() {
                                                                                 background: 'transparent',
                                                                                 border: 'none',
                                                                                 cursor: 'pointer',
-                                                                                color: '#9b9a97',
+                                                                                color: 'var(--color-muted-foreground)',
                                                                                 borderRadius: '4px'
                                                                             }}
                                                                         >
@@ -715,7 +715,7 @@ export default function CSVWizard() {
                                                     <div style={{
                                                         textAlign: 'center',
                                                         padding: '40px 20px',
-                                                        color: '#9b9a97',
+                                                        color: 'var(--color-muted-foreground)',
                                                         fontSize: '14px'
                                                     }}>
                                                         No rows yet. Click "Add Row" to start creating your CSV data.
@@ -730,10 +730,10 @@ export default function CSVWizard() {
                                                             padding: '10px 24px',
                                                             fontSize: '14px',
                                                             fontWeight: 500,
-                                                            background: '#1a1a1a',
+                                                            background: 'var(--color-primary)',
                                                             border: 'none',
                                                             borderRadius: '8px',
-                                                            color: '#ffffff',
+                                                            color: 'var(--color-primary-foreground)',
                                                             cursor: editableData.length === 0 ? 'not-allowed' : 'pointer',
                                                             opacity: editableData.length === 0 ? 0.5 : 1
                                                         }}
@@ -747,8 +747,8 @@ export default function CSVWizard() {
                                 ) : (
                                     <>
                                         <div style={{
-                                            background: '#F7F7F5',
-                                            border: '1px solid #e5e7eb',
+                                            background: 'var(--color-muted)',
+                                            border: '1px solid var(--color-border)',
                                             borderRadius: '12px',
                                             padding: '24px',
                                             marginBottom: '20px'
@@ -758,12 +758,12 @@ export default function CSVWizard() {
                                                 alignItems: 'center',
                                                 gap: '12px',
                                                 padding: '12px 0',
-                                                borderBottom: '1px solid #e5e7eb'
+                                                borderBottom: '1px solid var(--color-border)'
                                             }}>
-                                                <FileText size={20} color="#787774" />
+                                                <FileText size={20} color="var(--color-muted-foreground)" />
                                                 <div>
-                                                    <div style={{ fontSize: '13px', color: '#9b9a97', marginBottom: '2px' }}>File Name</div>
-                                                    <div style={{ fontSize: '14px', fontWeight: 500, color: '#373737' }}>{fileName}</div>
+                                                    <div style={{ fontSize: '13px', color: 'var(--color-muted-foreground)', marginBottom: '2px' }}>File Name</div>
+                                                    <div style={{ fontSize: '14px', fontWeight: 500, color: 'var(--color-foreground)' }}>{fileName}</div>
                                                 </div>
                                             </div>
                                             <div style={{
@@ -772,34 +772,34 @@ export default function CSVWizard() {
                                                 gap: '12px',
                                                 padding: '12px 0'
                                             }}>
-                                                <Grid size={20} color="#787774" />
+                                                <Grid size={20} color="var(--color-muted-foreground)" />
                                                 <div>
-                                                    <div style={{ fontSize: '13px', color: '#9b9a97', marginBottom: '2px' }}>Rows Detected</div>
-                                                    <div style={{ fontSize: '14px', fontWeight: 500, color: '#373737' }}>{csvData.length} rows</div>
+                                                    <div style={{ fontSize: '13px', color: 'var(--color-muted-foreground)', marginBottom: '2px' }}>Rows Detected</div>
+                                                    <div style={{ fontSize: '14px', fontWeight: 500, color: 'var(--color-foreground)' }}>{csvData.length} rows</div>
                                                 </div>
                                             </div>
                                         </div>
 
                                         {/* Data Table */}
-                                        <div style={{ fontSize: '13px', color: '#787774', marginBottom: '12px', fontWeight: 500 }}>
+                                        <div style={{ fontSize: '13px', color: 'var(--color-muted-foreground)', marginBottom: '12px', fontWeight: 500 }}>
                                             Showing {selectedRows.size} of {csvData.length} selected row{csvData.length !== 1 ? 's' : ''}
                                         </div>
                                         <div style={{ overflowX: 'auto' }}>
                                             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                                                <thead style={{ background: '#fafafa' }}>
+                                                <thead style={{ background: 'var(--color-muted)' }}>
                                                     <tr>
-                                                        <th style={{ padding: '14px 16px', textAlign: 'center', borderBottom: '1px solid #e5e7eb', width: '40px' }}>
+                                                        <th style={{ padding: '14px 16px', textAlign: 'center', borderBottom: '1px solid var(--color-border)', width: '40px' }}>
                                                             <input 
                                                                 type="checkbox" 
                                                                 checked={selectedRows.size === csvData.length}
                                                                 onChange={(e) => toggleAllRows(e.target.checked)}
-                                                                style={{ width: '17px', height: '17px', cursor: 'pointer', accentColor: '#1a1a1a' }}
+                                                                style={{ width: '17px', height: '17px', cursor: 'pointer', accentColor: 'var(--color-primary)' }}
                                                             />
                                                         </th>
                                                         {headers.map(header => (
-                                                            <th key={header} style={{ padding: '14px 16px', textAlign: 'left', borderBottom: '1px solid #e5e7eb' }}>
+                                                            <th key={header} style={{ padding: '14px 16px', textAlign: 'left', borderBottom: '1px solid var(--color-border)' }}>
                                                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                                                                    <div style={{ textTransform: 'uppercase', fontSize: '11px', letterSpacing: '0.5px', color: '#9b9a97', fontWeight: 600 }}>
+                                                                    <div style={{ textTransform: 'uppercase', fontSize: '11px', letterSpacing: '0.5px', color: 'var(--color-muted-foreground)', fontWeight: 600 }}>
                                                                         {header}
                                                                     </div>
                                                                     <select 
@@ -812,7 +812,7 @@ export default function CSVWizard() {
                                                                             background: 'transparent',
                                                                             cursor: 'pointer',
                                                                             fontWeight: 400,
-                                                                            color: '#787774',
+                                                                            color: 'var(--color-muted-foreground)',
                                                                             outline: 'none'
                                                                         }}
                                                                     >
@@ -833,16 +833,16 @@ export default function CSVWizard() {
                                                 <tbody>
                                                     {csvData.map((row, rowIndex) => (
                                                         <tr key={rowIndex} style={{ transition: 'background-color 0.15s ease' }}>
-                                                            <td style={{ padding: '14px 16px', textAlign: 'center', borderBottom: '1px solid #e5e7eb' }}>
+                                                            <td style={{ padding: '14px 16px', textAlign: 'center', borderBottom: '1px solid var(--color-border)' }}>
                                                                 <input 
                                                                     type="checkbox" 
                                                                     checked={selectedRows.has(rowIndex)}
                                                                     onChange={() => toggleRow(rowIndex)}
-                                                                    style={{ width: '17px', height: '17px', cursor: 'pointer', accentColor: '#1a1a1a' }}
+                                                                    style={{ width: '17px', height: '17px', cursor: 'pointer', accentColor: 'var(--color-primary)' }}
                                                                 />
                                                             </td>
                                                             {headers.map(header => (
-                                                                <td key={header} style={{ padding: '14px 16px', borderBottom: '1px solid #e5e7eb' }}>
+                                                                <td key={header} style={{ padding: '14px 16px', borderBottom: '1px solid var(--color-border)' }}>
                                                                     <input
                                                                         type="text"
                                                                         value={row[header] || ''}
@@ -851,17 +851,17 @@ export default function CSVWizard() {
                                                                             width: '100%',
                                                                             fontSize: '14px',
                                                                             padding: '8px 12px',
-                                                                            border: '1px solid #e5e7eb',
+                                                                            border: '1px solid var(--color-border)',
                                                                             borderRadius: '6px',
-                                                                            background: '#ffffff',
-                                                                            color: '#373737'
+                                                                            background: 'var(--color-card)',
+                                                                            color: 'var(--color-foreground)'
                                                                         }}
-                                                                        onFocus={(e) => e.target.style.borderColor = '#1a1a1a'}
-                                                                        onBlur={(e) => e.target.style.borderColor = '#e5e7eb'}
+                                                                        onFocus={(e) => e.target.style.borderColor = 'var(--color-primary)'}
+                                                                        onBlur={(e) => e.target.style.borderColor = 'var(--color-border)'}
                                                                     />
                                                                 </td>
                                                             ))}
-                                                            <td style={{ padding: '14px 16px', textAlign: 'center', borderBottom: '1px solid #e5e7eb' }}>
+                                                            <td style={{ padding: '14px 16px', textAlign: 'center', borderBottom: '1px solid var(--color-border)' }}>
                                                                 <button
                                                                     onClick={() => {
                                                                         // Remove row from csvData
@@ -897,19 +897,19 @@ export default function CSVWizard() {
                                                                         background: 'transparent',
                                                                         border: 'none',
                                                                         cursor: csvData.length <= 1 ? 'not-allowed' : 'pointer',
-                                                                        color: csvData.length <= 1 ? '#d1d5db' : '#9b9a97',
+                                                                        color: csvData.length <= 1 ? 'var(--color-border)' : 'var(--color-muted-foreground)',
                                                                         borderRadius: '4px',
                                                                         opacity: csvData.length <= 1 ? 0.5 : 1,
                                                                         transition: 'color 0.15s ease'
                                                                     }}
                                                                     onMouseEnter={(e) => {
                                                                         if (csvData.length > 1) {
-                                                                            e.currentTarget.style.color = '#ef4444';
+                                                                            e.currentTarget.style.color = 'var(--color-destructive)';
                                                                         }
                                                                     }}
                                                                     onMouseLeave={(e) => {
                                                                         if (csvData.length > 1) {
-                                                                            e.currentTarget.style.color = '#9b9a97';
+                                                                            e.currentTarget.style.color = 'var(--color-muted-foreground)';
                                                                         }
                                                                     }}
                                                                     title={csvData.length <= 1 ? 'Cannot delete the last row' : 'Delete row'}
@@ -933,23 +933,23 @@ export default function CSVWizard() {
                                 <div 
                                     onClick={() => imageInputRef.current?.click()}
                                     style={{
-                                        border: '2px dashed #e5e7eb',
+                                        border: '2px dashed var(--color-border)',
                                         borderRadius: '12px',
                                         padding: '60px 40px',
                                         textAlign: 'center',
                                         cursor: 'pointer',
                                         transition: 'all 0.2s ease-out',
-                                        background: '#F7F7F5',
+                                        background: 'var(--color-muted)',
                                         marginBottom: '20px'
                                     }}
                                 >
                                     <div style={{ marginBottom: '20px' }}>
-                                        <ImageIcon style={{ width: '64px', height: '64px', strokeWidth: 1.5, color: '#9b9a97', margin: '0 auto' }} />
+                                        <ImageIcon style={{ width: '64px', height: '64px', strokeWidth: 1.5, color: 'var(--color-muted-foreground)', margin: '0 auto' }} />
                                     </div>
-                                    <div style={{ fontSize: '16px', fontWeight: 500, color: '#373737', marginBottom: '8px' }}>
+                                    <div style={{ fontSize: '16px', fontWeight: 500, color: 'var(--color-foreground)', marginBottom: '8px' }}>
                                         Drag & drop your style images here, or click to upload
                                     </div>
-                                    <div style={{ fontSize: '14px', color: '#787774' }}>
+                                    <div style={{ fontSize: '14px', color: 'var(--color-muted-foreground)' }}>
                                         Upload 5-10 images to define the visual style
                                     </div>
                                 </div>
@@ -974,7 +974,7 @@ export default function CSVWizard() {
                                             aspectRatio: '1',
                                             borderRadius: '8px',
                                             overflow: 'hidden',
-                                            border: '1px solid #e5e7eb'
+                                            border: '1px solid var(--color-border)'
                                         }}>
                                             <img src={src} alt={`Style ${index + 1}`} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                                             <div 
@@ -985,7 +985,7 @@ export default function CSVWizard() {
                                                     right: '6px',
                                                     width: '24px',
                                                     height: '24px',
-                                                    background: 'rgba(0, 0, 0, 0.6)',
+                                                    background: 'color-mix(in srgb, var(--color-background) 60%, transparent)',
                                                     borderRadius: '50%',
                                                     display: 'flex',
                                                     alignItems: 'center',
@@ -994,7 +994,7 @@ export default function CSVWizard() {
                                                     transition: 'all 0.2s ease-out'
                                                 }}
                                             >
-                                                <X size={12} color="white" />
+                                                <X size={12} color="var(--color-foreground)" />
                                             </div>
                                         </div>
                                     ))}
@@ -1006,34 +1006,34 @@ export default function CSVWizard() {
                         {currentStep === 4 && (
                             <div style={{ animation: 'fadeIn 0.3s ease' }}>
                                 <div style={{
-                                    background: '#F7F7F5',
-                                    border: '1px solid #e5e7eb',
+                                    background: 'var(--color-muted)',
+                                    border: '1px solid var(--color-border)',
                                     borderRadius: '12px',
                                     padding: '32px'
                                 }}>
-                                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: '16px', padding: '20px 0', borderBottom: '1px solid #e5e7eb' }}>
-                                        <ImageIcon size={24} color="#787774" />
+                                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: '16px', padding: '20px 0', borderBottom: '1px solid var(--color-border)' }}>
+                                        <ImageIcon size={24} color="var(--color-muted-foreground)" />
                                         <div style={{ flex: 1 }}>
-                                            <div style={{ fontSize: '13px', color: '#9b9a97', marginBottom: '4px' }}>Generation Count</div>
-                                            <div style={{ fontSize: '16px', fontWeight: 500, color: '#373737' }}>
+                                            <div style={{ fontSize: '13px', color: 'var(--color-muted-foreground)', marginBottom: '4px' }}>Generation Count</div>
+                                            <div style={{ fontSize: '16px', fontWeight: 500, color: 'var(--color-foreground)' }}>
                                                 {selectedRows.size} Image{selectedRows.size !== 1 ? 's' : ''} will be generated
                                             </div>
                                         </div>
                                     </div>
-                                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: '16px', padding: '20px 0', borderBottom: '1px solid #e5e7eb' }}>
-                                        <FileText size={24} color="#787774" />
+                                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: '16px', padding: '20px 0', borderBottom: '1px solid var(--color-border)' }}>
+                                        <FileText size={24} color="var(--color-muted-foreground)" />
                                         <div style={{ flex: 1 }}>
-                                            <div style={{ fontSize: '13px', color: '#9b9a97', marginBottom: '4px' }}>Data Source</div>
-                                            <div style={{ fontSize: '16px', fontWeight: 500, color: '#373737' }}>
+                                            <div style={{ fontSize: '13px', color: 'var(--color-muted-foreground)', marginBottom: '4px' }}>Data Source</div>
+                                            <div style={{ fontSize: '16px', fontWeight: 500, color: 'var(--color-foreground)' }}>
                                                 Using {selectedRows.size} selected row{selectedRows.size !== 1 ? 's' : ''} from {fileName}
                                             </div>
                                         </div>
                                     </div>
-                                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: '16px', padding: '20px 0', borderBottom: '1px solid #e5e7eb' }}>
-                                        <Grid size={24} color="#787774" />
+                                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: '16px', padding: '20px 0', borderBottom: '1px solid var(--color-border)' }}>
+                                        <Grid size={24} color="var(--color-muted-foreground)" />
                                         <div style={{ flex: 1 }}>
-                                            <div style={{ fontSize: '13px', color: '#9b9a97', marginBottom: '4px' }}>Style References</div>
-                                            <div style={{ fontSize: '16px', fontWeight: 500, color: '#373737' }}>
+                                            <div style={{ fontSize: '13px', color: 'var(--color-muted-foreground)', marginBottom: '4px' }}>Style References</div>
+                                            <div style={{ fontSize: '16px', fontWeight: 500, color: 'var(--color-foreground)' }}>
                                                 {styleImages.length} reference image{styleImages.length !== 1 ? 's' : ''}
                                             </div>
                                             <div style={{ display: 'flex', gap: '8px', marginTop: '8px' }}>
@@ -1043,7 +1043,7 @@ export default function CSVWizard() {
                                                         height: '48px',
                                                         objectFit: 'cover',
                                                         borderRadius: '4px',
-                                                        border: '1px solid #e5e7eb'
+                                                        border: '1px solid var(--color-border)'
                                                     }} />
                                                 ))}
                                                 {styleImages.length > 3 && (
@@ -1051,13 +1051,13 @@ export default function CSVWizard() {
                                                         width: '48px',
                                                         height: '48px',
                                                         borderRadius: '4px',
-                                                        border: '1px solid #e5e7eb',
-                                                        background: '#fafafa',
+                                                        border: '1px solid var(--color-border)',
+                                                        background: 'var(--color-card)',
                                                         display: 'flex',
                                                         alignItems: 'center',
                                                         justifyContent: 'center',
                                                         fontSize: '12px',
-                                                        color: '#787774',
+                                                        color: 'var(--color-muted-foreground)',
                                                         fontWeight: 500
                                                     }}>
                                                         +{styleImages.length - 3}
@@ -1066,20 +1066,20 @@ export default function CSVWizard() {
                                             </div>
                                         </div>
                                     </div>
-                                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: '16px', padding: '20px 0', borderBottom: '1px solid #e5e7eb' }}>
-                                        <Clock size={24} color="#787774" />
+                                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: '16px', padding: '20px 0', borderBottom: '1px solid var(--color-border)' }}>
+                                        <Clock size={24} color="var(--color-muted-foreground)" />
                                         <div style={{ flex: 1 }}>
-                                            <div style={{ fontSize: '13px', color: '#9b9a97', marginBottom: '4px' }}>Estimated Time</div>
-                                            <div style={{ fontSize: '16px', fontWeight: 500, color: '#373737' }}>
+                                            <div style={{ fontSize: '13px', color: 'var(--color-muted-foreground)', marginBottom: '4px' }}>Estimated Time</div>
+                                            <div style={{ fontSize: '16px', fontWeight: 500, color: 'var(--color-foreground)' }}>
                                                 ~2-3 minutes
                                             </div>
                                         </div>
                                     </div>
                                     <div style={{ display: 'flex', alignItems: 'flex-start', gap: '16px', padding: '20px 0' }}>
-                                        <AlertCircle size={24} color="#787774" />
+                                        <AlertCircle size={24} color="var(--color-muted-foreground)" />
                                         <div style={{ flex: 1 }}>
-                                            <div style={{ fontSize: '13px', color: '#9b9a97', marginBottom: '4px' }}>Credit Cost</div>
-                                            <div style={{ fontSize: '16px', fontWeight: 500, color: '#373737' }}>
+                                            <div style={{ fontSize: '13px', color: 'var(--color-muted-foreground)', marginBottom: '4px' }}>Credit Cost</div>
+                                            <div style={{ fontSize: '16px', fontWeight: 500, color: 'var(--color-foreground)' }}>
                                                 This will use {selectedRows.size} of your 1,250 available credits
                                             </div>
                                         </div>
@@ -1092,7 +1092,7 @@ export default function CSVWizard() {
                     {/* Footer */}
                     <div style={{
                         padding: '24px 40px',
-                        borderTop: '1px solid #e5e7eb',
+                        borderTop: '1px solid var(--color-border)',
                         display: 'flex',
                         justifyContent: 'space-between',
                         alignItems: 'center'
@@ -1110,8 +1110,8 @@ export default function CSVWizard() {
                                 alignItems: 'center',
                                 gap: '8px',
                                 background: 'transparent',
-                                color: '#787774',
-                                border: '1px solid #e5e7eb',
+                                color: 'var(--color-muted-foreground)',
+                                border: '1px solid var(--color-border)',
                                 visibility: currentStep === 1 ? 'hidden' : 'visible'
                             }}
                         >
@@ -1131,9 +1131,9 @@ export default function CSVWizard() {
                                 display: 'inline-flex',
                                 alignItems: 'center',
                                 gap: '8px',
-                                background: '#1a1a1a',
-                                color: 'white',
-                                border: '1px solid #1a1a1a',
+                                background: 'var(--color-primary)',
+                                color: 'var(--color-primary-foreground)',
+                                border: '1px solid var(--color-primary)',
                                 opacity: ((currentStep === 1 && !csvData.length) || isSubmitting) ? 0.5 : 1
                             }}
                         >
@@ -1143,8 +1143,8 @@ export default function CSVWizard() {
                                         display: 'inline-block',
                                         width: '16px',
                                         height: '16px',
-                                        border: '2px solid #ffffff40',
-                                        borderTopColor: '#ffffff',
+                                        border: '2px solid color-mix(in srgb, var(--color-primary-foreground) 40%, transparent)',
+                                        borderTopColor: 'var(--color-primary-foreground)',
                                         borderRadius: '50%',
                                         animation: 'spin 0.6s linear infinite'
                                     }} />

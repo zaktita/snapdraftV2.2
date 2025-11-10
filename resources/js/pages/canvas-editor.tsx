@@ -1698,7 +1698,7 @@ export default function CanvasEditor(props: CanvasEditorProps) {
                      width: 14px;
                     height: 14px;
                     border-radius: 50%;
-                    background: #1f1f1fff;
+                    background: var(--color-foreground);
                     cursor: pointer;
                     border: none;
                 }
@@ -1707,7 +1707,7 @@ export default function CanvasEditor(props: CanvasEditorProps) {
                     width: 14px;
                     height: 14px;
                     border-radius: 50%;
-                    background: #1f1f1fff;
+                    background: var(--color-foreground);
                     cursor: pointer;
                     border: none;
                 }
@@ -1720,9 +1720,9 @@ export default function CanvasEditor(props: CanvasEditorProps) {
                     flexDirection: 'column',
                     fontFamily:
                         '-apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", "Oxygen", "Ubuntu", "Cantarell", sans-serif',
-                    backgroundColor: '#FAF9F7',
+                    backgroundColor: 'var(--color-background)',
                     overflow: 'hidden',
-                    color: '#37352f',
+                    color: 'var(--color-foreground)',
                     position: 'relative',
                 }}
             >
@@ -1733,8 +1733,8 @@ export default function CanvasEditor(props: CanvasEditorProps) {
                         justifyContent: 'space-between',
                         alignItems: 'center',
                         padding: '10px 20px',
-                        background: '#ffffff',
-                        borderBottom: '1px solid #e5e7eb',
+                        background: 'var(--color-card)',
+                        borderBottom: '1px solid var(--color-border)',
                         zIndex: 100,
                         gap: '24px',
                     }}
@@ -1755,7 +1755,7 @@ export default function CanvasEditor(props: CanvasEditorProps) {
                                 background: 'transparent',
                                 cursor: 'pointer',
                                 fontSize: '14px',
-                                color: '#787774',
+                                color: 'var(--color-muted-foreground)',
                                 transition: 'all 0.15s ease',
                                 display: 'flex',
                                 alignItems: 'center',
@@ -1776,7 +1776,7 @@ export default function CanvasEditor(props: CanvasEditorProps) {
                                 style={{
                                     fontSize: '14px',
                                     fontWeight: 600,
-                                    color: '#37352f',
+                                    color: 'var(--color-foreground)',
                                     margin: 0,
                                 }}
                             >
@@ -1807,7 +1807,7 @@ export default function CanvasEditor(props: CanvasEditorProps) {
                                 style={{
                                     fontSize: '13px',
                                     fontWeight: 400,
-                                    color: '#787774',
+                                    color: 'var(--color-muted-foreground)',
                                     minWidth: '50px',
                                     textAlign: 'center',
                                     cursor: 'pointer',
@@ -1827,7 +1827,7 @@ export default function CanvasEditor(props: CanvasEditorProps) {
                             style={{
                                 width: '1px',
                                 height: '20px',
-                                background: '#e5e7eb',
+                                background: 'var(--color-border)',
                                 margin: '0 8px',
                             }}
                         />
@@ -1878,7 +1878,7 @@ export default function CanvasEditor(props: CanvasEditorProps) {
                             onClick={resetDrawing}
                             style={{
                                 ...headerButtonStyle,
-                                color: '#eb5757',
+                                color: 'var(--color-destructive)',
                                 borderColor: 'transparent',
                             }}
                             title="Clear all brush strokes"
@@ -1890,7 +1890,7 @@ export default function CanvasEditor(props: CanvasEditorProps) {
                             style={{
                                 width: '1px',
                                 height: '20px',
-                                background: '#e5e7eb',
+                                background: 'var(--color-border)',
                                 margin: '0 8px',
                             }}
                         />
@@ -1906,9 +1906,9 @@ export default function CanvasEditor(props: CanvasEditorProps) {
                             onClick={downloadImage}
                             style={{
                                 ...headerButtonStyle,
-                                background: '#373737',
-                                color: 'white',
-                                borderColor: '#373737',
+                                background: 'var(--color-primary)',
+                                color: 'var(--color-primary-foreground)',
+                                borderColor: 'var(--color-primary)',
                             }}
                         >
                             <Download size={14} />
@@ -1936,7 +1936,7 @@ export default function CanvasEditor(props: CanvasEditorProps) {
                                 width: '100%',
                                 height: '100%',
                                 zIndex: 1000,
-                                background: 'rgba(255,255,255,0.7)',
+                                background: 'color-mix(in oklab, var(--color-background) 70%, transparent)',
                                 display: 'flex',
                                 alignItems: 'center',
                                 justifyContent: 'center',
@@ -1955,7 +1955,7 @@ export default function CanvasEditor(props: CanvasEditorProps) {
                                     height="48"
                                     viewBox="0 0 24 24"
                                     fill="none"
-                                    stroke="#aaa"
+                                    stroke="var(--color-muted-foreground)"
                                     strokeWidth="2"
                                     className="animate-spin"
                                 >
@@ -1963,7 +1963,7 @@ export default function CanvasEditor(props: CanvasEditorProps) {
                                         cx="12"
                                         cy="12"
                                         r="10"
-                                        stroke="#aaa"
+                                        stroke="var(--color-border)"
                                         strokeWidth="4"
                                         fill="none"
                                     />
@@ -1971,7 +1971,7 @@ export default function CanvasEditor(props: CanvasEditorProps) {
                                 <div
                                     style={{
                                         fontSize: '18px',
-                                        color: '#37352f',
+                                        color: 'var(--color-foreground)',
                                         fontWeight: 500,
                                     }}
                                 >
@@ -1987,10 +1987,10 @@ export default function CanvasEditor(props: CanvasEditorProps) {
                             left: '16px',
                             top: '16px',
                             width: sidebarCollapsed ? '60px' : '260px',
-                            background: '#ffffff',
-                            border: '1px solid #e5e7eb',
+                            background: 'var(--color-card)',
+                            border: '1px solid var(--color-border)',
                             borderRadius: '12px',
-                            boxShadow: '0 4px 12px rgba(0, 0, 0, 0.08)',
+                            boxShadow: 'var(--shadow-lg)',
                             display: 'flex',
                             flexDirection: 'column',
                             transition: 'all 0.15s ease',
@@ -2002,14 +2002,14 @@ export default function CanvasEditor(props: CanvasEditorProps) {
                             <div
                                 style={{
                                     padding: '20px 16px 16px',
-                                    borderBottom: '1px solid #e5e7eb',
+                                    borderBottom: '1px solid var(--color-border)',
                                 }}
                             >
                                 <div
                                     style={{
                                         fontSize: '12px',
                                         fontWeight: 600,
-                                        color: '#37352f',
+                                        color: 'var(--color-foreground)',
                                         marginBottom: 0,
                                     }}
                                 >
@@ -2018,7 +2018,7 @@ export default function CanvasEditor(props: CanvasEditorProps) {
                                 <div
                                     style={{
                                         fontSize: '11px',
-                                        color: '#9b9a97',
+                                        color: 'var(--color-muted-foreground)',
                                         marginTop: '4px',
                                     }}
                                 >
@@ -2041,7 +2041,7 @@ export default function CanvasEditor(props: CanvasEditorProps) {
                                         style={{
                                             fontSize: '11px',
                                             fontWeight: 600,
-                                            color: '#9b9a97',
+                                            color: 'var(--color-muted-foreground)',
                                             marginBottom: '6px',
                                             padding: '0 4px',
                                         }}
@@ -2064,11 +2064,11 @@ export default function CanvasEditor(props: CanvasEditorProps) {
                                         style={{
                                             padding: '10px 14px',
                                             background: isGenerating
-                                                ? '#f3f3f3'
-                                                : '#373737',
+                                                ? 'var(--color-muted)'
+                                                : 'var(--color-primary)',
                                             color: isGenerating
-                                                ? '#aaa'
-                                                : 'white',
+                                                ? 'var(--color-muted-foreground)'
+                                                : 'var(--color-primary-foreground)',
                                             border: 'none',
                                             borderRadius: '6px',
                                             fontWeight: 500,
@@ -2083,7 +2083,7 @@ export default function CanvasEditor(props: CanvasEditorProps) {
                                             justifyContent: 'center',
                                             boxShadow: isGenerating
                                                 ? 'none'
-                                                : '0 2px 4px rgba(0,0,0,0.06)',
+                                                : 'var(--shadow-sm)',
                                         }}
                                         disabled={isGenerating}
                                         onClick={() => {
@@ -2199,7 +2199,7 @@ export default function CanvasEditor(props: CanvasEditorProps) {
                                                 alignItems: 'center',
                                                 fontSize: '14px',
                                                 fontWeight: 400,
-                                                color: '#37352f',
+                                                color: 'var(--color-foreground)',
                                                 marginBottom: '10px',
                                             }}
                                         >
@@ -2207,7 +2207,7 @@ export default function CanvasEditor(props: CanvasEditorProps) {
                                             <span
                                                 style={{
                                                     fontSize: '13px',
-                                                    color: '#9b9a97',
+                                                    color: 'var(--color-muted-foreground)',
                                                     fontWeight: 500,
                                                 }}
                                             >
@@ -2236,7 +2236,7 @@ export default function CanvasEditor(props: CanvasEditorProps) {
                                                 alignItems: 'center',
                                                 fontSize: '14px',
                                                 fontWeight: 400,
-                                                color: '#37352f',
+                                                color: 'var(--color-foreground)',
                                                 marginBottom: '10px',
                                             }}
                                         >
@@ -2244,7 +2244,7 @@ export default function CanvasEditor(props: CanvasEditorProps) {
                                             <span
                                                 style={{
                                                     fontSize: '13px',
-                                                    color: '#9b9a97',
+                                                    color: 'var(--color-muted-foreground)',
                                                     fontWeight: 500,
                                                 }}
                                             >
@@ -2271,8 +2271,8 @@ export default function CanvasEditor(props: CanvasEditorProps) {
                             {!sidebarCollapsed && (
                                 <div
                                     style={{
-                                        background: '#FAF9F7',
-                                        border: '1px solid #e5e7eb',
+                                        background: 'var(--color-muted)',
+                                        border: '1px solid var(--color-border)',
                                         borderRadius: '6px',
                                         padding: '12px 14px',
                                     }}
@@ -2281,7 +2281,7 @@ export default function CanvasEditor(props: CanvasEditorProps) {
                                         style={{
                                             fontSize: '14px',
                                             fontWeight: 500,
-                                            color: '#37352f',
+                                            color: 'var(--color-foreground)',
                                             marginBottom: '8px',
                                             display: 'flex',
                                             alignItems: 'center',
@@ -2422,8 +2422,8 @@ export default function CanvasEditor(props: CanvasEditorProps) {
                             top: 'calc(16px + 20px)',
                             width: '28px',
                             height: '28px',
-                            background: '#ffffff',
-                            border: '1px solid #e5e7eb',
+                            background: 'var(--color-card)',
+                            border: '1px solid var(--color-border)',
                             borderRadius: '6px',
                             cursor: 'pointer',
                             display: 'flex',
@@ -2431,7 +2431,7 @@ export default function CanvasEditor(props: CanvasEditorProps) {
                             justifyContent: 'center',
                             transition: 'all 0.15s ease',
                             zIndex: 60,
-                            boxShadow: '0 1px 2px rgba(0, 0, 0, 0.04)',
+                            boxShadow: 'var(--shadow-xs)',
                         }}
                     >
                         <ChevronLeft
@@ -2451,7 +2451,7 @@ export default function CanvasEditor(props: CanvasEditorProps) {
                             flex: 1,
                             position: 'relative',
                             overflow: 'hidden',
-                            background: '#FAF9F7',
+                            background: 'var(--color-muted)',
                         }}
                     >
                         <div
@@ -2488,8 +2488,8 @@ export default function CanvasEditor(props: CanvasEditorProps) {
                                         width: '480px',
                                         maxWidth: '90%',
                                         padding: '60px 40px',
-                                        background: '#ffffff',
-                                        border: '2px dashed #e5e7eb',
+                                        background: 'var(--color-card)',
+                                        border: '2px dashed var(--color-border)',
                                         borderRadius: '12px',
                                         cursor: 'pointer',
                                         transition: 'all 0.15s ease',
@@ -2509,7 +2509,7 @@ export default function CanvasEditor(props: CanvasEditorProps) {
                                         style={{
                                             fontSize: '18px',
                                             fontWeight: 600,
-                                            color: '#37352f',
+                                            color: 'var(--color-foreground)',
                                             marginBottom: '8px',
                                         }}
                                     >
@@ -2518,7 +2518,7 @@ export default function CanvasEditor(props: CanvasEditorProps) {
                                     <div
                                         style={{
                                             fontSize: '14px',
-                                            color: '#787774',
+                                            color: 'var(--color-muted-foreground)',
                                         }}
                                     >
                                         Click to browse or drag and drop
@@ -2535,12 +2535,11 @@ export default function CanvasEditor(props: CanvasEditorProps) {
                                             position: 'absolute',
                                             bottom: '24px',
                                             right: '24px',
-                                            background: '#ffffff',
-                                            border: '1px solid #e5e7eb',
+                                            background: 'var(--color-card)',
+                                            border: '1px solid var(--color-border)',
                                             borderRadius: '8px',
                                             padding: '4px',
-                                            boxShadow:
-                                                '0 2px 4px rgba(0, 0, 0, 0.06)',
+                                            boxShadow: 'var(--shadow-sm)',
                                             display: 'flex',
                                             flexDirection: 'column',
                                             gap: '2px',
@@ -2743,7 +2742,7 @@ function ToolButton({
                 padding: collapsed ? '10px' : '8px 12px',
                 border: 'none',
                 borderRadius: '4px',
-                background: active ? '#FAF9F7' : 'transparent',
+                background: active ? 'var(--color-muted)' : 'transparent',
                 cursor: 'pointer',
                 transition: 'all 0.15s ease',
                 textAlign: 'left',
@@ -2751,7 +2750,7 @@ function ToolButton({
                 alignItems: 'center',
                 justifyContent: collapsed ? 'center' : 'flex-start',
                 gap: '10px',
-                color: '#37352f',
+                color: 'var(--color-foreground)',
             }}
             className="tool-card"
         >
@@ -2764,7 +2763,7 @@ function ToolButton({
                     alignItems: 'center',
                     justifyContent: 'center',
                     flexShrink: 0,
-                    color: '#787774',
+                    color: 'var(--color-muted-foreground)',
                 }}
             >
                 {icon}
@@ -2774,7 +2773,7 @@ function ToolButton({
                     style={{
                         fontSize: '14px',
                         fontWeight: active ? 500 : 400,
-                        color: '#37352f',
+                        color: 'var(--color-foreground)',
                     }}
                 >
                     {label}
@@ -2787,13 +2786,13 @@ function ToolButton({
 // Styles
 const headerButtonStyle: React.CSSProperties = {
     padding: '6px 12px',
-    border: '1px solid #e5e7eb',
+    border: '1px solid var(--color-border)',
     borderRadius: '6px',
     background: 'transparent',
     cursor: 'pointer',
     fontSize: '14px',
     fontWeight: 500,
-    color: '#787774',
+    color: 'var(--color-muted-foreground)',
     transition: 'all 0.15s ease',
     display: 'flex',
     alignItems: 'center',
@@ -2809,7 +2808,7 @@ const zoomButtonStyle: React.CSSProperties = {
     cursor: 'pointer',
     fontSize: '16px',
     fontWeight: 400,
-    color: '#787774',
+    color: 'var(--color-muted-foreground)',
     transition: 'all 0.15s ease',
     display: 'flex',
     alignItems: 'center',
@@ -2820,7 +2819,7 @@ const sliderStyle: React.CSSProperties = {
     width: '100%',
     height: '2px',
     borderRadius: '2px',
-    background: '#ebe5e8ff',
+    background: 'var(--color-border)',
     outline: 'none',
     WebkitAppearance: 'none',
     appearance: 'none',
@@ -2830,7 +2829,7 @@ const sliderStyle: React.CSSProperties = {
 const floatingButtonStyle: React.CSSProperties = {
     padding: '10px 14px',
     background: 'transparent',
-    color: '#37352f',
+    color: 'var(--color-foreground)',
     border: 'none',
     borderRadius: '4px',
     cursor: 'pointer',
@@ -2864,7 +2863,7 @@ function FloatingActionButton({
             onMouseLeave={() => setHover(false)}
             style={{
                 ...floatingButtonStyle,
-                background: hover && !disabled ? '#F3F4F6' : 'transparent',
+                background: hover && !disabled ? 'var(--color-muted)' : 'transparent',
                 opacity: disabled ? 0.5 : 1,
                 cursor: disabled ? 'not-allowed' : 'pointer',
             }}

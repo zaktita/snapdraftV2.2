@@ -198,8 +198,8 @@ export default function ProjectShow({ project, justCreated = false, expectedImag
                             <Button 
                                 variant="ghost" 
                                 size="sm" 
-                                className="gap-2 border hover:bg-gray-100"
-                                style={{ borderColor: '#E0E0E0', color: '#333333', minWidth: '125px' }}
+                                className="gap-2 border"
+                                style={{ borderColor: 'var(--color-border)', color: 'var(--color-foreground)', minWidth: '125px', background: 'var(--color-card)' }}
                                 onClick={() => {
                                     if (selectedImages.length === project.images.length) {
                                         setSelectedImages([]);
@@ -224,8 +224,8 @@ export default function ProjectShow({ project, justCreated = false, expectedImag
                                 size="sm" 
                                 className="gap-2"
                                 style={{ 
-                                    backgroundColor: selectedImages.length > 0 ? '#1a1a1a' : '#F0F0F0', 
-                                    color: selectedImages.length > 0 ? '#ffffff' : '#A9A9A9',
+                                    backgroundColor: selectedImages.length > 0 ? 'var(--color-primary)' : 'var(--color-muted)', 
+                                    color: selectedImages.length > 0 ? 'var(--color-primary-foreground)' : 'var(--color-muted-foreground)',
                                     cursor: selectedImages.length === 0 ? 'not-allowed' : 'pointer',
                                     border: 'none'
                                 }}
@@ -322,7 +322,7 @@ export default function ProjectShow({ project, justCreated = false, expectedImag
                         <Button
                             size="sm"
                             className="gap-2"
-                            style={{ backgroundColor: '#1a1a1a', color: '#ffffff', border: 'none' }}
+                            style={{ backgroundColor: 'var(--color-primary)', color: 'var(--color-primary-foreground)', border: 'none' }}
                             onClick={handleGenerateMore}
                         >
                             <Plus className="size-4" />
@@ -340,7 +340,7 @@ export default function ProjectShow({ project, justCreated = false, expectedImag
                                 return (
                                     <div
                                         key={image.id}
-                                        className="group relative aspect-square overflow-hidden bg-gray-100 cursor-pointer"
+                                        className="group relative aspect-square overflow-hidden cursor-pointer"
                                         style={{ borderRadius: '12px' }}
                                         onClick={() => {
                                             setSelectedImages(prev => 
@@ -369,7 +369,7 @@ export default function ProjectShow({ project, justCreated = false, expectedImag
                                         <button 
                                             className="flex size-6 items-center justify-center rounded-xl transition-colors hover:scale-110"
                                             style={{ 
-                                                backgroundColor: isSelected ? '#333333' : 'white',
+                                                backgroundColor: isSelected ? 'var(--color-primary)' : 'var(--color-card)',
                                             }}
                                             onClick={(e) => {
                                                 e.stopPropagation();
@@ -380,7 +380,7 @@ export default function ProjectShow({ project, justCreated = false, expectedImag
                                                 );
                                             }}
                                         >
-                                            {isSelected && <Check className="size-4 text-white" />}
+                                            {isSelected && <Check className="size-4" style={{ color: 'var(--color-primary-foreground)' }} />}
                                         </button>
                                     </div>
                                     
@@ -388,18 +388,18 @@ export default function ProjectShow({ project, justCreated = false, expectedImag
                                     <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-20">
                                         <button 
                                             className="flex size-10 items-center justify-center rounded-full transition-all hover:scale-110 hover:shadow-lg"
-                                            style={{ backgroundColor: '#F0F0F0' }}
+                                            style={{ backgroundColor: 'var(--color-muted)' }}
                                             title="Expand"
                                             onClick={(e) => {
                                                 e.stopPropagation();
                                                 openLightbox(index);
                                             }}
                                         >
-                                            <Maximize className="size-4" style={{ color: '#333333' }} />
+                                            <Maximize className="size-4" style={{ color: 'var(--color-foreground)' }} />
                                         </button>
                                         <button 
                                             className="flex size-10 items-center justify-center rounded-full transition-all hover:scale-110 hover:shadow-lg"
-                                            style={{ backgroundColor: '#F0F0F0' }}
+                                            style={{ backgroundColor: 'var(--color-muted)' }}
                                             title="Edit"
                                             onClick={(e) => {
                                                 e.stopPropagation();
@@ -409,11 +409,11 @@ export default function ProjectShow({ project, justCreated = false, expectedImag
                                                 router.visit(`/canvas-editor?projectId=${project.id}&image=${encodedImageUrl}&title=${encodedTitle}`);
                                             }}
                                         >
-                                            <Edit className="size-4" style={{ color: '#333333' }} />
+                                            <Edit className="size-4" style={{ color: 'var(--color-foreground)' }} />
                                         </button>
                                         <button 
                                             className="flex size-10 items-center justify-center rounded-full transition-all hover:scale-110 hover:shadow-lg"
-                                            style={{ backgroundColor: '#F0F0F0' }}
+                                            style={{ backgroundColor: 'var(--color-muted)' }}
                                             title="Regenerate"
                                             onClick={(e) => {
                                                 e.stopPropagation();
@@ -423,11 +423,11 @@ export default function ProjectShow({ project, justCreated = false, expectedImag
                                                 });
                                             }}
                                         >
-                                            <RotateCw className="size-4" style={{ color: '#333333' }} />
+                                            <RotateCw className="size-4" style={{ color: 'var(--color-foreground)' }} />
                                         </button>
                                         <button 
                                             className="flex size-10 items-center justify-center rounded-full transition-all hover:scale-110 hover:shadow-lg"
-                                            style={{ backgroundColor: '#F0F0F0' }}
+                                            style={{ backgroundColor: 'var(--color-muted)' }}
                                             title="Download"
                                             onClick={async (e) => {
                                                 e.stopPropagation();
@@ -448,7 +448,7 @@ export default function ProjectShow({ project, justCreated = false, expectedImag
                                                 }
                                             }}
                                         >
-                                            <Download className="size-4" style={{ color: '#333333' }} />
+                                            <Download className="size-4" style={{ color: 'var(--color-foreground)' }} />
                                         </button>
                                     </div>
                                 </div>
@@ -461,7 +461,7 @@ export default function ProjectShow({ project, justCreated = false, expectedImag
                             <Button
                                 onClick={handleGenerateMore}
                                 className="gap-2"
-                                style={{ backgroundColor: '#1a1a1a', color: '#ffffff', border: 'none' }}
+                                style={{ backgroundColor: 'var(--color-primary)', color: 'var(--color-primary-foreground)', border: 'none' }}
                             >
                                 <Plus className="size-4" />
                                 Generate Images

@@ -45,8 +45,8 @@ export default function Updates() {
             <div className="p-8 space-y-8">
                 {/* Header */}
                 <div>
-                    <h1 className="text-3xl font-bold text-gray-900">Updates & Notifications</h1>
-                    <p className="text-gray-600 mt-1">Stay informed about new features and changes</p>
+                    <h1 className="text-3xl font-bold text-foreground">Updates & Notifications</h1>
+                    <p className="text-muted-foreground mt-1">Stay informed about new features and changes</p>
                 </div>
 
                 {/* Updates List */}
@@ -62,14 +62,14 @@ export default function Updates() {
                                     <div className="flex-1">
                                         <div className="flex items-start justify-between gap-4">
                                             <div>
-                                                <h3 className="text-lg font-semibold text-gray-900">{update.title}</h3>
-                                                <p className="text-gray-600 mt-1">{update.description}</p>
+                                                <h3 className="text-lg font-semibold text-foreground">{update.title}</h3>
+                                                <p className="text-muted-foreground mt-1">{update.description}</p>
                                             </div>
                                             <Badge variant="outline" className="flex-shrink-0">
                                                 {update.type}
                                             </Badge>
                                         </div>
-                                        <p className="text-sm text-gray-500 mt-3">{update.date}</p>
+                                        <p className="text-sm text-muted-foreground mt-3">{update.date}</p>
                                     </div>
                                 </div>
                             </Card>
@@ -78,11 +78,11 @@ export default function Updates() {
                 </div>
 
                 {/* Coming Soon */}
-                <Card className="p-12 bg-gradient-to-br from-blue-50 to-purple-50 border-blue-200">
+                <Card className="p-12 bg-muted border-border">
                     <div className="text-center">
                         <Bell className="h-16 w-16 text-blue-500 mx-auto mb-4" />
-                        <h2 className="text-2xl font-semibold text-gray-900 mb-2">More Updates Coming Soon</h2>
-                        <p className="text-gray-600 max-w-md mx-auto">
+                        <h2 className="text-2xl font-semibold text-foreground mb-2">More Updates Coming Soon</h2>
+                        <p className="text-muted-foreground max-w-md mx-auto">
                             We're constantly improving SnapDraft. Check back here for the latest features and announcements.
                         </p>
                     </div>

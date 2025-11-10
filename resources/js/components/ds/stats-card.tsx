@@ -13,9 +13,9 @@ interface StatsCardProps {
 export function StatsCard({ label, value, subtext, accent, className }: StatsCardProps) {
   return (
     <Card className={cn('p-5 border-none shadow-sm', className)}>
-      <p className="text-xs text-gray-500">{label}</p>
-      <p className={cn('mt-1 text-3xl font-semibold', 'text-gray-900')}>{value}</p>
-      {subtext ? <p className="mt-1 text-xs text-gray-500">{subtext}</p> : null}
+      <p className="text-xs text-muted-foreground">{label}</p>
+      <p className={cn('mt-1 text-3xl font-semibold', 'text-foreground')}>{value}</p>
+      {subtext ? <p className="mt-1 text-xs text-muted-foreground">{subtext}</p> : null}
     </Card>
   );
 }

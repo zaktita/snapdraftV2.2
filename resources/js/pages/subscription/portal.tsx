@@ -70,12 +70,12 @@ export default function PortalPage({ subscription, invoices, auth }: PortalPageP
         <AppLayout>
             <Head title="Billing Portal" />
 
-            <div className="min-h-screen bg-gray-50 p-8">
+            <div className="min-h-screen bg-background p-8">
                 <div className="mx-auto max-w-7xl">
                     {/* Header */}
                     <div className="mb-8">
-                        <h1 className="text-3xl font-bold text-gray-900">Billing Portal</h1>
-                        <p className="text-gray-600 mt-2">Manage your subscription and billing</p>
+                        <h1 className="text-3xl font-bold text-foreground">Billing Portal</h1>
+                        <p className="text-muted-foreground mt-2">Manage your subscription and billing</p>
                     </div>
 
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -92,7 +92,7 @@ export default function PortalPage({ subscription, invoices, auth }: PortalPageP
 
                                 <div className="space-y-4">
                                     <div className="flex items-center justify-between">
-                                        <span className="text-gray-600">Monthly Credits</span>
+                                        <span className="text-muted-foreground">Monthly Credits</span>
                                         <span className="font-semibold">
                                             {subscription.credits_total === 999999
                                                 ? 'Unlimited'
@@ -102,7 +102,7 @@ export default function PortalPage({ subscription, invoices, auth }: PortalPageP
 
                                     {subscription.started_at && (
                                         <div className="flex items-center justify-between">
-                                            <span className="text-gray-600">Started</span>
+                                            <span className="text-muted-foreground">Started</span>
                                             <span className="font-semibold">
                                                 {new Date(subscription.started_at).toLocaleDateString()}
                                             </span>
@@ -111,7 +111,7 @@ export default function PortalPage({ subscription, invoices, auth }: PortalPageP
 
                                     {subscription.ends_at && (
                                         <div className="flex items-center justify-between">
-                                            <span className="text-gray-600">
+                                            <span className="text-muted-foreground">
                                                 {subscription.auto_renew ? 'Renews' : 'Ends'}
                                             </span>
                                             <span className="font-semibold">
@@ -145,31 +145,31 @@ export default function PortalPage({ subscription, invoices, auth }: PortalPageP
                             <Card className="p-6">
                                 <div className="flex items-center justify-between mb-4">
                                     <h2 className="text-xl font-semibold">Credits Usage</h2>
-                                    <Zap className="h-5 w-5 text-yellow-500" />
+                                    <Zap className="h-5 w-5 text-warning" />
                                 </div>
 
                                 <div className="space-y-4">
                                     <div>
                                         <div className="flex items-center justify-between mb-2">
-                                            <span className="text-gray-600">Credits Remaining</span>
+                                            <span className="text-muted-foreground">Credits Remaining</span>
                                             <span className="text-2xl font-bold">
                                                 {subscription.credits_remaining}
                                             </span>
                                         </div>
                                         <Progress value={creditsPercentage} className="h-2" />
-                                        <p className="text-sm text-gray-500 mt-2">
+                                        <p className="text-sm text-muted-foreground mt-2">
                                             {subscription.credits_remaining} of {subscription.credits_total} credits used this month
                                         </p>
                                     </div>
 
                                     {creditsPercentage < 20 && subscription.credits_total !== 999999 && (
-                                        <div className="flex items-start gap-2 p-4 bg-yellow-50 rounded-lg border border-yellow-200">
-                                            <AlertCircle className="h-5 w-5 text-yellow-600 flex-shrink-0 mt-0.5" />
+                                        <div className="flex items-start gap-2 p-4 bg-muted rounded-lg border border-border">
+                                            <AlertCircle className="h-5 w-5 text-foreground flex-shrink-0 mt-0.5" />
                                             <div>
-                                                <p className="font-medium text-yellow-900">
+                                                <p className="font-medium text-foreground">
                                                     Running low on credits
                                                 </p>
-                                                <p className="text-sm text-yellow-700 mt-1">
+                                                <p className="text-sm text-muted-foreground mt-1">
                                                     Consider purchasing additional credits or upgrading your plan.
                                                 </p>
                                             </div>
@@ -191,7 +191,7 @@ export default function PortalPage({ subscription, invoices, auth }: PortalPageP
                             <Card className="p-6">
                                 <div className="flex items-center justify-between mb-6">
                                     <h2 className="text-xl font-semibold">Invoices</h2>
-                                    <Receipt className="h-5 w-5 text-gray-500" />
+                                    <Receipt className="h-5 w-5 text-muted-foreground" />
                                 </div>
 
                                 {invoices.length > 0 ? (
@@ -199,13 +199,13 @@ export default function PortalPage({ subscription, invoices, auth }: PortalPageP
                                         {invoices.map((invoice) => (
                                             <div
                                                 key={invoice.id}
-                                                className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50"
+                                                className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted"
                                             >
                                                 <div className="flex items-center gap-4">
-                                                    <Calendar className="h-5 w-5 text-gray-400" />
+                                                    <Calendar className="h-5 w-5 text-muted-foreground" />
                                                     <div>
                                                         <p className="font-medium">{invoice.description}</p>
-                                                        <p className="text-sm text-gray-500">
+                                                        <p className="text-sm text-muted-foreground">
                                                             {new Date(invoice.date).toLocaleDateString()}
                                                         </p>
                                                     </div>
@@ -227,7 +227,7 @@ export default function PortalPage({ subscription, invoices, auth }: PortalPageP
                                         ))}
                                     </div>
                                 ) : (
-                                    <div className="text-center py-8 text-gray-500">
+                                    <div className="text-center py-8 text-muted-foreground">
                                         <Receipt className="h-12 w-12 mx-auto mb-3 opacity-30" />
                                         <p>No invoices yet</p>
                                     </div>
@@ -241,10 +241,10 @@ export default function PortalPage({ subscription, invoices, auth }: PortalPageP
                             <Card className="p-6">
                                 <h3 className="font-semibold mb-4">Payment Method</h3>
                                 <div className="flex items-center gap-3 p-4 border rounded-lg">
-                                    <CreditCard className="h-8 w-8 text-gray-400" />
+                                    <CreditCard className="h-8 w-8 text-muted-foreground" />
                                     <div>
                                         <p className="font-medium">•••• •••• •••• 4242</p>
-                                        <p className="text-sm text-gray-500">Expires 12/25</p>
+                                        <p className="text-sm text-muted-foreground">Expires 12/25</p>
                                     </div>
                                 </div>
                                 <Button variant="outline" className="w-full mt-4">
@@ -257,11 +257,11 @@ export default function PortalPage({ subscription, invoices, auth }: PortalPageP
                                 <h3 className="font-semibold mb-4">Quick Stats</h3>
                                 <div className="space-y-4">
                                     <div>
-                                        <p className="text-sm text-gray-600">Total Spent</p>
+                                        <p className="text-sm text-muted-foreground">Total Spent</p>
                                         <p className="text-2xl font-bold">$0.00</p>
                                     </div>
                                     <div>
-                                        <p className="text-sm text-gray-600">Member Since</p>
+                                        <p className="text-sm text-muted-foreground">Member Since</p>
                                         <p className="font-medium">
                                             {new Date(auth.user.created_at).toLocaleDateString()}
                                         </p>
@@ -270,9 +270,9 @@ export default function PortalPage({ subscription, invoices, auth }: PortalPageP
                             </Card>
 
                             {/* Help */}
-                            <Card className="p-6 bg-blue-50 border-blue-200">
+                            <Card className="p-6 bg-card border-border">
                                 <h3 className="font-semibold mb-2">Need Help?</h3>
-                                <p className="text-sm text-gray-600 mb-4">
+                                <p className="text-sm text-muted-foreground mb-4">
                                     Have questions about billing or your subscription?
                                 </p>
                                 <Button variant="outline" className="w-full">

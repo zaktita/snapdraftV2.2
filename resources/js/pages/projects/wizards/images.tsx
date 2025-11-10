@@ -116,8 +116,8 @@ export default function ImagesWizard() {
             
             <div style={{
                 fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", "Oxygen", "Ubuntu", "Cantarell", sans-serif',
-                background: '#F7F7F5',
-                color: '#373737',
+                background: 'var(--color-muted)',
+                color: 'var(--color-foreground)',
                 minHeight: '100vh',
                 display: 'flex',
                 alignItems: 'center',
@@ -125,7 +125,7 @@ export default function ImagesWizard() {
                 padding: '40px 20px'
             }}>
                 <div style={{
-                    background: '#ffffff',
+                    background: 'var(--color-card)',
                     borderRadius: '12px',
                     boxShadow: '0 4px 12px rgba(0, 0, 0, 0.08)',
                     maxWidth: '900px',
@@ -135,7 +135,7 @@ export default function ImagesWizard() {
                     {/* Header */}
                     <div style={{
                         padding: '32px 40px',
-                        borderBottom: '1px solid #e5e7eb'
+                        borderBottom: '1px solid var(--color-border)'
                     }}>
                         <Link 
                             href="/projects" 
@@ -144,7 +144,7 @@ export default function ImagesWizard() {
                                 alignItems: 'center',
                                 gap: '6px',
                                 fontSize: '13px',
-                                color: '#787774',
+                                color: 'var(--color-muted-foreground)',
                                 textDecoration: 'none',
                                 marginBottom: '16px',
                                 transition: 'all 0.2s ease-out'
@@ -156,7 +156,7 @@ export default function ImagesWizard() {
                         <h1 style={{
                             fontSize: '24px',
                             fontWeight: 600,
-                            color: '#373737',
+                            color: 'var(--color-foreground)',
                             marginBottom: '6px'
                         }}>
                             {currentStep === 1 && 'Name Your Project'}
@@ -165,7 +165,7 @@ export default function ImagesWizard() {
                         </h1>
                         <p style={{
                             fontSize: '14px',
-                            color: '#787774',
+                            color: 'var(--color-muted-foreground)',
                             lineHeight: 1.5,
                             margin: 0
                         }}>
@@ -178,7 +178,7 @@ export default function ImagesWizard() {
                     {/* Progress Bar */}
                     <div style={{
                         padding: '0 40px 24px',
-                        borderBottom: '1px solid #e5e7eb'
+                        borderBottom: '1px solid var(--color-border)'
                     }}>
                         <div style={{
                             display: 'flex',
@@ -191,7 +191,7 @@ export default function ImagesWizard() {
                                     style={{
                                         flex: 1,
                                         height: '4px',
-                                        background: step < currentStep ? '#1a1a1a' : step === currentStep ? '#e5e5e5' : '#e5e7eb',
+                                        background: step < currentStep ? 'var(--color-primary)' : step === currentStep ? 'var(--color-muted)' : 'var(--color-border)',
                                         borderRadius: '2px',
                                         transition: 'all 0.2s ease-out'
                                     }}
@@ -202,12 +202,12 @@ export default function ImagesWizard() {
                             display: 'flex',
                             justifyContent: 'space-between',
                             fontSize: '12px',
-                            color: '#9b9a97',
+                            color: 'var(--color-muted-foreground)',
                             fontWeight: 500
                         }}>
-                            <span style={{ color: currentStep === 1 ? '#373737' : '#9b9a97' }}>Project Name</span>
-                            <span style={{ color: currentStep === 2 ? '#373737' : '#9b9a97' }}>References</span>
-                            <span style={{ color: currentStep === 3 ? '#373737' : '#9b9a97' }}>Content</span>
+                            <span style={{ color: currentStep === 1 ? 'var(--color-foreground)' : 'var(--color-muted-foreground)' }}>Project Name</span>
+                            <span style={{ color: currentStep === 2 ? 'var(--color-foreground)' : 'var(--color-muted-foreground)' }}>References</span>
+                            <span style={{ color: currentStep === 3 ? 'var(--color-foreground)' : 'var(--color-muted-foreground)' }}>Content</span>
                         </div>
                     </div>
 
@@ -220,7 +220,7 @@ export default function ImagesWizard() {
                         {currentStep === 1 && (
                             <div style={{ animation: 'fadeIn 0.3s ease' }}>
                                 <div style={{ marginBottom: '8px' }}>
-                                    <label style={{ fontSize: '14px', fontWeight: 500, color: '#373737', display: 'block', marginBottom: '8px' }}>
+                                    <label style={{ fontSize: '14px', fontWeight: 500, color: 'var(--color-foreground)', display: 'block', marginBottom: '8px' }}>
                                         Project Name *
                                     </label>
                                     <input 
@@ -232,15 +232,17 @@ export default function ImagesWizard() {
                                             width: '100%',
                                             padding: '12px 16px',
                                             fontSize: '14px',
-                                            border: '1px solid #e5e7eb',
+                                            border: '1px solid var(--color-border)',
                                             borderRadius: '8px',
                                             outline: 'none',
-                                            transition: 'all 0.2s ease-out'
+                                            transition: 'all 0.2s ease-out',
+                                            background: 'var(--color-card)',
+                                            color: 'var(--color-foreground)'
                                         }}
-                                        onFocus={(e) => e.target.style.borderColor = '#1a1a1a'}
-                                        onBlur={(e) => e.target.style.borderColor = '#e5e7eb'}
+                                        onFocus={(e) => e.target.style.borderColor = 'var(--color-primary)'}
+                                        onBlur={(e) => e.target.style.borderColor = 'var(--color-border)'}
                                     />
-                                    <p style={{ fontSize: '13px', color: '#787774', marginTop: '6px' }}>
+                                    <p style={{ fontSize: '13px', color: 'var(--color-muted-foreground)', marginTop: '6px' }}>
                                         Choose a name that helps you identify this project later
                                     </p>
                                 </div>
@@ -256,24 +258,24 @@ export default function ImagesWizard() {
                                     onDragLeave={handleDragLeave}
                                     onDrop={handleDrop}
                                     style={{
-                                        border: '2px dashed #e5e7eb',
+                                        border: '2px dashed var(--color-border)',
                                         borderRadius: '12px',
                                         padding: '60px 40px',
                                         textAlign: 'center',
                                         cursor: 'pointer',
                                         transition: 'all 0.2s ease-out',
-                                        background: dragOver ? '#e5e5e5' : '#F7F7F5',
-                                        borderColor: dragOver ? '#1a1a1a' : '#e5e7eb',
+                                        background: 'var(--color-muted)',
+                                        borderColor: dragOver ? 'var(--color-primary)' : 'var(--color-border)',
                                         marginBottom: '20px'
                                     }}
                                 >
                                     <div style={{ marginBottom: '20px' }}>
-                                        <Upload style={{ width: '64px', height: '64px', strokeWidth: 1.5, color: '#9b9a97', margin: '0 auto' }} />
+                                        <Upload style={{ width: '64px', height: '64px', strokeWidth: 1.5, color: 'var(--color-muted-foreground)', margin: '0 auto' }} />
                                     </div>
-                                    <div style={{ fontSize: '16px', fontWeight: 500, color: '#373737', marginBottom: '8px' }}>
+                                    <div style={{ fontSize: '16px', fontWeight: 500, color: 'var(--color-foreground)', marginBottom: '8px' }}>
                                         Drag & drop your brand images here, or click to upload
                                     </div>
-                                    <div style={{ fontSize: '14px', color: '#787774' }}>
+                                    <div style={{ fontSize: '14px', color: 'var(--color-muted-foreground)' }}>
                                         Upload 5-10 images (JPG, PNG, WebP)
                                     </div>
                                 </div>
@@ -291,7 +293,7 @@ export default function ImagesWizard() {
                                         <div style={{ 
                                             fontSize: '14px', 
                                             fontWeight: 500, 
-                                            color: styleImages.length < 5 ? '#dc2626' : '#373737', 
+                                            color: styleImages.length < 5 ? 'var(--color-destructive)' : 'var(--color-foreground)', 
                                             marginBottom: '12px',
                                             display: 'flex',
                                             alignItems: 'center',
@@ -299,7 +301,7 @@ export default function ImagesWizard() {
                                         }}>
                                             {styleImages.length} image{styleImages.length !== 1 ? 's' : ''} uploaded
                                             {styleImages.length < 5 && (
-                                                <span style={{ fontSize: '13px', fontWeight: 400, color: '#dc2626' }}>
+                                                <span style={{ fontSize: '13px', fontWeight: 400, color: 'var(--color-destructive)' }}>
                                                     (minimum 5 required)
                                                 </span>
                                             )}
@@ -315,7 +317,7 @@ export default function ImagesWizard() {
                                                     aspectRatio: '1',
                                                     borderRadius: '8px',
                                                     overflow: 'hidden',
-                                                    border: '1px solid #e5e7eb'
+                                                    border: '1px solid var(--color-border)'
                                                 }}>
                                                     <img src={src} alt={`Style ${index + 1}`} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                                                     <div 
@@ -329,7 +331,7 @@ export default function ImagesWizard() {
                                                             right: '6px',
                                                             width: '24px',
                                                             height: '24px',
-                                                            background: 'rgba(0, 0, 0, 0.6)',
+                                                            background: 'color-mix(in srgb, var(--color-background) 60%, transparent)',
                                                             borderRadius: '50%',
                                                             display: 'flex',
                                                             alignItems: 'center',
@@ -338,7 +340,7 @@ export default function ImagesWizard() {
                                                             transition: 'all 0.2s ease-out'
                                                         }}
                                                     >
-                                                        <X size={12} color="white" />
+                                                        <X size={12} color="var(--color-foreground)" />
                                                     </div>
                                                 </div>
                                             ))}
@@ -347,16 +349,16 @@ export default function ImagesWizard() {
                                 )}
 
                                 <div style={{
-                                    background: '#F7F7F5',
-                                    border: '1px solid #e5e7eb',
+                                    background: 'var(--color-muted)',
+                                    border: '1px solid var(--color-border)',
                                     borderRadius: '12px',
                                     padding: '20px',
                                     marginTop: '20px'
                                 }}>
-                                    <p style={{ fontSize: '13px', fontWeight: 500, color: '#373737', marginBottom: '8px' }}>
+                                    <p style={{ fontSize: '13px', fontWeight: 500, color: 'var(--color-foreground)', marginBottom: '8px' }}>
                                         What makes good reference images:
                                     </p>
-                                    <ul style={{ fontSize: '13px', color: '#787774', lineHeight: 1.6, paddingLeft: '20px', margin: 0 }}>
+                                    <ul style={{ fontSize: '13px', color: 'var(--color-muted-foreground)', lineHeight: 1.6, paddingLeft: '20px', margin: 0 }}>
                                         <li>Images that showcase your brand's visual identity</li>
                                         <li>High-quality files with consistent style</li>
                                         <li>Variety in layouts and compositions</li>
@@ -370,7 +372,7 @@ export default function ImagesWizard() {
                         {currentStep === 3 && (
                             <div style={{ animation: 'fadeIn 0.3s ease' }}>
                                 <div style={{ marginBottom: '8px' }}>
-                                    <label style={{ fontSize: '14px', fontWeight: 500, color: '#373737', display: 'block', marginBottom: '8px' }}>
+                                    <label style={{ fontSize: '14px', fontWeight: 500, color: 'var(--color-foreground)', display: 'block', marginBottom: '8px' }}>
                                         What do you want to create? *
                                     </label>
                                     <textarea 
@@ -382,32 +384,34 @@ export default function ImagesWizard() {
                                             width: '100%',
                                             padding: '12px 16px',
                                             fontSize: '14px',
-                                            border: '1px solid #e5e7eb',
+                                            border: '1px solid var(--color-border)',
                                             borderRadius: '8px',
                                             outline: 'none',
                                             transition: 'all 0.2s ease-out',
                                             fontFamily: 'inherit',
-                                            resize: 'vertical'
+                                            resize: 'vertical',
+                                            background: 'var(--color-card)',
+                                            color: 'var(--color-foreground)'
                                         }}
-                                        onFocus={(e) => e.target.style.borderColor = '#1a1a1a'}
-                                        onBlur={(e) => e.target.style.borderColor = '#e5e7eb'}
+                                        onFocus={(e) => e.target.style.borderColor = 'var(--color-primary)'}
+                                        onBlur={(e) => e.target.style.borderColor = 'var(--color-border)'}
                                     />
-                                    <p style={{ fontSize: '13px', color: '#787774', marginTop: '6px' }}>
+                                    <p style={{ fontSize: '13px', color: 'var(--color-muted-foreground)', marginTop: '6px' }}>
                                         Be specific about the type of content, purpose, and any key elements to include
                                     </p>
                                 </div>
 
                                 <div style={{
-                                    background: '#F7F7F5',
-                                    border: '1px solid #e5e7eb',
+                                    background: 'var(--color-muted)',
+                                    border: '1px solid var(--color-border)',
                                     borderRadius: '12px',
                                     padding: '20px',
                                     marginTop: '20px'
                                 }}>
-                                    <p style={{ fontSize: '13px', fontWeight: 500, color: '#373737', marginBottom: '8px' }}>
+                                    <p style={{ fontSize: '13px', fontWeight: 500, color: 'var(--color-foreground)', marginBottom: '8px' }}>
                                         Example descriptions:
                                     </p>
-                                    <ul style={{ fontSize: '13px', color: '#787774', lineHeight: 1.6, paddingLeft: '20px', margin: 0 }}>
+                                    <ul style={{ fontSize: '13px', color: 'var(--color-muted-foreground)', lineHeight: 1.6, paddingLeft: '20px', margin: 0 }}>
                                         <li>"Instagram posts promoting our new eco-friendly product line with nature themes"</li>
                                         <li>"LinkedIn banner showcasing our company's mission and team culture"</li>
                                         <li>"Facebook ads for our holiday sale with festive elements"</li>
@@ -420,7 +424,7 @@ export default function ImagesWizard() {
                     {/* Footer */}
                     <div style={{
                         padding: '24px 40px',
-                        borderTop: '1px solid #e5e7eb',
+                        borderTop: '1px solid var(--color-border)',
                         display: 'flex',
                         justifyContent: 'space-between',
                         alignItems: 'center'
@@ -438,8 +442,8 @@ export default function ImagesWizard() {
                                 alignItems: 'center',
                                 gap: '8px',
                                 background: 'transparent',
-                                color: '#787774',
-                                border: '1px solid #e5e7eb',
+                                color: 'var(--color-muted-foreground)',
+                                border: '1px solid var(--color-border)',
                                 visibility: currentStep === 1 ? 'hidden' : 'visible'
                             }}
                         >
@@ -459,9 +463,9 @@ export default function ImagesWizard() {
                                 display: 'inline-flex',
                                 alignItems: 'center',
                                 gap: '8px',
-                                background: '#1a1a1a',
-                                color: 'white',
-                                border: '1px solid #1a1a1a',
+                                background: 'var(--color-primary)',
+                                color: 'var(--color-primary-foreground)',
+                                border: '1px solid var(--color-primary)',
                                 opacity: !canProceed() || isSubmitting ? 0.5 : 1
                             }}
                         >

@@ -57,7 +57,7 @@ export function PromptModal({
             style={{
                 position: 'fixed',
                 inset: 0,
-                background: 'rgba(0, 0, 0, 0.5)',
+                background: 'color-mix(in oklab, var(--color-background), black 50%)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
@@ -68,8 +68,8 @@ export function PromptModal({
             onClick={(e) => e.target === e.currentTarget && onClose()}
         >
             <div style={{
-                background: '#ffffff',
-                border: '1px solid #ebebeb',
+                background: 'var(--color-card)',
+                border: '1px solid var(--color-border)',
                 borderRadius: '12px',
                 padding: '24px',
                 width: '90%',
@@ -83,7 +83,7 @@ export function PromptModal({
                         <div style={{
                             fontSize: '24px',
                             lineHeight: 1,
-                            color: '#373737'
+                            color: 'var(--color-foreground)'
                         }}>
                             <Sparkles size={24} strokeWidth={2} />
                         </div>
@@ -91,7 +91,7 @@ export function PromptModal({
                             fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", "Oxygen", "Ubuntu", "Cantarell", sans-serif',
                             fontSize: '18px',
                             fontWeight: 600,
-                            color: '#373737',
+                            color: 'var(--color-foreground)',
                             margin: 0
                         }}>{title}</h3>
                     </div>
@@ -99,7 +99,7 @@ export function PromptModal({
                         fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", "Oxygen", "Ubuntu", "Cantarell", sans-serif',
                         fontSize: '14px',
                         fontWeight: 400,
-                        color: '#8a8a8a',
+                        color: 'var(--color-muted-foreground)',
                         margin: 0,
                         lineHeight: 1.5
                     }}>{description}</p>
@@ -117,22 +117,22 @@ export function PromptModal({
                             width: '100%',
                             minHeight: '120px',
                             padding: '12px',
-                            background: '#f7f7f7',
-                            border: '1px solid #ebebeb',
+                            background: 'var(--color-muted)',
+                            border: '1px solid var(--color-border)',
                             borderRadius: '6px',
                             fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", "Oxygen", "Ubuntu", "Cantarell", sans-serif',
                             fontSize: '14px',
-                            color: '#373737',
+                            color: 'var(--color-foreground)',
                             resize: 'vertical',
                             transition: 'border-color 0.2s ease, box-shadow 0.2s ease',
                             outline: 'none'
                         }}
                         onFocus={(e) => {
-                            e.target.style.border = '1.5px solid #1a1a1a';
-                            e.target.style.boxShadow = '0 0 0 3px rgba(26, 26, 26, 0.05)';
+                            e.target.style.border = '1.5px solid var(--color-primary)';
+                            e.target.style.boxShadow = '0 0 0 3px color-mix(in oklab, var(--color-primary), transparent 95%)';
                         }}
                         onBlur={(e) => {
-                            e.target.style.border = '1px solid #ebebeb';
+                            e.target.style.border = '1px solid var(--color-border)';
                             e.target.style.boxShadow = 'none';
                         }}
                     />
@@ -156,10 +156,10 @@ export function PromptModal({
                             transition: 'all 0.2s ease',
                             outline: 'none',
                             background: 'transparent',
-                            border: '1px solid #ebebeb',
-                            color: '#373737'
+                            border: '1px solid var(--color-border)',
+                            color: 'var(--color-foreground)'
                         }}
-                        onMouseEnter={(e) => e.currentTarget.style.background = '#f7f7f7'}
+                        onMouseEnter={(e) => e.currentTarget.style.background = 'var(--color-muted)'}
                         onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
                     >
                         Cancel
@@ -175,17 +175,17 @@ export function PromptModal({
                             cursor: 'pointer',
                             transition: 'all 0.2s ease',
                             outline: 'none',
-                            background: '#1a1a1a',
-                            color: '#ffffff',
-                            border: '1px solid #1a1a1a'
+                            background: 'var(--color-primary)',
+                            color: 'var(--color-primary-foreground)',
+                            border: '1px solid var(--color-primary)'
                         }}
                         onMouseEnter={(e) => {
-                            e.currentTarget.style.background = '#000000';
-                            e.currentTarget.style.borderColor = '#000000';
+                            e.currentTarget.style.background = 'color-mix(in oklab, var(--color-primary), black 10%)';
+                            e.currentTarget.style.borderColor = 'color-mix(in oklab, var(--color-primary), black 10%)';
                         }}
                         onMouseLeave={(e) => {
-                            e.currentTarget.style.background = '#1a1a1a';
-                            e.currentTarget.style.borderColor = '#1a1a1a';
+                            e.currentTarget.style.background = 'var(--color-primary)';
+                            e.currentTarget.style.borderColor = 'var(--color-primary)';
                         }}
                     >
                         Generate
@@ -234,9 +234,9 @@ export function AlertModal({ isOpen, onClose, title, message, type = 'info' }: A
     if (!isOpen) return null;
 
     const colors = {
-        info: { icon: '#373737' },
-        warning: { icon: '#f59e0b' },
-        error: { icon: '#dc2626' }
+        info: { icon: 'var(--color-foreground)' },
+        warning: { icon: 'var(--color-accent)' },
+        error: { icon: 'var(--color-destructive)' }
     };
 
     const color = colors[type];
@@ -246,7 +246,7 @@ export function AlertModal({ isOpen, onClose, title, message, type = 'info' }: A
             style={{
                 position: 'fixed',
                 inset: 0,
-                background: 'rgba(0, 0, 0, 0.5)',
+                background: 'color-mix(in oklab, var(--color-background), black 50%)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
@@ -257,8 +257,8 @@ export function AlertModal({ isOpen, onClose, title, message, type = 'info' }: A
             onClick={(e) => e.target === e.currentTarget && onClose()}
         >
             <div style={{
-                background: '#ffffff',
-                border: '1px solid #ebebeb',
+                background: 'var(--color-card)',
+                border: '1px solid var(--color-border)',
                 borderRadius: '12px',
                 padding: '24px',
                 width: '90%',
@@ -279,7 +279,7 @@ export function AlertModal({ isOpen, onClose, title, message, type = 'info' }: A
                             fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", "Oxygen", "Ubuntu", "Cantarell", sans-serif',
                             fontSize: '18px',
                             fontWeight: 600,
-                            color: '#373737',
+                            color: 'var(--color-foreground)',
                             margin: 0
                         }}>{title}</h3>
                     </div>
@@ -287,7 +287,7 @@ export function AlertModal({ isOpen, onClose, title, message, type = 'info' }: A
                         fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", "Oxygen", "Ubuntu", "Cantarell", sans-serif',
                         fontSize: '14px',
                         fontWeight: 400,
-                        color: '#8a8a8a',
+                        color: 'var(--color-muted-foreground)',
                         margin: 0,
                         lineHeight: 1.5
                     }}>{message}</p>
@@ -308,17 +308,17 @@ export function AlertModal({ isOpen, onClose, title, message, type = 'info' }: A
                             cursor: 'pointer',
                             transition: 'all 0.2s ease',
                             outline: 'none',
-                            background: '#1a1a1a',
-                            color: '#ffffff',
-                            border: '1px solid #1a1a1a'
+                            background: 'var(--color-primary)',
+                            color: 'var(--color-primary-foreground)',
+                            border: '1px solid var(--color-primary)'
                         }}
                         onMouseEnter={(e) => {
-                            e.currentTarget.style.background = '#000000';
-                            e.currentTarget.style.borderColor = '#000000';
+                            e.currentTarget.style.background = 'color-mix(in oklab, var(--color-primary), black 10%)';
+                            e.currentTarget.style.borderColor = 'color-mix(in oklab, var(--color-primary), black 10%)';
                         }}
                         onMouseLeave={(e) => {
-                            e.currentTarget.style.background = '#1a1a1a';
-                            e.currentTarget.style.borderColor = '#1a1a1a';
+                            e.currentTarget.style.background = 'var(--color-primary)';
+                            e.currentTarget.style.borderColor = 'var(--color-primary)';
                         }}
                     >
                         OK
@@ -367,7 +367,7 @@ export function ConfirmModal({
             style={{
                 position: 'fixed',
                 inset: 0,
-                background: 'rgba(0, 0, 0, 0.5)',
+                background: 'color-mix(in oklab, var(--color-background), black 50%)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
@@ -378,8 +378,8 @@ export function ConfirmModal({
             onClick={(e) => e.target === e.currentTarget && onClose()}
         >
             <div style={{
-                background: '#ffffff',
-                border: '1px solid #ebebeb',
+                background: 'var(--color-card)',
+                border: '1px solid var(--color-border)',
                 borderRadius: '12px',
                 padding: '24px',
                 width: '90%',
@@ -392,7 +392,7 @@ export function ConfirmModal({
                         <div style={{
                             fontSize: '24px',
                             lineHeight: 1,
-                            color: '#373737'
+                            color: 'var(--color-foreground)'
                         }}>
                             <AlertTriangle size={24} strokeWidth={2} />
                         </div>
@@ -400,7 +400,7 @@ export function ConfirmModal({
                             fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", "Oxygen", "Ubuntu", "Cantarell", sans-serif',
                             fontSize: '18px',
                             fontWeight: 600,
-                            color: '#373737',
+                            color: 'var(--color-foreground)',
                             margin: 0
                         }}>{title}</h3>
                     </div>
@@ -408,7 +408,7 @@ export function ConfirmModal({
                         fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", "Oxygen", "Ubuntu", "Cantarell", sans-serif',
                         fontSize: '14px',
                         fontWeight: 400,
-                        color: '#8a8a8a',
+                        color: 'var(--color-muted-foreground)',
                         margin: 0,
                         lineHeight: 1.5
                     }}>{message}</p>
@@ -431,10 +431,10 @@ export function ConfirmModal({
                             transition: 'all 0.2s ease',
                             outline: 'none',
                             background: 'transparent',
-                            border: '1px solid #ebebeb',
-                            color: '#373737'
+                            border: '1px solid var(--color-border)',
+                            color: 'var(--color-foreground)'
                         }}
-                        onMouseEnter={(e) => e.currentTarget.style.background = '#f7f7f7'}
+                        onMouseEnter={(e) => e.currentTarget.style.background = 'var(--color-muted)'}
                         onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
                     >
                         {cancelText}
@@ -450,26 +450,26 @@ export function ConfirmModal({
                             cursor: 'pointer',
                             transition: 'all 0.2s ease',
                             outline: 'none',
-                            background: isDanger ? '#dc2626' : '#1a1a1a',
-                            color: '#ffffff',
-                            border: isDanger ? '1px solid #dc2626' : '1px solid #1a1a1a'
+                            background: isDanger ? 'var(--color-destructive)' : 'var(--color-primary)',
+                            color: 'var(--color-primary-foreground)',
+                            border: isDanger ? '1px solid var(--color-destructive)' : '1px solid var(--color-primary)'
                         }}
                         onMouseEnter={(e) => {
                             if (isDanger) {
-                                e.currentTarget.style.background = '#b91c1c';
-                                e.currentTarget.style.borderColor = '#b91c1c';
+                                e.currentTarget.style.background = 'color-mix(in oklab, var(--color-destructive), black 10%)';
+                                e.currentTarget.style.borderColor = 'color-mix(in oklab, var(--color-destructive), black 10%)';
                             } else {
-                                e.currentTarget.style.background = '#000000';
-                                e.currentTarget.style.borderColor = '#000000';
+                                e.currentTarget.style.background = 'color-mix(in oklab, var(--color-primary), black 10%)';
+                                e.currentTarget.style.borderColor = 'color-mix(in oklab, var(--color-primary), black 10%)';
                             }
                         }}
                         onMouseLeave={(e) => {
                             if (isDanger) {
-                                e.currentTarget.style.background = '#dc2626';
-                                e.currentTarget.style.borderColor = '#dc2626';
+                                e.currentTarget.style.background = 'var(--color-destructive)';
+                                e.currentTarget.style.borderColor = 'var(--color-destructive)';
                             } else {
-                                e.currentTarget.style.background = '#1a1a1a';
-                                e.currentTarget.style.borderColor = '#1a1a1a';
+                                e.currentTarget.style.background = 'var(--color-primary)';
+                                e.currentTarget.style.borderColor = 'var(--color-primary)';
                             }
                         }}
                     >

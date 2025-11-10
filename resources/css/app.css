@@ -11,17 +11,17 @@
   --background: oklch(1 0 0);
   --foreground: oklch(29.313% 0.00003 271.152);
   --card: oklch(1 0 0);
-  --card-foreground: oklch(64.609% 0.20837 37.028);
+  --card-foreground: oklch(0.1450 0 0);
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.1450 0 0);
-  --primary: oklch(64.609% 0.20837 37.028);
+  --primary: oklch(0.1450 0 0);
   --primary-foreground: oklch(0.9850 0 0);
   --secondary: oklch(0.9700 0 0);
-  --secondary-foreground: oklch(64.609% 0.20837 37.028);
+  --secondary-foreground: oklch(0.1450 0 0);
   --muted: oklch(0.9700 0 0);
   --muted-foreground: oklch(0.5560 0 0);
   --accent: oklch(0.9700 0 0);
-  --accent-foreground: oklch(64.609% 0.20837 37.028);
+  --accent-foreground: oklch(0.1450 0 0);
   --destructive: oklch(0.5770 0.2450 27.3250);
   --destructive-foreground: oklch(1 0 0);
   --border: oklch(0.9220 0 0);
@@ -65,12 +65,14 @@
 .dark {
   --background: oklch(0.1450 0 0);
   --foreground: oklch(0.9850 0 0);
-  --card: oklch(64.609% 0.20837 37.028);
+  /* Neutral elevated surface for dark mode cards (no brand tint) */
+  --card: oklch(0.20 0 0);
   --card-foreground: oklch(0.9850 0 0);
   --popover: oklch(0.2690 0 0);
   --popover-foreground: oklch(0.9850 0 0);
   --primary: oklch(0.9220 0 0);
-  --primary-foreground: oklch(64.609% 0.20837 37.028);
+  /* Text/icon on primary should be dark for contrast on light primary */
+  --primary-foreground: oklch(0.1450 0 0);
   --secondary: oklch(0.2690 0 0);
   --secondary-foreground: oklch(0.9850 0 0);
   --muted: oklch(0.2690 0 0);
@@ -87,7 +89,8 @@
   --chart-3: oklch(0.5500 0.2200 263);
   --chart-4: oklch(0.4900 0.2200 264);
   --chart-5: oklch(0.4200 0.1800 266);
-  --sidebar: oklch(64.609% 0.20837 37.028);
+  /* Neutral sidebar in dark mode to avoid orange wash */
+  --sidebar: oklch(0.18 0 0);
   --sidebar-foreground: oklch(0.9850 0 0);
   --sidebar-primary: oklch(0.4880 0.2430 264.3760);
   --sidebar-primary-foreground: oklch(0.9850 0 0);
@@ -182,37 +185,35 @@
 @layer components {
   /* Typography */
   .ds-heading-1 {
-    @apply text-2xl font-semibold text-gray-900;
+    @apply text-2xl font-semibold text-foreground;
   }
   .ds-subtext {
-    @apply text-sm text-gray-500;
+    @apply text-sm text-muted-foreground;
   }
   .ds-label {
-    @apply text-xs text-gray-500;
+    @apply text-xs text-muted-foreground;
   }
   .ds-number-lg {
-    @apply text-3xl font-semibold text-gray-900;
+    @apply text-3xl font-semibold text-foreground;
   }
 
   /* Cards */
   .ds-card-minimal {
-    @apply bg-white shadow-sm;
+    @apply bg-card shadow-sm;
     border: 1px solid var(--color-border);
     border-radius: var(--radius-md);
   }
   .ds-card-plain {
-    @apply bg-white shadow-none;
+    @apply bg-card shadow-none;
     border: 1px solid var(--color-border);
     border-radius: var(--radius-md);
   }
 
   /* Progress */
   .ds-progress-track {
-    @apply h-1 rounded-full;
-    background-color: #f3f4f6; /* light gray track */
+    @apply h-1 rounded-full bg-muted;
   }
   .ds-progress-bar {
-    @apply h-full rounded-full;
-    background-color: #9ca3af; /* neutral gray */
+    @apply h-full rounded-full bg-muted-foreground;
   }
 }
