@@ -32,8 +32,10 @@ class TextWizardController extends Controller
 
         // Create the project
         $project = Auth::user()->projects()->create([
+            'name' => $validated['project_name'],
             'title' => $validated['project_name'],
             'description' => $validated['idea_description'],
+            'format' => $validated['format'],
             'settings' => [
                 'wizard_type' => 'text',
                 'format' => $validated['format'],

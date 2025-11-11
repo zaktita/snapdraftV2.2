@@ -166,11 +166,15 @@ export default function ProjectsIndex({ projects: projectsData = [], success }: 
     };
 
     const handleRename = (projectId: number, newTitle: string) => {
-        if (newTitle.trim() && newTitle !== projects.find(p => p.id === projectId)?.title) {
-            router.patch(`/projects/${projectId}`, { title: newTitle }, {
-                preserveScroll: true,
-            });
-        }
+        router.patch(`/projects/${projectId}`, { title: newTitle }, {
+            preserveScroll: true,
+            onSuccess: () => {
+                router.reload({ only: ['projects'] });
+            },
+            onError: (errors) => {
+                console.error('Failed to rename project:', errors);
+            }
+        });
     };
 
     const handleGenerateMore = (projectId: number, e: React.MouseEvent) => {
@@ -323,21 +327,21 @@ export default function ProjectsIndex({ projects: projectsData = [], success }: 
                             // Empty State for filtered view
                             <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                                 <Link href="/projects/create">
-                                    <Card className="group cursor-pointer border border-gray-200 transition-all hover:border-gray-300 hover:shadow-sm">
-                                        <div className="aspect-video bg-gray-50 p-8">
+                                    <div className="group cursor-pointer rounded-lg bg-muted/40 hover:bg-muted/60 transition-colors">
+                                        <div className="aspect-video bg-muted/60 p-8">
                                             <div className="flex h-full items-center justify-center">
-                                                <Plus className="size-12 text-gray-400 transition-transform group-hover:scale-110" />
+                                                <Plus className="size-12 text-muted-foreground transition-transform group-hover:scale-110" />
                                             </div>
                                         </div>
-                                        <CardContent className="p-6">
-                                            <h3 className="text-[18px] font-semibold" style={{ color: '#191919' }}>
+                                        <div className="p-6">
+                                            <h3 className="text-[18px] font-semibold">
                                                 Create New Project
                                             </h3>
-                                            <p className="mt-2 text-sm font-normal" style={{ color: '#505050' }}>
+                                            <p className="mt-2 text-sm text-muted-foreground">
                                                 No projects match your filter
                                             </p>
-                                        </CardContent>
-                                    </Card>
+                                        </div>
+                                    </div>
                                 </Link>
                             </div>
                         ) : viewMode === 'grid' ? (
@@ -390,6 +394,11 @@ function ProjectCard({ project, formatDate, onToggleFavorite, onDelete, onRename
     const [editTitle, setEditTitle] = useState(project.title);
     const inputRef = useRef<HTMLInputElement>(null);
 
+    // Sync local state when project.title changes from backend
+    useEffect(() => {
+        setEditTitle(project.title);
+    }, [project.title]);
+
     useEffect(() => {
         if (isEditing && inputRef.current) {
             inputRef.current.focus();
@@ -404,9 +413,14 @@ function ProjectCard({ project, formatDate, onToggleFavorite, onDelete, onRename
     };
 
     const handleBlur = () => {
+        const trimmedTitle = editTitle.trim();
+        if (trimmedTitle && trimmedTitle !== project.title) {
+            onRename(project.id, trimmedTitle);
+        } else {
+            // Revert to original if empty or unchanged
+            setEditTitle(project.title);
+        }
         setIsEditing(false);
-        onRename(project.id, editTitle);
-        setEditTitle(editTitle.trim() || project.title);
     };
 
     const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -420,9 +434,9 @@ function ProjectCard({ project, formatDate, onToggleFavorite, onDelete, onRename
 
     return (
         <Link href={`/projects/${project.id}`}>
-            <Card className="group cursor-pointer border border-gray-200 transition-all hover:border-gray-300 hover:shadow-md">
+            <div className="group cursor-pointer rounded-lg overflow-hidden bg-muted/40 hover:bg-muted/60 transition-colors">
                 {/* Image Placeholder */}
-                <div className="aspect-video bg-gradient-to-br from-gray-100 to-gray-200 p-0 relative overflow-hidden">
+                <div className="aspect-video bg-muted/60 p-0 relative overflow-hidden">
                     {project.featured_image ? (
                         <img 
                             src={project.featured_image} 
@@ -432,12 +446,12 @@ function ProjectCard({ project, formatDate, onToggleFavorite, onDelete, onRename
                     ) : (
                         <div className="flex h-full items-center justify-center">
                             <div className="text-center">
-                                <div className="mx-auto mb-3 size-12 rounded-full bg-white/80 flex items-center justify-center">
-                                    <svg className="size-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <div className="mx-auto mb-3 size-12 rounded-full bg-background/80 flex items-center justify-center">
+                                    <svg className="size-6 text-muted-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
                                     </svg>
                                 </div>
-                                <p className="text-sm font-medium text-gray-500">No image</p>
+                                <p className="text-sm font-medium text-muted-foreground">No image</p>
                             </div>
                         </div>
                     )}
@@ -445,7 +459,7 @@ function ProjectCard({ project, formatDate, onToggleFavorite, onDelete, onRename
                 </div>
                 
                 {/* Card Content */}
-                <CardContent className="px-6">
+                <div className="px-6 py-4">
                     {isEditing ? (
                         <input
                             ref={inputRef}
@@ -455,13 +469,11 @@ function ProjectCard({ project, formatDate, onToggleFavorite, onDelete, onRename
                             onBlur={handleBlur}
                             onKeyDown={handleKeyDown}
                             onClick={(e) => e.stopPropagation()}
-                            className="w-full text-[18px] font-semibold border-b-2 border-blue-500 bg-transparent outline-none"
-                            style={{ color: '#191919' }}
+                            className="w-full text-[18px] font-semibold border-b-2 border-primary bg-transparent outline-none"
                         />
                     ) : (
                         <h3 
                             className="text-[18px] font-semibold group-hover:opacity-80 cursor-text" 
-                            style={{ color: '#191919' }}
                             onDoubleClick={handleDoubleClick}
                             title="Double-click to rename"
                         >
@@ -471,11 +483,10 @@ function ProjectCard({ project, formatDate, onToggleFavorite, onDelete, onRename
                     
                     <div className="mt-4 flex items-center justify-between">
                         <div className="flex items-center gap-3 text-sm">
-                            <span style={{ color: '#505050' }}>{formatDate(project.created_at)}</span>
+                            <span className="text-muted-foreground">{formatDate(project.created_at)}</span>
                             <Badge
                                 variant="secondary"
                                 className="text-xs font-medium"
-                                style={{ backgroundColor: '#F5F5F5', color: '#505050' }}
                             >
                                 {project.images_count} images
                             </Badge>
@@ -485,8 +496,7 @@ function ProjectCard({ project, formatDate, onToggleFavorite, onDelete, onRename
                         <div className="flex items-center gap-1">
                             <button
                                 onClick={(e) => onGenerateMore(project.id, e)}
-                                className="rounded p-1.5 transition-colors hover:bg-blue-50"
-                                style={{ color: '#191919' }}
+                                className="rounded p-1.5 transition-colors hover:bg-muted"
                                 title="Generate more images"
                             >
                                 <Plus className="size-4" />
@@ -494,12 +504,11 @@ function ProjectCard({ project, formatDate, onToggleFavorite, onDelete, onRename
                             
                             <button
                                 onClick={(e) => onToggleFavorite(project.id, e)}
-                                className="rounded p-1.5 transition-colors hover:bg-gray-50"
-                                style={{ color: project.is_favorite ? '#ff4444' : '#191919' }}
+                                className="rounded p-1.5 transition-colors hover:bg-muted"
                                 title="Toggle favorite"
                             >
                                 {project.is_favorite ? (
-                                    <Heart className="size-4 fill-current" />
+                                    <Heart className="size-4 fill-current text-red-500" />
                                 ) : (
                                     <Heart className="size-4" />
                                 )}
@@ -510,8 +519,7 @@ function ProjectCard({ project, formatDate, onToggleFavorite, onDelete, onRename
                                     e.preventDefault();
                                     router.visit(`/projects/${project.id}/edit`);
                                 }}
-                                className="rounded p-1.5 transition-colors hover:bg-gray-50"
-                                style={{ color: '#191919' }}
+                                className="rounded p-1.5 transition-colors hover:bg-muted"
                                 title="Edit project"
                             >
                                 <Edit className="size-4" />
@@ -522,16 +530,15 @@ function ProjectCard({ project, formatDate, onToggleFavorite, onDelete, onRename
                                     e.preventDefault();
                                     onDelete(project.id);
                                 }}
-                                className="rounded p-1.5 transition-colors hover:bg-red-50"
-                                style={{ color: '#ff4444' }}
+                                className="rounded p-1.5 transition-colors hover:bg-muted text-destructive"
                                 title="Delete project"
                             >
                                 <Trash2 className="size-4" />
                             </button>
                         </div>
                     </div>
-                </CardContent>
-            </Card>
+                </div>
+            </div>
         </Link>
     );
 }
@@ -551,6 +558,11 @@ function ProjectListItem({ project, formatDate, onToggleFavorite, onDelete, onRe
     const [editTitle, setEditTitle] = useState(project.title);
     const inputRef = useRef<HTMLInputElement>(null);
 
+    // Sync local state when project.title changes from backend
+    useEffect(() => {
+        setEditTitle(project.title);
+    }, [project.title]);
+
     useEffect(() => {
         if (isEditing && inputRef.current) {
             inputRef.current.focus();
@@ -565,9 +577,14 @@ function ProjectListItem({ project, formatDate, onToggleFavorite, onDelete, onRe
     };
 
     const handleBlur = () => {
+        const trimmedTitle = editTitle.trim();
+        if (trimmedTitle && trimmedTitle !== project.title) {
+            onRename(project.id, trimmedTitle);
+        } else {
+            // Revert to original if empty or unchanged
+            setEditTitle(project.title);
+        }
         setIsEditing(false);
-        onRename(project.id, editTitle);
-        setEditTitle(editTitle.trim() || project.title);
     };
 
     const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -581,10 +598,10 @@ function ProjectListItem({ project, formatDate, onToggleFavorite, onDelete, onRe
 
     return (
         <Link href={`/projects/${project.id}`}>
-            <Card className="group cursor-pointer border border-gray-200 transition-all hover:border-gray-300 hover:shadow-md">
+            <div className="group cursor-pointer rounded-lg bg-muted/40 hover:bg-muted/60 transition-colors">
                 <div className="flex items-center gap-6 p-4">
                     {/* Thumbnail */}
-                    <div className="h-20 w-32 shrink-0 overflow-hidden rounded-md bg-gradient-to-br from-gray-100 to-gray-200 relative">
+                    <div className="h-20 w-32 shrink-0 overflow-hidden rounded-md bg-muted/60 relative">
                         {project.featured_image ? (
                             <img 
                                 src={project.featured_image} 
@@ -593,7 +610,7 @@ function ProjectListItem({ project, formatDate, onToggleFavorite, onDelete, onRe
                             />
                         ) : (
                             <div className="flex h-full items-center justify-center">
-                                <svg className="size-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <svg className="size-5 text-muted-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
                                 </svg>
                             </div>
@@ -614,13 +631,11 @@ function ProjectListItem({ project, formatDate, onToggleFavorite, onDelete, onRe
                                     onBlur={handleBlur}
                                     onKeyDown={handleKeyDown}
                                     onClick={(e) => e.stopPropagation()}
-                                    className="min-w-0 flex-1 text-[18px] font-semibold border-b-2 border-blue-500 bg-transparent outline-none"
-                                    style={{ color: '#191919' }}
+                                    className="min-w-0 flex-1 text-[18px] font-semibold border-b-2 border-primary bg-transparent outline-none"
                                 />
                             ) : (
                                 <h3 
                                     className="min-w-0 flex-1 truncate text-[18px] font-semibold group-hover:opacity-80 cursor-text" 
-                                    style={{ color: '#191919' }}
                                     onDoubleClick={handleDoubleClick}
                                     title="Double-click to rename"
                                 >
@@ -630,13 +645,12 @@ function ProjectListItem({ project, formatDate, onToggleFavorite, onDelete, onRe
 
                             {/* Metadata */}
                             <div className="flex shrink-0 items-center gap-4">
-                                <span className="text-sm" style={{ color: '#505050' }}>
+                                <span className="text-sm text-muted-foreground">
                                     {formatDate(project.created_at)}
                                 </span>
                                 <Badge
                                     variant="secondary"
                                     className="text-xs font-medium"
-                                    style={{ backgroundColor: '#F5F5F5', color: '#505050' }}
                                 >
                                     {project.images_count} images
                                 </Badge>
@@ -647,8 +661,7 @@ function ProjectListItem({ project, formatDate, onToggleFavorite, onDelete, onRe
                         <div className="flex shrink-0 items-center gap-1">
                             <button
                                 onClick={(e) => onGenerateMore(project.id, e)}
-                                className="rounded p-1.5 transition-colors hover:bg-blue-50"
-                                style={{ color: '#191919' }}
+                                className="rounded p-1.5 transition-colors hover:bg-muted"
                                 title="Generate more images"
                             >
                                 <Plus className="size-4" />
@@ -656,12 +669,11 @@ function ProjectListItem({ project, formatDate, onToggleFavorite, onDelete, onRe
                             
                             <button
                                 onClick={(e) => onToggleFavorite(project.id, e)}
-                                className="rounded p-1.5 transition-colors hover:bg-gray-50"
-                                style={{ color: project.is_favorite ? '#ff4444' : '#191919' }}
+                                className="rounded p-1.5 transition-colors hover:bg-muted"
                                 title="Toggle favorite"
                             >
                                 {project.is_favorite ? (
-                                    <Heart className="size-4 fill-current" />
+                                    <Heart className="size-4 fill-current text-red-500" />
                                 ) : (
                                     <Heart className="size-4" />
                                 )}
@@ -672,8 +684,7 @@ function ProjectListItem({ project, formatDate, onToggleFavorite, onDelete, onRe
                                     e.preventDefault();
                                     router.visit(`/projects/${project.id}/edit`);
                                 }}
-                                className="rounded p-1.5 transition-colors hover:bg-gray-50"
-                                style={{ color: '#191919' }}
+                                className="rounded p-1.5 transition-colors hover:bg-muted"
                                 title="Edit project"
                             >
                                 <Edit className="size-4" />
@@ -684,8 +695,7 @@ function ProjectListItem({ project, formatDate, onToggleFavorite, onDelete, onRe
                                     e.preventDefault();
                                     onDelete(project.id);
                                 }}
-                                className="rounded p-1.5 transition-colors hover:bg-red-50"
-                                style={{ color: '#ff4444' }}
+                                className="rounded p-1.5 transition-colors hover:bg-muted text-destructive"
                                 title="Delete project"
                             >
                                 <Trash2 className="size-4" />
@@ -693,7 +703,7 @@ function ProjectListItem({ project, formatDate, onToggleFavorite, onDelete, onRe
                         </div>
                     </div>
                 </div>
-            </Card>
+            </div>
         </Link>
     );
 }

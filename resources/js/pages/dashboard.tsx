@@ -1,14 +1,26 @@
-import { Card } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
+import { Separator } from '@/components/ui/separator';
 import AppLayout from '@/layouts/app-layout';
 import { dashboard } from '@/routes';
 import { type BreadcrumbItem } from '@/types';
 import { Head, Link } from '@inertiajs/react';
-import { FolderOpen, Star, Image as ImageIcon, AlertCircle, Plus, Crown } from 'lucide-react';
-import { H1, Subtext } from '@/components/ds/typography';
-import { StatsCard } from '@/components/ds/stats-card';
+import { 
+    FolderOpen, 
+    Star, 
+    Image as ImageIcon, 
+    AlertCircle, 
+    Plus, 
+    Crown,
+    TrendingUp,
+    Zap,
+    Clock,
+    ArrowRight,
+    Sparkles
+} from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 const breadcrumbs: BreadcrumbItem[] = [
     {
@@ -51,11 +63,11 @@ export default function Dashboard({ stats, recent_projects }: DashboardProps) {
     const getTierBadge = (tier: string) => {
         switch (tier) {
             case 'pro':
-                return <Badge className="bg-blue-500">Pro</Badge>;
+                return <Badge className="bg-blue-500 hover:bg-blue-600">Pro</Badge>;
             case 'enterprise':
-                return <Badge className="bg-purple-500">Enterprise</Badge>;
+                return <Badge className="bg-purple-500 hover:bg-purple-600">Enterprise</Badge>;
             default:
-                return <Badge variant="outline">Free</Badge>;
+                return <Badge variant="secondary">Free</Badge>;
         }
     };
 
@@ -67,146 +79,205 @@ export default function Dashboard({ stats, recent_projects }: DashboardProps) {
         <AppLayout breadcrumbs={breadcrumbs}>
             <Head title="Dashboard" />
             
-            <div className="p-8">
-                {/* Welcome Header */}
-                <div className="flex items-center justify-between mb-8">
-                    <div>
-                        <H1>Welcome back!</H1>
-                        <Subtext className="mt-1">Here's what's happening with your projects</Subtext>
+            <div className="p-6 md:p-8 max-w-[1600px] mx-auto">
+                {/* Welcome Header - Notion style */}
+                <div className="mb-8">
+                    <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-3">
+                            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gradient-to-br from-primary/10 to-primary/5">
+                                <Sparkles className="h-5 w-5 text-primary" />
+                            </div>
+                            <div>
+                                <h1 className="text-3xl font-bold tracking-tight">Welcome back!</h1>
+                                <p className="text-sm text-muted-foreground mt-0.5">Here's what's happening with your projects</p>
+                            </div>
+                        </div>
+                        <Button asChild size="default" className="gap-2">
+                            <Link href="/projects/create">
+                                <Plus className="h-4 w-4" />
+                                New Project
+                            </Link>
+                        </Button>
                     </div>
-                    <Button asChild>
-                        <Link href="/projects/create">
-                            <Plus className="h-4 w-4 mr-2" />
-                            New Project
-                        </Link>
-                    </Button>
                 </div>
 
                 {/* Low Credits Warning */}
                 {stats.is_low_credits && (
-                    <Card className="p-4 bg-yellow-50 border-yellow-200">
-                        <div className="flex items-start gap-3">
-                            <AlertCircle className="h-5 w-5 text-yellow-600 flex-shrink-0 mt-0.5" />
-                            <div className="flex-1">
-                                <p className="font-medium text-yellow-900">Running low on credits</p>
-                                <p className="text-sm text-yellow-700 mt-1">
-                                    You have {stats.credits_remaining} credits remaining. Consider upgrading your plan or purchasing additional credits.
-                                </p>
+                    <Card className="mb-6 border-amber-200 bg-amber-50/50 dark:border-amber-800 dark:bg-amber-950/20">
+                        <CardContent className="pt-6">
+                            <div className="flex items-start gap-4">
+                                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-amber-100 dark:bg-amber-900">
+                                    <AlertCircle className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+                                </div>
+                                <div className="flex-1 space-y-1">
+                                    <p className="font-semibold text-amber-900 dark:text-amber-100">Running low on credits</p>
+                                    <p className="text-sm text-amber-700 dark:text-amber-300">
+                                        You have {stats.credits_remaining} credits remaining. Consider upgrading your plan or purchasing additional credits.
+                                    </p>
+                                </div>
+                                <Button asChild variant="outline" size="sm" className="shrink-0">
+                                    <Link href="/subscription/plans">
+                                        <Crown className="h-4 w-4 mr-2" />
+                                        Upgrade
+                                    </Link>
+                                </Button>
                             </div>
-                            <Button asChild variant="outline" size="sm">
-                                <Link href="/subscription/plans">
-                                    <Crown className="h-4 w-4 mr-2" />
-                                    Upgrade
-                                </Link>
-                            </Button>
-                        </div>
+                        </CardContent>
                     </Card>
                 )}
 
-                {/* Stats Grid - Minimal cards */}
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-                    <StatsCard label="Total Projects" value={stats.total_projects} subtext={`${stats.favorite_projects} favorites`} />
-                    <StatsCard label="Total Images" value={stats.total_images} subtext="Generated visuals" />
-                    <StatsCard label="This Month" value={stats.generations_this_month} subtext={`${successRate}% success rate`} />
-                    <StatsCard label="Credits" value={stats.credits_total === 999999 ? '∞' : stats.credits_remaining} subtext={`of ${stats.credits_total === 999999 ? 'Unlimited' : stats.credits_total}`} accent />
+                {/* Stats Grid - Minimal clean cards */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+                    {/* Total Projects */}
+                    <div className="rounded-lg bg-muted/40 p-6">
+                        <p className="text-sm text-muted-foreground mb-2">Total Projects</p>
+                        <p className="text-3xl font-semibold">{stats.total_projects}</p>
+                        <p className="text-xs text-muted-foreground mt-2">
+                            {stats.favorite_projects} favorites
+                        </p>
+                    </div>
+
+                    {/* Total Images */}
+                    <div className="rounded-lg bg-muted/40 p-6">
+                        <p className="text-sm text-muted-foreground mb-2">Total Images</p>
+                        <p className="text-3xl font-semibold">{stats.total_images}</p>
+                        <p className="text-xs text-muted-foreground mt-2">Generated visuals</p>
+                    </div>
+
+                    {/* This Month */}
+                    <div className="rounded-lg bg-muted/40 p-6">
+                        <p className="text-sm text-muted-foreground mb-2">This Month</p>
+                        <p className="text-3xl font-semibold">{stats.generations_this_month}</p>
+                        <p className="text-xs text-muted-foreground mt-2">
+                            {successRate}% success rate
+                        </p>
+                    </div>
+
+                    {/* Credits */}
+                    <div className="rounded-lg bg-muted/40 p-6">
+                        <p className="text-sm text-muted-foreground mb-2">Credits</p>
+                        <p className="text-3xl font-semibold">
+                            {stats.credits_total === 999999 ? '∞' : stats.credits_remaining}
+                        </p>
+                        <p className="text-xs text-muted-foreground mt-2">
+                            of {stats.credits_total === 999999 ? 'Unlimited' : stats.credits_total}
+                        </p>
+                    </div>
                 </div>
 
                 {/* Two Column Layout */}
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                     {/* Recent Projects - Takes 2 columns */}
                     <div className="lg:col-span-2">
-                        <Card className="p-6">
+                        <div className="rounded-lg bg-muted/40 p-6">
                             <div className="flex items-center justify-between mb-6">
-                                <h2 className="text-xl font-semibold">Recent Projects</h2>
-                                <Button asChild variant="ghost" size="sm">
-                                    <Link href="/projects">View All</Link>
+                                <div>
+                                    <h2 className="text-lg font-semibold">Recent Projects</h2>
+                                    <p className="text-sm text-muted-foreground mt-1">Your latest work and creations</p>
+                                </div>
+                                <Button asChild variant="ghost" size="sm" className="gap-1">
+                                    <Link href="/projects">
+                                        View All
+                                        <ArrowRight className="h-3.5 w-3.5" />
+                                    </Link>
                                 </Button>
                             </div>
-
                             {recent_projects.length > 0 ? (
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    {recent_projects.map((project) => (
+                                    {recent_projects.slice(0, 4).map((project) => (
                                         <Link
                                             key={project.id}
                                             href={`/projects/${project.id}`}
-                                            className="group"
+                                            className="group block"
                                         >
-                                            <Card className="overflow-hidden hover:shadow-lg transition-shadow">
+                                            <div className="rounded-lg overflow-hidden bg-background hover:bg-muted/50 transition-colors">
                                                 {project.thumbnail ? (
-                                                    <div className="aspect-video bg-gray-100 overflow-hidden">
+                                                    <div className="aspect-video overflow-hidden bg-muted">
                                                         <img
                                                             src={project.thumbnail}
                                                             alt={project.title}
-                                                            className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                                                            className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
                                                         />
                                                     </div>
                                                 ) : (
-                                                    <div className="aspect-video bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center">
-                                                        <FolderOpen className="h-12 w-12 text-gray-400" />
+                                                    <div className="aspect-video bg-muted/60 flex items-center justify-center">
+                                                        <FolderOpen className="h-12 w-12 text-muted-foreground/40" />
                                                     </div>
                                                 )}
                                                 <div className="p-4">
-                                                    <div className="flex items-start justify-between gap-2">
-                                                        <h3 className="font-semibold text-gray-900 truncate">
+                                                    <div className="flex items-start justify-between gap-2 mb-2">
+                                                        <h3 className="font-medium truncate group-hover:text-foreground/80 transition-colors">
                                                             {project.title}
                                                         </h3>
                                                         {project.is_favorite && (
-                                                            <Star className="h-4 w-4 text-yellow-500 flex-shrink-0 fill-yellow-500" />
+                                                            <Star className="h-4 w-4 text-foreground/60 fill-foreground/60 shrink-0" />
                                                         )}
                                                     </div>
-                                                    <p className="text-sm text-gray-500 mt-1 line-clamp-2">
+                                                    <p className="text-sm text-muted-foreground line-clamp-2 mb-3">
                                                         {project.description}
                                                     </p>
-                                                    <div className="flex items-center justify-between mt-3">
-                                                        <span className="text-xs text-gray-500">
-                                                            {project.images_count} images
+                                                    <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                                                        <span className="flex items-center gap-1">
+                                                            <ImageIcon className="h-3 w-3" />
+                                                            {project.images_count}
                                                         </span>
-                                                        <span className="text-xs text-gray-400">
+                                                        <span className="flex items-center gap-1">
+                                                            <Clock className="h-3 w-3" />
                                                             {project.created_at}
                                                         </span>
                                                     </div>
                                                 </div>
-                                            </Card>
+                                            </div>
                                         </Link>
                                     ))}
                                 </div>
-                            ) : (
-                                <div className="text-center py-12">
-                                    <FolderOpen className="h-16 w-16 text-gray-300 mx-auto mb-4" />
-                                    <p className="text-gray-600 mb-4">No projects yet</p>
-                                    <Button asChild>
-                                        <Link href="/projects/create">Create Your First Project</Link>
-                                    </Button>
-                                </div>
-                            )}
-                        </Card>
+                                ) : (
+                                    <div className="flex flex-col items-center justify-center py-12 text-center">
+                                        <div className="flex h-16 w-16 items-center justify-center rounded-full bg-muted mb-4">
+                                            <FolderOpen className="h-8 w-8 text-muted-foreground" />
+                                        </div>
+                                        <h3 className="font-semibold mb-1">No projects yet</h3>
+                                        <p className="text-sm text-muted-foreground mb-4">Get started by creating your first project</p>
+                                        <Button asChild>
+                                            <Link href="/projects/create">
+                                                <Plus className="h-4 w-4 mr-2" />
+                                                Create Your First Project
+                                            </Link>
+                                        </Button>
+                                    </div>
+                                )}
+                        </div>
                     </div>
 
                     {/* Sidebar - Takes 1 column */}
                     <div className="space-y-6">
-                        {/* Subscription + This Month (combined) */}
-                        <Card className="p-5 border-none shadow-sm">
-                            <div className="flex items-center justify-between mb-4">
-                                <h3 className="font-semibold">Subscription</h3>
+                        {/* Subscription Card */}
+                        <div className="rounded-lg bg-muted/40 p-6">
+                            <div className="flex items-center justify-between mb-6">
+                                <h2 className="text-base font-semibold">Subscription</h2>
                                 {getTierBadge(stats.subscription_tier)}
                             </div>
-
-                            {/* Credits usage */}
-                            {stats.credits_total !== 999999 ? (
-                                <div>
-                                    <p className="text-xs text-gray-500 mb-1">Credits Used</p>
-                                    <div className="flex items-center justify-between mb-1">
-                                        <span className="text-xs text-gray-500">{stats.credits_used} of {stats.credits_total}</span>
-                                        <span className="text-xs text-gray-500">{stats.credits_percentage}%</span>
+                            <div className="space-y-4">
+                                {/* Credits usage */}
+                                {stats.credits_total !== 999999 ? (
+                                    <div className="space-y-2">
+                                        <div className="flex items-center justify-between text-sm">
+                                            <span className="text-muted-foreground">Credits Used</span>
+                                            <span className="font-medium">{stats.credits_percentage}%</span>
+                                        </div>
+                                        <Progress value={stats.credits_percentage} className="h-2" />
+                                        <p className="text-xs text-muted-foreground">
+                                            {stats.credits_used} of {stats.credits_total} used
+                                        </p>
                                     </div>
-                                    <Progress value={stats.credits_percentage} className="h-1 bg-gray-100" indicatorClassName="bg-gray-400" />
-                                </div>
-                            ) : (
-                                <p className="text-xs text-gray-500">Unlimited credits</p>
-                            )}
+                                ) : (
+                                    <div className="flex items-center gap-2 rounded-lg bg-muted/60 p-3">
+                                        <Zap className="h-4 w-4" />
+                                        <span className="text-sm font-medium">Unlimited credits</span>
+                                    </div>
+                                )}
 
-                            <div className="mt-3">
-                                <Button asChild className="w-full bg-sidebar-primary text-sidebar-primary-foreground hover:bg-neutral-900 hover:text-sidebar-primary-foreground/90 transition-colors duration-150" size="sm">
+                                <Button asChild className="w-full" size="sm">
                                     <Link href={stats.subscription_tier === 'free' ? '/subscription/plans' : '/subscription/portal'}>
                                         {stats.subscription_tier === 'free' ? (
                                             <>
@@ -218,52 +289,54 @@ export default function Dashboard({ stats, recent_projects }: DashboardProps) {
                                         )}
                                     </Link>
                                 </Button>
-                            </div>
 
-                            {/* This Month small metrics */}
-                            <div className="mt-5">
-                                <h4 className="text-sm font-medium text-gray-900 mb-2">This Month</h4>
-                                <div className="grid grid-cols-3 gap-3">
-                                    <div>
-                                        <p className="text-[11px] text-gray-500">Successful</p>
-                                        <p className="text-base font-semibold text-gray-900">{stats.successful_generations}</p>
-                                    </div>
-                                    <div>
-                                        <p className="text-[11px] text-gray-500">Failed</p>
-                                        <p className="text-base font-semibold text-gray-900">{stats.failed_generations}</p>
-                                    </div>
-                                    <div>
-                                        <p className="text-[11px] text-gray-500">Success Rate</p>
-                                        <p className="text-base font-semibold text-gray-900">{successRate}%</p>
+                                <Separator />
+
+                                {/* This Month Stats */}
+                                <div className="space-y-3">
+                                    <h4 className="text-sm font-medium">This Month</h4>
+                                    <div className="grid grid-cols-3 gap-3">
+                                        <div className="space-y-1">
+                                            <p className="text-xs text-muted-foreground">Successful</p>
+                                            <p className="text-lg font-semibold">{stats.successful_generations}</p>
+                                        </div>
+                                        <div className="space-y-1">
+                                            <p className="text-xs text-muted-foreground">Failed</p>
+                                            <p className="text-lg font-semibold">{stats.failed_generations}</p>
+                                        </div>
+                                        <div className="space-y-1">
+                                            <p className="text-xs text-muted-foreground">Rate</p>
+                                            <p className="text-lg font-semibold">{successRate}%</p>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
-                        </Card>
+                        </div>
 
                         {/* Quick Actions */}
-                        <Card className="p-6">
-                            <h3 className="font-semibold mb-4">Quick Actions</h3>
+                        <div className="rounded-lg bg-muted/40 p-6">
+                            <h2 className="text-base font-semibold mb-4">Quick Actions</h2>
                             <div className="space-y-2">
-                                <Button asChild variant="outline" className="w-full justify-start" size="sm">
+                                <Button asChild variant="ghost" className="w-full justify-start gap-2" size="sm">
                                     <Link href="/projects">
-                                        <FolderOpen className="h-4 w-4 mr-2" />
+                                        <FolderOpen className="h-4 w-4" />
                                         View All Projects
                                     </Link>
                                 </Button>
-                                <Button asChild variant="outline" className="w-full justify-start" size="sm">
+                                <Button asChild variant="ghost" className="w-full justify-start gap-2" size="sm">
                                     <Link href="/projects?filter=favorites">
-                                        <Star className="h-4 w-4 mr-2" />
+                                        <Star className="h-4 w-4" />
                                         Favorites
                                     </Link>
                                 </Button>
-                                <Button asChild variant="outline" className="w-full justify-start" size="sm">
+                                <Button asChild variant="ghost" className="w-full justify-start gap-2" size="sm">
                                     <Link href="/canvas-editor">
-                                        <ImageIcon className="h-4 w-4 mr-2" />
+                                        <ImageIcon className="h-4 w-4" />
                                         Canvas Editor
                                     </Link>
                                 </Button>
                             </div>
-                        </Card>
+                        </div>
                     </div>
                 </div>
             </div>

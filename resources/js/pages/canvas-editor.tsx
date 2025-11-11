@@ -2106,7 +2106,7 @@ export default function CanvasEditor(props: CanvasEditorProps) {
                                                     height="18"
                                                     viewBox="0 0 24 24"
                                                     fill="none"
-                                                    stroke="#aaa"
+                                                    stroke="currentColor"
                                                     strokeWidth="2"
                                                     className="animate-spin"
                                                 >
@@ -2114,7 +2114,7 @@ export default function CanvasEditor(props: CanvasEditorProps) {
                                                         cx="12"
                                                         cy="12"
                                                         r="10"
-                                                        stroke="#aaa"
+                                                        stroke="currentColor"
                                                         strokeWidth="4"
                                                         fill="none"
                                                     />
@@ -2183,7 +2183,7 @@ export default function CanvasEditor(props: CanvasEditorProps) {
                                         style={{
                                             fontSize: '11px',
                                             fontWeight: 600,
-                                            color: '#9b9a97',
+                                            color: 'var(--color-muted-foreground)',
                                             marginBottom: '6px',
                                             padding: '0 4px',
                                         }}
@@ -2294,7 +2294,7 @@ export default function CanvasEditor(props: CanvasEditorProps) {
                                     <div
                                         style={{
                                             fontSize: '13px',
-                                            color: '#787774',
+                                            color: 'var(--color-muted-foreground)',
                                             marginBottom: '6px',
                                             lineHeight: 1.6,
                                             paddingLeft: '16px',
@@ -2305,7 +2305,7 @@ export default function CanvasEditor(props: CanvasEditorProps) {
                                             style={{
                                                 position: 'absolute',
                                                 left: '4px',
-                                                color: '#9b9a97',
+                                                color: 'var(--color-muted-foreground)',
                                                 fontWeight: 600,
                                             }}
                                         >
@@ -2318,7 +2318,7 @@ export default function CanvasEditor(props: CanvasEditorProps) {
                                     <div
                                         style={{
                                             fontSize: '13px',
-                                            color: '#787774',
+                                            color: 'var(--color-muted-foreground)',
                                             marginBottom: '6px',
                                             lineHeight: 1.6,
                                             paddingLeft: '16px',
@@ -2329,7 +2329,7 @@ export default function CanvasEditor(props: CanvasEditorProps) {
                                             style={{
                                                 position: 'absolute',
                                                 left: '4px',
-                                                color: '#9b9a97',
+                                                color: 'var(--color-muted-foreground)',
                                                 fontWeight: 600,
                                             }}
                                         >
@@ -2340,7 +2340,7 @@ export default function CanvasEditor(props: CanvasEditorProps) {
                                     <div
                                         style={{
                                             fontSize: '13px',
-                                            color: '#787774',
+                                            color: 'var(--color-muted-foreground)',
                                             marginBottom: '6px',
                                             lineHeight: 1.6,
                                             paddingLeft: '16px',
@@ -2351,7 +2351,7 @@ export default function CanvasEditor(props: CanvasEditorProps) {
                                             style={{
                                                 position: 'absolute',
                                                 left: '4px',
-                                                color: '#9b9a97',
+                                                color: 'var(--color-muted-foreground)',
                                                 fontWeight: 600,
                                             }}
                                         >
@@ -2362,7 +2362,7 @@ export default function CanvasEditor(props: CanvasEditorProps) {
                                     <div
                                         style={{
                                             fontSize: '13px',
-                                            color: '#787774',
+                                            color: 'var(--color-muted-foreground)',
                                             marginBottom: '6px',
                                             lineHeight: 1.6,
                                             paddingLeft: '16px',
@@ -2373,7 +2373,7 @@ export default function CanvasEditor(props: CanvasEditorProps) {
                                             style={{
                                                 position: 'absolute',
                                                 left: '4px',
-                                                color: '#9b9a97',
+                                                color: 'var(--color-muted-foreground)',
                                                 fontWeight: 600,
                                             }}
                                         >
@@ -2385,7 +2385,7 @@ export default function CanvasEditor(props: CanvasEditorProps) {
                                     <div
                                         style={{
                                             fontSize: '13px',
-                                            color: '#787774',
+                                            color: 'var(--color-muted-foreground)',
                                             lineHeight: 1.6,
                                             paddingLeft: '16px',
                                             position: 'relative',
@@ -2395,7 +2395,7 @@ export default function CanvasEditor(props: CanvasEditorProps) {
                                             style={{
                                                 position: 'absolute',
                                                 left: '4px',
-                                                color: '#9b9a97',
+                                                color: 'var(--color-muted-foreground)',
                                                 fontWeight: 600,
                                             }}
                                         >

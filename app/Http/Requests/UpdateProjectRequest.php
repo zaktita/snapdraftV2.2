@@ -22,6 +22,7 @@ class UpdateProjectRequest extends FormRequest
     public function rules(): array
     {
         return [
+            'title' => 'sometimes|required|string|max:255',
             'name' => 'sometimes|required|string|max:255',
             'description' => 'nullable|string|max:2000',
             'settings' => 'nullable|array',
@@ -35,6 +36,8 @@ class UpdateProjectRequest extends FormRequest
     public function messages(): array
     {
         return [
+            'title.required' => 'Project title is required.',
+            'title.max' => 'Project title cannot exceed 255 characters.',
             'name.required' => 'Project name is required.',
             'name.max' => 'Project name cannot exceed 255 characters.',
             'description.max' => 'Description cannot exceed 2000 characters.',

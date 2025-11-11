@@ -27,106 +27,106 @@ export default function AdminDashboard({ stats }: AdminDashboardProps) {
         <AppLayout>
             <Head title="Admin Dashboard" />
 
-            <div className="min-h-screen bg-gray-50 p-8">
+            <div className="min-h-screen bg-background p-8">
                 <div className="mx-auto max-w-7xl">
                     {/* Header */}
                     <div className="mb-8">
-                        <h1 className="text-3xl font-bold text-gray-900">Admin Dashboard</h1>
-                        <p className="text-gray-600 mt-2">Monitor and manage SnapDraft platform</p>
+                        <h1 className="text-3xl font-semibold">Admin Dashboard</h1>
+                        <p className="text-muted-foreground mt-2">Monitor and manage SnapDraft platform</p>
                     </div>
 
                     {/* Quick Stats */}
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-                        <Card className="p-6">
+                        <div className="rounded-lg bg-muted/40 p-6">
                             <div className="flex items-center justify-between">
                                 <div>
-                                    <p className="text-sm text-gray-600">Total Users</p>
-                                    <p className="text-3xl font-bold text-gray-900 mt-2">{stats.total_users}</p>
-                                    <p className="text-sm text-gray-500 mt-1">
+                                    <p className="text-sm text-muted-foreground">Total Users</p>
+                                    <p className="text-3xl font-semibold mt-2">{stats.total_users}</p>
+                                    <p className="text-sm text-muted-foreground mt-1">
                                         {stats.active_users} active
                                     </p>
                                 </div>
-                                <Users className="h-12 w-12 text-blue-500" />
+                                <Users className="h-12 w-12 text-muted-foreground" />
                             </div>
-                        </Card>
+                        </div>
 
-                        <Card className="p-6">
+                        <div className="rounded-lg bg-muted/40 p-6">
                             <div className="flex items-center justify-between">
                                 <div>
-                                    <p className="text-sm text-gray-600">Total Projects</p>
-                                    <p className="text-3xl font-bold text-gray-900 mt-2">{stats.total_projects}</p>
+                                    <p className="text-sm text-muted-foreground">Total Projects</p>
+                                    <p className="text-3xl font-semibold mt-2">{stats.total_projects}</p>
                                 </div>
-                                <FolderOpen className="h-12 w-12 text-green-500" />
+                                <FolderOpen className="h-12 w-12 text-muted-foreground" />
                             </div>
-                        </Card>
+                        </div>
 
-                        <Card className="p-6">
+                        <div className="rounded-lg bg-muted/40 p-6">
                             <div className="flex items-center justify-between">
                                 <div>
-                                    <p className="text-sm text-gray-600">Generations</p>
-                                    <p className="text-3xl font-bold text-gray-900 mt-2">{stats.total_generations}</p>
-                                    <p className="text-sm text-gray-500 mt-1">
+                                    <p className="text-sm text-muted-foreground">Generations</p>
+                                    <p className="text-3xl font-semibold mt-2">{stats.total_generations}</p>
+                                    <p className="text-sm text-muted-foreground mt-1">
                                         {successRate}% success rate
                                     </p>
                                 </div>
-                                <Zap className="h-12 w-12 text-yellow-500" />
+                                <Zap className="h-12 w-12 text-muted-foreground" />
                             </div>
-                        </Card>
+                        </div>
 
-                        <Card className="p-6">
+                        <div className="rounded-lg bg-muted/40 p-6">
                             <div className="flex items-center justify-between">
                                 <div>
-                                    <p className="text-sm text-gray-600">Total Cost</p>
-                                    <p className="text-3xl font-bold text-gray-900 mt-2">
+                                    <p className="text-sm text-muted-foreground">Total Cost</p>
+                                    <p className="text-3xl font-semibold mt-2">
                                         ${stats.total_cost.toFixed(2)}
                                     </p>
                                 </div>
-                                <DollarSign className="h-12 w-12 text-emerald-500" />
+                                <DollarSign className="h-12 w-12 text-muted-foreground" />
                             </div>
-                        </Card>
+                        </div>
                     </div>
 
                     {/* Subscription Breakdown */}
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-                        <Card className="p-6">
+                        <div className="rounded-lg bg-muted/40 p-6">
                             <h3 className="text-lg font-semibold mb-4">Subscription Tiers</h3>
                             <div className="space-y-4">
                                 <div className="flex items-center justify-between">
-                                    <span className="text-gray-600">Free</span>
-                                    <span className="text-2xl font-bold">{stats.subscription_breakdown.free || 0}</span>
+                                    <span className="text-muted-foreground">Free</span>
+                                    <span className="text-2xl font-semibold">{stats.subscription_breakdown.free || 0}</span>
                                 </div>
                                 <div className="flex items-center justify-between">
-                                    <span className="text-gray-600">Pro</span>
-                                    <span className="text-2xl font-bold text-blue-600">{stats.subscription_breakdown.pro || 0}</span>
+                                    <span className="text-muted-foreground">Pro</span>
+                                    <span className="text-2xl font-semibold">{stats.subscription_breakdown.pro || 0}</span>
                                 </div>
                                 <div className="flex items-center justify-between">
-                                    <span className="text-gray-600">Enterprise</span>
-                                    <span className="text-2xl font-bold text-purple-600">{stats.subscription_breakdown.enterprise || 0}</span>
+                                    <span className="text-muted-foreground">Enterprise</span>
+                                    <span className="text-2xl font-semibold">{stats.subscription_breakdown.enterprise || 0}</span>
                                 </div>
                             </div>
-                        </Card>
+                        </div>
 
-                        <Card className="p-6">
+                        <div className="rounded-lg bg-muted/40 p-6">
                             <h3 className="text-lg font-semibold mb-4">Generation Stats</h3>
                             <div className="space-y-4">
                                 <div className="flex items-center justify-between">
-                                    <span className="text-gray-600">Successful</span>
-                                    <span className="text-2xl font-bold text-green-600">{stats.successful_generations}</span>
+                                    <span className="text-muted-foreground">Successful</span>
+                                    <span className="text-2xl font-semibold">{stats.successful_generations}</span>
                                 </div>
                                 <div className="flex items-center justify-between">
-                                    <span className="text-gray-600">Failed</span>
-                                    <span className="text-2xl font-bold text-red-600">{stats.failed_generations}</span>
+                                    <span className="text-muted-foreground">Failed</span>
+                                    <span className="text-2xl font-semibold">{stats.failed_generations}</span>
                                 </div>
                                 <div className="flex items-center justify-between">
-                                    <span className="text-gray-600">Success Rate</span>
-                                    <span className="text-2xl font-bold">{successRate}%</span>
+                                    <span className="text-muted-foreground">Success Rate</span>
+                                    <span className="text-2xl font-semibold">{successRate}%</span>
                                 </div>
                             </div>
-                        </Card>
+                        </div>
                     </div>
 
                     {/* Quick Actions */}
-                    <Card className="p-6">
+                    <div className="rounded-lg bg-muted/40 p-6">
                         <h3 className="text-lg font-semibold mb-4">Quick Actions</h3>
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                             <Button asChild className="w-full">
@@ -148,18 +148,18 @@ export default function AdminDashboard({ stats }: AdminDashboardProps) {
                                 </Link>
                             </Button>
                         </div>
-                    </Card>
+                    </div>
 
                     {/* Warnings */}
                     {stats.suspended_users > 0 && (
-                        <Card className="p-6 mt-6 border-red-200 bg-red-50">
+                        <div className="rounded-lg bg-destructive/10 p-6 mt-6">
                             <div className="flex items-center gap-2">
-                                <Activity className="h-5 w-5 text-red-600" />
-                                <p className="text-red-800 font-medium">
+                                <Activity className="h-5 w-5 text-destructive" />
+                                <p className="text-destructive font-medium">
                                     {stats.suspended_users} suspended user{stats.suspended_users > 1 ? 's' : ''} require attention
                                 </p>
                             </div>
-                        </Card>
+                        </div>
                     )}
                 </div>
             </div>

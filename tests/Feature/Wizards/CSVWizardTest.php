@@ -82,25 +82,27 @@ class CSVWizardTest extends TestCase
     }
 
     /** @test */
-    public function csv_wizard_requires_minimum_5_reference_images()
+    public function csv_wizard_can_work_without_reference_images()
     {
         $user = User::factory()->create();
-        $csvFile = UploadedFile::fake()->createWithContent('data.csv', 'title,description,format');
-
-        // Only 3 images (should fail)
-        $referenceImages = [
-            UploadedFile::fake()->image('ref1.jpg'),
-            UploadedFile::fake()->image('ref2.jpg'),
-            UploadedFile::fake()->image('ref3.jpg'),
-        ];
+        $user->update(['credits_remaining' => 10]);
+        
+        $csvContent = "title,description,format\n";
+        $csvContent .= "Product Launch,Amazing new product,square\n";
+        $csvContent .= "Summer Sale,Hot deals this summer,landscape";
+        
+        $csvFile = UploadedFile::fake()->createWithContent('data.csv', $csvContent);
 
         $response = $this->actingAs($user)->post(route('projects.wizards.csv.store'), [
             'csv_file' => $csvFile,
-            'reference_images' => $referenceImages,
-            'project_name' => 'Test Project',
+            'project_name' => 'Test Project Without References',
         ]);
 
-        $response->assertSessionHasErrors(['reference_images']);
+        $response->assertRedirect();
+        $this->assertDatabaseHas('projects', [
+            'name' => 'Test Project Without References',
+            'user_id' => $user->id,
+        ]);
     }
 
     /** @test */

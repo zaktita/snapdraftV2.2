@@ -15,20 +15,24 @@ type UploadMode = 'upload' | 'create';
 
 const stepContent = {
     1: {
+        title: 'Name Your Project',
+        subtitle: 'Give your project a descriptive name to help organize your work.'
+    },
+    2: {
         title: 'Upload Your CSV File',
         subtitle: "We'll analyze your data and detect the structure.",
         titleAfterUpload: 'Review, Map & Edit Data',
         subtitleAfterUpload: 'Confirm your data is correct before proceeding.'
     },
-    2: {
+    3: {
         title: 'Review, Map & Edit Data',
         subtitle: 'Confirm your data is correct before proceeding.'
     },
-    3: {
-        title: 'Add Style References',
-        subtitle: (count: number) => `Upload 5-10 images to define the visual style for the ${count} selected product${count !== 1 ? 's' : ''}.`
-    },
     4: {
+        title: 'Add Style References (Optional)',
+        subtitle: (count: number) => `Upload 5-10 images to define the visual style for the ${count} selected product${count !== 1 ? 's' : ''}. You can skip this step if you prefer.`
+    },
+    5: {
         title: 'Preview & Generate',
         subtitle: 'Review your settings and start generation.'
     }
@@ -42,7 +46,7 @@ export default function CSVWizard() {
     const [styleImages, setStyleImages] = useState<string[]>([]);
     const [styleImageFiles, setStyleImageFiles] = useState<File[]>([]);
     const [csvFile, setCsvFile] = useState<File | null>(null);
-    const [projectName] = useState('');
+    const [projectName, setProjectName] = useState('');
     const [fileName, setFileName] = useState('');
     const [uploadComplete, setUploadComplete] = useState(false);
     const [dragOver, setDragOver] = useState(false);
@@ -316,22 +320,28 @@ export default function CSVWizard() {
     };
 
     const nextStep = () => {
-        if (currentStep === 1 && !csvData.length) return;
+        // Step 1: Project Name - must have name
+        if (currentStep === 1 && !projectName.trim()) return;
         
-        if (currentStep === 1 && uploadComplete) {
-            setCurrentStep(3);
-        } else if (currentStep < 4) {
+        // Step 2: CSV Upload - must have data
+        if (currentStep === 2 && !csvData.length) return;
+        
+        // If on step 2 and upload is complete, skip to step 4 (style references)
+        if (currentStep === 2 && uploadComplete) {
+            setCurrentStep(4);
+        } else if (currentStep < 5) {
             setCurrentStep(currentStep + 1);
         } else {
-            // Submit to backend
+            // Step 5: Submit to backend
             submitToBackend();
         }
     };
 
     const previousStep = () => {
         if (currentStep > 1) {
-            if (currentStep === 3 && uploadComplete) {
-                setCurrentStep(1);
+            // If on step 4 and we skipped step 3, go back to step 2
+            if (currentStep === 4 && uploadComplete) {
+                setCurrentStep(2);
             } else {
                 setCurrentStep(currentStep - 1);
             }
@@ -340,15 +350,15 @@ export default function CSVWizard() {
 
 
     const getTitle = () => {
-        if (currentStep === 1 && uploadComplete) {
-            return stepContent[1].titleAfterUpload;
+        if (currentStep === 2 && uploadComplete) {
+            return stepContent[2].titleAfterUpload;
         }
         return stepContent[currentStep as keyof typeof stepContent].title;
     };
 
     const getSubtitle = () => {
-        if (currentStep === 1 && uploadComplete) {
-            return stepContent[1].subtitleAfterUpload;
+        if (currentStep === 2 && uploadComplete) {
+            return stepContent[2].subtitleAfterUpload;
         }
         const subtitle = stepContent[currentStep as keyof typeof stepContent].subtitle;
         return typeof subtitle === 'function' ? subtitle(selectedRows.size) : subtitle;
@@ -458,10 +468,11 @@ export default function CSVWizard() {
                             color: 'var(--color-muted-foreground)',
                             fontWeight: 500
                         }}>
-                            <span style={{ color: (currentStep === 1 && !uploadComplete) || (currentStep === 1 && uploadComplete) ? 'var(--color-foreground)' : 'var(--color-muted-foreground)' }}>Upload</span>
-                            <span style={{ color: (currentStep === 2) || (currentStep === 1 && uploadComplete) ? 'var(--color-foreground)' : 'var(--color-muted-foreground)' }}>Review Data</span>
-                            <span style={{ color: currentStep === 3 ? 'var(--color-foreground)' : 'var(--color-muted-foreground)' }}>Style References</span>
-                            <span style={{ color: currentStep === 4 ? 'var(--color-foreground)' : 'var(--color-muted-foreground)' }}>Generate</span>
+                            <span style={{ color: currentStep === 1 ? 'var(--color-foreground)' : 'var(--color-muted-foreground)' }}>Project Name</span>
+                            <span style={{ color: (currentStep === 2 && !uploadComplete) || (currentStep === 2 && uploadComplete) ? 'var(--color-foreground)' : 'var(--color-muted-foreground)' }}>Upload</span>
+                            <span style={{ color: (currentStep === 3) || (currentStep === 2 && uploadComplete) ? 'var(--color-foreground)' : 'var(--color-muted-foreground)' }}>Review Data</span>
+                            <span style={{ color: currentStep === 4 ? 'var(--color-foreground)' : 'var(--color-muted-foreground)' }}>Style References</span>
+                            <span style={{ color: currentStep === 5 ? 'var(--color-foreground)' : 'var(--color-muted-foreground)' }}>Generate</span>
                         </div>
                     </div>
 
@@ -470,8 +481,47 @@ export default function CSVWizard() {
                         padding: '40px',
                         minHeight: '400px'
                     }}>
-                        {/* Step 1: Upload CSV */}
+                        {/* Step 1: Project Name */}
                         {currentStep === 1 && (
+                            <div style={{ animation: 'fadeIn 0.3s ease' }}>
+                                <div style={{ maxWidth: '500px', margin: '0 auto' }}>
+                                    <label style={{
+                                        display: 'block',
+                                        fontSize: '14px',
+                                        fontWeight: 500,
+                                        color: 'var(--color-foreground)',
+                                        marginBottom: '8px'
+                                    }}>
+                                        Project Name
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={projectName}
+                                        onChange={(e) => setProjectName(e.target.value)}
+                                        placeholder="e.g., Summer Campaign 2025"
+                                        style={{
+                                            width: '100%',
+                                            padding: '12px 16px',
+                                            fontSize: '15px',
+                                            border: '1px solid var(--color-border)',
+                                            borderRadius: '8px',
+                                            background: 'var(--color-background)',
+                                            color: 'var(--color-foreground)',
+                                            outline: 'none',
+                                            transition: 'border-color 0.2s ease'
+                                        }}
+                                        onFocus={(e) => e.target.style.borderColor = 'var(--color-primary)'}
+                                        onBlur={(e) => e.target.style.borderColor = 'var(--color-border)'}
+                                    />
+                                    <p style={{ fontSize: '13px', color: 'var(--color-muted-foreground)', marginTop: '6px' }}>
+                                        Choose a name that helps you identify this project later
+                                    </p>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Step 2: Upload CSV */}
+                        {currentStep === 2 && (
                             <div style={{ animation: 'fadeIn 0.3s ease' }}>
                                 {!uploadComplete ? (
                                     <>
@@ -825,7 +875,7 @@ export default function CSVWizard() {
                                                                 </div>
                                                             </th>
                                                         ))}
-                                                        <th style={{ padding: '14px 16px', textAlign: 'center', borderBottom: '1px solid #e5e7eb', width: '60px' }}>
+                                                        <th style={{ padding: '14px 16px', textAlign: 'center', borderBottom: '1px solid var(--color-border)', width: '60px' }}>
                                                             Actions
                                                         </th>
                                                     </tr>
@@ -927,8 +977,15 @@ export default function CSVWizard() {
                             </div>
                         )}
 
-                        {/* Step 3: Style References */}
+                        {/* Step 3: Review Data (skipped if upload from step 2) */}
                         {currentStep === 3 && (
+                            <div style={{ animation: 'fadeIn 0.3s ease' }}>
+                                {/* This step would show data review, but it's currently incorporated in step 2 */}
+                            </div>
+                        )}
+
+                        {/* Step 4: Style References (Optional) */}
+                        {currentStep === 4 && (
                             <div style={{ animation: 'fadeIn 0.3s ease' }}>
                                 <div 
                                     onClick={() => imageInputRef.current?.click()}
@@ -950,7 +1007,7 @@ export default function CSVWizard() {
                                         Drag & drop your style images here, or click to upload
                                     </div>
                                     <div style={{ fontSize: '14px', color: 'var(--color-muted-foreground)' }}>
-                                        Upload 5-10 images to define the visual style
+                                        Upload 5-10 images to define the visual style (optional)
                                     </div>
                                 </div>
                                 <input 
@@ -1002,8 +1059,8 @@ export default function CSVWizard() {
                             </div>
                         )}
 
-                        {/* Step 4: Review & Generate */}
-                        {currentStep === 4 && (
+                        {/* Step 5: Review & Generate */}
+                        {currentStep === 5 && (
                             <div style={{ animation: 'fadeIn 0.3s ease' }}>
                                 <div style={{
                                     background: 'var(--color-muted)',
@@ -1120,13 +1177,13 @@ export default function CSVWizard() {
                         </button>
                         <button 
                             onClick={nextStep}
-                            disabled={(currentStep === 1 && !csvData.length) || isSubmitting}
+                            disabled={(currentStep === 1 && !projectName.trim()) || (currentStep === 2 && !csvData.length) || isSubmitting}
                             style={{
                                 padding: '10px 24px',
                                 borderRadius: '8px',
                                 fontSize: '14px',
                                 fontWeight: 500,
-                                cursor: ((currentStep === 1 && !csvData.length) || isSubmitting) ? 'not-allowed' : 'pointer',
+                                cursor: ((currentStep === 1 && !projectName.trim()) || (currentStep === 2 && !csvData.length) || isSubmitting) ? 'not-allowed' : 'pointer',
                                 transition: 'all 0.2s ease-out',
                                 display: 'inline-flex',
                                 alignItems: 'center',
@@ -1134,7 +1191,7 @@ export default function CSVWizard() {
                                 background: 'var(--color-primary)',
                                 color: 'var(--color-primary-foreground)',
                                 border: '1px solid var(--color-primary)',
-                                opacity: ((currentStep === 1 && !csvData.length) || isSubmitting) ? 0.5 : 1
+                                opacity: ((currentStep === 1 && !projectName.trim()) || (currentStep === 2 && !csvData.length) || isSubmitting) ? 0.5 : 1
                             }}
                         >
                             {isSubmitting ? (
@@ -1151,6 +1208,11 @@ export default function CSVWizard() {
                                     Creating Project...
                                 </>
                             ) : currentStep === 4 ? (
+                                <>
+                                    {styleImages.length > 0 ? 'Next' : 'Skip Style References'}
+                                    <ArrowRight size={16} />
+                                </>
+                            ) : currentStep === 5 ? (
                                 <>
                                     Generate {selectedRows.size} Image{selectedRows.size !== 1 ? 's' : ''}
                                     <Zap size={16} />

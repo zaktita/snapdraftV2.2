@@ -203,9 +203,11 @@ class ProjectController extends Controller
         $project = Project::findOrFail($id);
         $this->authorize('update', $project);
 
-        $project->update($request->validated());
+        $validated = $request->validated();
 
-        return back()->with('success', 'Project updated successfully!');
+        $project->update($validated);
+
+        return redirect()->back()->with('success', 'Project updated successfully!');
     }
 
     /**

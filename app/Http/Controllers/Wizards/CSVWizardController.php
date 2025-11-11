@@ -28,8 +28,8 @@ class CSVWizardController extends Controller
         $validated = $request->validate([
             'project_name' => 'required|string|max:255',
             'csv_file' => 'required|file|mimes:csv,txt|max:10240', // Max 10MB
-            'reference_images' => 'required|array|min:5|max:10',
-            'reference_images.*' => 'required|image|mimes:jpeg,jpg,png,webp|max:10240',
+            'reference_images' => 'nullable|array|max:10',
+            'reference_images.*' => 'nullable|image|mimes:jpeg,jpg,png,webp|max:10240',
             'product_images' => 'nullable|array|max:5',
             'product_images.*' => 'nullable|image|mimes:jpeg,jpg,png,webp|max:10240',
         ]);
@@ -41,20 +41,23 @@ class CSVWizardController extends Controller
             'description' => 'Created via CSV Wizard',
             'settings' => [
                 'wizard_type' => 'csv',
+                'has_reference_images' => $request->hasFile('reference_images'),
                 'has_product_images' => $request->hasFile('product_images'),
             ],
         ]);
 
-        // Upload and store brand reference images
-        $referenceDir = 'projects/' . $project->id . '/references';
-        foreach ($request->file('reference_images') as $index => $file) {
-            $uploadResult = $this->fileUploadService->uploadImage($file, $referenceDir);
+        // Upload and store brand reference images (if provided)
+        if ($request->hasFile('reference_images')) {
+            $referenceDir = 'projects/' . $project->id . '/references';
+            foreach ($request->file('reference_images') as $index => $file) {
+                $uploadResult = $this->fileUploadService->uploadImage($file, $referenceDir);
 
-            $project->brandReferences()->create([
-                'url' => $uploadResult['url'],
-                'thumbnail_url' => $uploadResult['thumbnail_url'],
-                'order' => $index,
-            ]);
+                $project->brandReferences()->create([
+                    'url' => $uploadResult['url'],
+                    'thumbnail_url' => $uploadResult['thumbnail_url'],
+                    'order' => $index,
+                ]);
+            }
         }
 
         // Upload product images if provided

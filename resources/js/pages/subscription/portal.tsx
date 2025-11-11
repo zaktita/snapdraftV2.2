@@ -74,7 +74,7 @@ export default function PortalPage({ subscription, invoices, auth }: PortalPageP
                 <div className="mx-auto max-w-7xl">
                     {/* Header */}
                     <div className="mb-8">
-                        <h1 className="text-3xl font-bold text-foreground">Billing Portal</h1>
+                        <h1 className="text-3xl font-semibold">Billing Portal</h1>
                         <p className="text-muted-foreground mt-2">Manage your subscription and billing</p>
                     </div>
 
@@ -82,7 +82,7 @@ export default function PortalPage({ subscription, invoices, auth }: PortalPageP
                         {/* Main Content */}
                         <div className="lg:col-span-2 space-y-6">
                             {/* Current Plan */}
-                            <Card className="p-6">
+                            <div className="rounded-lg bg-muted/40 p-6">
                                 <div className="flex items-center justify-between mb-6">
                                     <h2 className="text-xl font-semibold">Current Plan</h2>
                                     <Badge className={getTierColor(subscription.tier)}>
@@ -139,13 +139,13 @@ export default function PortalPage({ subscription, invoices, auth }: PortalPageP
                                         </Button>
                                     )}
                                 </div>
-                            </Card>
+                            </div>
 
                             {/* Credits Usage */}
-                            <Card className="p-6">
+                            <div className="rounded-lg bg-muted/40 p-6">
                                 <div className="flex items-center justify-between mb-4">
                                     <h2 className="text-xl font-semibold">Credits Usage</h2>
-                                    <Zap className="h-5 w-5 text-warning" />
+                                    <Zap className="h-5 w-5" />
                                 </div>
 
                                 <div className="space-y-4">
@@ -163,10 +163,10 @@ export default function PortalPage({ subscription, invoices, auth }: PortalPageP
                                     </div>
 
                                     {creditsPercentage < 20 && subscription.credits_total !== 999999 && (
-                                        <div className="flex items-start gap-2 p-4 bg-muted rounded-lg border border-border">
-                                            <AlertCircle className="h-5 w-5 text-foreground flex-shrink-0 mt-0.5" />
+                                        <div className="flex items-start gap-2 p-4 bg-muted/60 rounded-lg">
+                                            <AlertCircle className="h-5 w-5 flex-shrink-0 mt-0.5" />
                                             <div>
-                                                <p className="font-medium text-foreground">
+                                                <p className="font-medium">
                                                     Running low on credits
                                                 </p>
                                                 <p className="text-sm text-muted-foreground mt-1">
@@ -185,10 +185,10 @@ export default function PortalPage({ subscription, invoices, auth }: PortalPageP
                                         Purchase Additional Credits
                                     </Button>
                                 </div>
-                            </Card>
+                            </div>
 
                             {/* Invoices */}
-                            <Card className="p-6">
+                            <div className="rounded-lg bg-muted/40 p-6">
                                 <div className="flex items-center justify-between mb-6">
                                     <h2 className="text-xl font-semibold">Invoices</h2>
                                     <Receipt className="h-5 w-5 text-muted-foreground" />
@@ -199,7 +199,7 @@ export default function PortalPage({ subscription, invoices, auth }: PortalPageP
                                         {invoices.map((invoice) => (
                                             <div
                                                 key={invoice.id}
-                                                className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted"
+                                                className="flex items-center justify-between p-4 rounded-lg bg-muted/60 hover:bg-muted/80 transition-colors"
                                             >
                                                 <div className="flex items-center gap-4">
                                                     <Calendar className="h-5 w-5 text-muted-foreground" />
@@ -232,15 +232,15 @@ export default function PortalPage({ subscription, invoices, auth }: PortalPageP
                                         <p>No invoices yet</p>
                                     </div>
                                 )}
-                            </Card>
+                            </div>
                         </div>
 
                         {/* Sidebar */}
                         <div className="space-y-6">
                             {/* Payment Method */}
-                            <Card className="p-6">
+                            <div className="rounded-lg bg-muted/40 p-6">
                                 <h3 className="font-semibold mb-4">Payment Method</h3>
-                                <div className="flex items-center gap-3 p-4 border rounded-lg">
+                                <div className="flex items-center gap-3 p-4 rounded-lg bg-muted/60">
                                     <CreditCard className="h-8 w-8 text-muted-foreground" />
                                     <div>
                                         <p className="font-medium">•••• •••• •••• 4242</p>
@@ -250,15 +250,15 @@ export default function PortalPage({ subscription, invoices, auth }: PortalPageP
                                 <Button variant="outline" className="w-full mt-4">
                                     Update Card
                                 </Button>
-                            </Card>
+                            </div>
 
                             {/* Quick Stats */}
-                            <Card className="p-6">
+                            <div className="rounded-lg bg-muted/40 p-6">
                                 <h3 className="font-semibold mb-4">Quick Stats</h3>
                                 <div className="space-y-4">
                                     <div>
                                         <p className="text-sm text-muted-foreground">Total Spent</p>
-                                        <p className="text-2xl font-bold">$0.00</p>
+                                        <p className="text-2xl font-semibold">$0.00</p>
                                     </div>
                                     <div>
                                         <p className="text-sm text-muted-foreground">Member Since</p>
@@ -267,10 +267,10 @@ export default function PortalPage({ subscription, invoices, auth }: PortalPageP
                                         </p>
                                     </div>
                                 </div>
-                            </Card>
+                            </div>
 
                             {/* Help */}
-                            <Card className="p-6 bg-card border-border">
+                            <div className="rounded-lg bg-muted/40 p-6">
                                 <h3 className="font-semibold mb-2">Need Help?</h3>
                                 <p className="text-sm text-muted-foreground mb-4">
                                     Have questions about billing or your subscription?
@@ -278,7 +278,7 @@ export default function PortalPage({ subscription, invoices, auth }: PortalPageP
                                 <Button variant="outline" className="w-full">
                                     Contact Support
                                 </Button>
-                            </Card>
+                            </div>
                         </div>
                     </div>
                 </div>

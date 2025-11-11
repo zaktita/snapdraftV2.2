@@ -102,59 +102,46 @@ export default function ProjectCreate() {
 
                 <div className="grid gap-6 md:grid-cols-3">
                     {wizardOptions.map((option) => (
-                        <Card
+                        <div
                             key={option.id}
-                            className="group cursor-pointer transition-all hover:border-primary hover:shadow-md"
+                            className="group cursor-pointer rounded-lg bg-muted/40 p-6 hover:bg-muted/60 transition-colors"
                             onClick={() => router.visit(option.route)}
                         >
-                            <CardHeader className="space-y-4">
-                                <div
-                                    className={`flex size-12 items-center justify-center rounded-lg ${option.iconBg}`}
-                                >
-                                    <option.icon
-                                        className={`size-6 ${option.iconColor}`}
-                                    />
+                            <div className="space-y-4 mb-6">
+                                <div className="flex size-12 items-center justify-center rounded-lg bg-muted/60">
+                                    <option.icon className="size-6 text-muted-foreground" />
                                 </div>
                                 <div>
-                                    <CardTitle className="text-xl">
+                                    <h3 className="text-xl font-semibold mb-2">
                                         {option.title}
-                                    </CardTitle>
-                                    <CardDescription className="mt-2">
+                                    </h3>
+                                    <p className="text-sm text-muted-foreground">
                                         {option.description}
-                                    </CardDescription>
+                                    </p>
                                 </div>
-                            </CardHeader>
-                            <CardContent>
-                                <ul className="space-y-2">
-                                    {option.features.map((feature, idx) => (
-                                        <li
-                                            key={idx}
-                                            className="flex items-start gap-2 text-sm text-muted-foreground"
-                                        >
-                                            <span className="mt-0.5 text-primary">
-                                                •
-                                            </span>
-                                            <span>{feature}</span>
-                                        </li>
-                                    ))}
-                                </ul>
-                                <Button
-                                    className="mt-6 w-full"
-                                    variant="outline"
-                                >
-                                    Start with {option.title}
-                                </Button>
-                            </CardContent>
-                        </Card>
+                            </div>
+                            <ul className="space-y-2 mb-6">
+                                {option.features.map((feature, idx) => (
+                                    <li
+                                        key={idx}
+                                        className="flex items-start gap-2 text-sm text-muted-foreground"
+                                    >
+                                        <span className="mt-0.5">•</span>
+                                        <span>{feature}</span>
+                                    </li>
+                                ))}
+                            </ul>
+                            <Button className="w-full" variant="outline">
+                                Start with {option.title}
+                            </Button>
+                        </div>
                     ))}
                 </div>
 
-                <div className="rounded-lg border bg-muted/30 p-4">
+                <div className="rounded-lg bg-muted/40 p-4">
                     <div className="flex items-start gap-3">
-                        <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary/10">
-                            <span className="text-sm font-semibold text-primary">
-                                ?
-                            </span>
+                        <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-muted/60">
+                            <span className="text-sm font-semibold">?</span>
                         </div>
                         <div className="space-y-1">
                             <p className="text-sm font-medium">
