@@ -1,6 +1,6 @@
-import { Head, Link, router } from '@inertiajs/react';
+import { Head, Link, router, usePage } from '@inertiajs/react';
 import { ArrowLeft, ArrowRight, FileText, Grid, Image as ImageIcon, Upload, X, Clock, AlertCircle, Zap, Plus, Trash2, Edit3 } from 'lucide-react';
-import { useState, useRef, DragEvent, ChangeEvent } from 'react';
+import { useState, useRef, DragEvent, ChangeEvent, useEffect } from 'react';
 import csv from '@/routes/projects/wizards/csv';
 
 interface CSVRow {
@@ -39,6 +39,7 @@ const stepContent = {
 };
 
 export default function CSVWizard() {
+    const page = usePage<{ error?: string }>();
     const [currentStep, setCurrentStep] = useState(1);
     const [csvData, setCsvData] = useState<CSVRow[]>([]);
     const [selectedRows, setSelectedRows] = useState<Set<number>>(new Set());
@@ -54,9 +55,19 @@ export default function CSVWizard() {
     const [uploadMode, setUploadMode] = useState<UploadMode>('upload');
     const [editableData, setEditableData] = useState<CSVRow[]>([]);
     const [editableHeaders, setEditableHeaders] = useState<string[]>(['title', 'description', 'format']);
+    const [showError, setShowError] = useState(false);
     
     const csvInputRef = useRef<HTMLInputElement>(null);
     const imageInputRef = useRef<HTMLInputElement>(null);
+
+    // Show error message if present
+    useEffect(() => {
+        if (page.props.error) {
+            setShowError(true);
+            const timer = setTimeout(() => setShowError(false), 7000);
+            return () => clearTimeout(timer);
+        }
+    }, [page.props.error]);
 
     // Parse CSV
     const parseCSV = (text: string): CSVRow[] => {
@@ -297,7 +308,6 @@ export default function CSVWizard() {
             : (fileName ? fileName.replace(/\.[^.]+$/, '') : 'CSV Project');
 
         if (!csvFile) return;
-        if (styleImageFiles.length < 5) return;
         if (isSubmitting) return;
 
         setIsSubmitting(true);
@@ -305,16 +315,19 @@ export default function CSVWizard() {
         const fd = new FormData();
         fd.append('project_name', name);
         fd.append('csv_file', csvFile);
-        styleImageFiles.slice(0, 10).forEach((f) => fd.append('reference_images[]', f));
+        
+        // Add reference images only if provided (optional)
+        if (styleImageFiles.length > 0) {
+            styleImageFiles.slice(0, 10).forEach((f) => fd.append('reference_images[]', f));
+        }
         // product_images optional: skip for now
 
         router.post(csv.store.url(), fd, {
             forceFormData: true,
-            preserveScroll: false, // Changed to false for redirect
+            preserveScroll: false,
             onError: () => setIsSubmitting(false),
             onSuccess: () => {
                 // Form submitted successfully, redirect will happen automatically
-                // The onSuccess is called before navigation completes
             },
         });
     };
@@ -409,6 +422,46 @@ export default function CSVWizard() {
                             <ArrowLeft size={14} />
                             Back to Projects
                         </Link>
+                        
+                        {/* Error Alert */}
+                        {showError && page.props.error && (
+                            <div style={{
+                                padding: '12px 16px',
+                                marginBottom: '16px',
+                                backgroundColor: 'hsl(var(--destructive) / 0.1)',
+                                border: '1px solid hsl(var(--destructive) / 0.3)',
+                                borderRadius: '8px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '12px'
+                            }}>
+                                <AlertCircle size={18} style={{ color: 'hsl(var(--destructive))', flexShrink: 0 }} />
+                                <p style={{ 
+                                    margin: 0, 
+                                    fontSize: '14px', 
+                                    color: 'hsl(var(--destructive))',
+                                    lineHeight: 1.5
+                                }}>
+                                    {page.props.error}
+                                </p>
+                                <button
+                                    onClick={() => setShowError(false)}
+                                    style={{
+                                        marginLeft: 'auto',
+                                        background: 'none',
+                                        border: 'none',
+                                        cursor: 'pointer',
+                                        color: 'hsl(var(--destructive))',
+                                        padding: '4px',
+                                        display: 'flex',
+                                        alignItems: 'center'
+                                    }}
+                                >
+                                    <X size={16} />
+                                </button>
+                            </div>
+                        )}
+                        
                         <h1 style={{
                             fontSize: '24px',
                             fontWeight: 600,

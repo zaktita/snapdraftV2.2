@@ -34,6 +34,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     })->name('projects.wizards.csv');
 
     Route::post('projects/wizards/csv', [CSVWizardController::class, 'store'])
+        ->middleware('has.credits')
         ->name('projects.wizards.csv.store');
 
     Route::get('projects/create/images', function () {
@@ -41,6 +42,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     })->name('projects.wizards.images');
 
     Route::post('projects/wizards/images', [ImagesWizardController::class, 'store'])
+        ->middleware('has.credits')
         ->name('projects.wizards.images.store');
 
     Route::get('projects/create/text', function () {
@@ -48,6 +50,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     })->name('projects.wizards.text');
 
     Route::post('projects/wizards/text', [TextWizardController::class, 'store'])
+        ->middleware('has.credits')
         ->name('projects.wizards.text.store');
 
     // Projects Resource Routes (except create, which we handle above)
@@ -104,6 +107,18 @@ Route::middleware(['auth', 'verified'])->group(function () {
     // AI-powered canvas editing endpoint
     Route::post('/api/generate-with-mask', [ImageEditController::class, 'generateWithMask'])
         ->name('api.generate-with-mask');
+    
+    // AI-powered image expansion (outpainting)
+    Route::post('/api/expand-image', [ImageEditController::class, 'expandImage'])
+        ->name('api.expand-image');
+    
+    // Image upscaling
+    Route::post('/api/upscale-image', [ImageEditController::class, 'upscaleImage'])
+        ->name('api.upscale-image');
+    
+    // Background removal
+    Route::post('/api/remove-background', [ImageEditController::class, 'removeBackground'])
+        ->name('api.remove-background');
     
     // Test Gemini inpainting
     Route::get('/test/gemini-inpaint', [ImageEditController::class, 'testInpaint']);

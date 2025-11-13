@@ -17,10 +17,12 @@ import {
     Redo2,
     RotateCcw,
     Save,
+    Scissors,
     Type,
     Undo2,
     Upload,
     Wand2,
+    ZoomIn,
 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 
@@ -61,6 +63,31 @@ interface BrushLine {
     objectId?: number | null;
 }
 
+// Constants
+const CANVAS_DEFAULTS = {
+    BRUSH_SIZE: 50,
+    BRUSH_OPACITY: 100,
+    ZOOM_FACTOR: 1.2,
+    ZOOM_MIN: 0.1,
+    ZOOM_MAX: 10,
+    OBJECT_SPACING: 50,
+    UNDO_LIMIT: 50,
+    TOAST_DISMISS_MS: 3000,
+    CANVAS_PADDING: 100,
+    ERASE_GAP: 20,
+};
+
+// Utility function to convert image to data URL
+const imageToDataUrl = (img: HTMLImageElement): string => {
+    const canvas = document.createElement('canvas');
+    canvas.width = img.width;
+    canvas.height = img.height;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) throw new Error('Failed to create canvas context');
+    ctx.drawImage(img, 0, 0);
+    return canvas.toDataURL('image/png');
+};
+
 export default function CanvasEditor(props: CanvasEditorProps) {
     // Read query params if present
     const query = getQueryParams();
@@ -76,8 +103,8 @@ export default function CanvasEditor(props: CanvasEditorProps) {
     const [ctx, setCtx] = useState<CanvasRenderingContext2D | null>(null);
     const [image, setImage] = useState<HTMLImageElement | null>(null);
     const [currentTool, setCurrentTool] = useState('select');
-    const [brushSize, setBrushSize] = useState(50);
-    const [brushOpacity, setBrushOpacity] = useState(100);
+    const [brushSize, setBrushSize] = useState(CANVAS_DEFAULTS.BRUSH_SIZE);
+    const [brushOpacity, setBrushOpacity] = useState(CANVAS_DEFAULTS.BRUSH_OPACITY);
     const [isPainting, setIsPainting] = useState(false);
     const [isDragging, setIsDragging] = useState(false);
     const [isSpacePressed, setIsSpacePressed] = useState(false);
@@ -98,10 +125,10 @@ export default function CanvasEditor(props: CanvasEditorProps) {
     const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
     const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
     const [showUploadZone, setShowUploadZone] = useState(true);
+    const [generatingType, setGeneratingType] = useState<string | null>(null);
+    const [actionHistory, setActionHistory] = useState<Array<{type: string; message: string; time: number}>>([]);
     const [cursorPosition, setCursorPosition] = useState({ x: 0, y: 0 });
-    const [isImageReady, setIsImageReady] = useState(false);
     const internalClipboardRef = useRef<HTMLImageElement | null>(null);
-    const liveDragPositionRef = useRef<{ x: number; y: number } | null>(null);
 
     // Modal state
     const [promptModal, setPromptModal] = useState<{
@@ -248,26 +275,51 @@ export default function CanvasEditor(props: CanvasEditorProps) {
                 }
             }
 
-            // Tool shortcuts
-            if (e.code === 'KeyV') {
-                e.preventDefault();
-                selectTool('select');
-            }
-            if (e.code === 'KeyR') {
-                e.preventDefault();
-                selectTool('retouch');
-            }
-            if (e.code === 'KeyB') {
-                e.preventDefault();
-                selectTool('brush');
-            }
-            if (e.code === 'KeyE') {
-                e.preventDefault();
-                selectTool('erase');
-            }
-            if (e.code === 'KeyU') {
-                e.preventDefault();
-                fileInputRef.current?.click();
+            // Tool shortcuts (without modifier keys)
+            // Only trigger if no modifier keys are pressed
+            if (!e.ctrlKey && !e.metaKey && !e.shiftKey && !e.altKey) {
+                if (e.code === 'KeyV') {
+                    e.preventDefault();
+                    selectTool('select');
+                    return;
+                }
+                if (e.code === 'KeyR') {
+                    e.preventDefault();
+                    selectTool('retouch');
+                    return;
+                }
+                if (e.code === 'KeyE') {
+                    e.preventDefault();
+                    selectTool('erase');
+                    return;
+                }
+                if (e.code === 'KeyU') {
+                    e.preventDefault();
+                    fileInputRef.current?.click();
+                    return;
+                }
+                // Enhancement tool shortcuts
+                if (e.code === 'KeyX') {
+                    e.preventDefault();
+                    if (!isGenerating) {
+                        handleExpandImage();
+                    }
+                    return;
+                }
+                if (e.code === 'KeyS') {
+                    e.preventDefault();
+                    if (!isGenerating) {
+                        handleUpscaleImage();
+                    }
+                    return;
+                }
+                if (e.code === 'KeyB') {
+                    e.preventDefault();
+                    if (!isGenerating) {
+                        handleRemoveBackground();
+                    }
+                    return;
+                }
             }
         };
 
@@ -480,7 +532,6 @@ export default function CanvasEditor(props: CanvasEditorProps) {
                 src: src.slice(0, 60) + '...',
             });
             setImage(img);
-            setIsImageReady(false);
 
             // Calculate center position before rendering
             requestAnimationFrame(() => {
@@ -488,8 +539,8 @@ export default function CanvasEditor(props: CanvasEditorProps) {
 
                 const imageWidth = img.width;
                 const imageHeight = img.height;
-                const containerWidth = canvas.width - 100;
-                const containerHeight = canvas.height - 100;
+                const containerWidth = canvas.width - CANVAS_DEFAULTS.CANVAS_PADDING;
+                const containerHeight = canvas.height - CANVAS_DEFAULTS.CANVAS_PADDING;
 
                 const scaleX = containerWidth / imageWidth;
                 const scaleY = containerHeight / imageHeight;
@@ -518,7 +569,6 @@ export default function CanvasEditor(props: CanvasEditorProps) {
                 setSelectedObject(mainImageObj);
                 setShowUploadZone(false);
                 setLines([]);
-                setIsImageReady(true);
                 debug.log('[Canvas] Main image object created and selected', {
                     id: mainImageObj.id,
                     scale: newScale,
@@ -532,7 +582,7 @@ export default function CanvasEditor(props: CanvasEditorProps) {
 
     const loadImageFile = (file: File) => {
         if (!file.type.startsWith('image/')) {
-            alert('Please select an image file.');
+            showAlert('Invalid File', 'Please select an image file.', 'warning');
             return;
         }
         const reader = new FileReader();
@@ -555,17 +605,6 @@ export default function CanvasEditor(props: CanvasEditorProps) {
         if (!ctx || !canvas) return;
 
         ctx.clearRect(0, 0, canvas.width, canvas.height);
-        // Debug draw info occasionally
-        if (performance.now() % 1000 < 16) {
-            debug.log('[Canvas] drawScene', {
-                objects: canvasObjects.length,
-                lines: lines.length,
-                scale,
-                panX,
-                panY,
-                selectedId: selectedObject?.id,
-            });
-        }
 
         // Draw all canvas objects
         canvasObjects.forEach((obj) => drawCanvasObject(obj));
@@ -805,21 +844,23 @@ export default function CanvasEditor(props: CanvasEditorProps) {
             const newX = (x - dragOffset.x - panX) / scale;
             const newY = (y - dragOffset.y - panY) / scale;
 
-            // Directly mutate the object in the array (like HTML version) for immediate update
-            const objIndex = canvasObjects.findIndex(
-                (obj) => obj.id === draggedObject.id,
-            );
-            if (objIndex !== -1) {
-                canvasObjects[objIndex].x = newX;
-                canvasObjects[objIndex].y = newY;
-
-                // Force re-render by triggering a state update
-                setCanvasObjects([...canvasObjects]);
-
-                // Update selected and dragged references
-                setSelectedObject(canvasObjects[objIndex]);
-                setDraggedObject(canvasObjects[objIndex]);
-            }
+            // Update object position immutably
+            setCanvasObjects(prev => {
+                const updatedObjects = prev.map(obj => 
+                    obj.id === draggedObject.id
+                        ? { ...obj, x: newX, y: newY }
+                        : obj
+                );
+                
+                // Find and update references
+                const updatedObject = updatedObjects.find(obj => obj.id === draggedObject.id);
+                if (updatedObject) {
+                    setSelectedObject(updatedObject);
+                    setDraggedObject(updatedObject);
+                }
+                
+                return updatedObjects;
+            });
             return;
         }
 
@@ -890,12 +931,12 @@ export default function CanvasEditor(props: CanvasEditorProps) {
         const mouseX = e.clientX - rect.left;
         const mouseY = e.clientY - rect.top;
 
-        const scaleBy = 1.1;
+        const scaleBy = 1.1; // Finer control for mouse wheel
         const direction = e.deltaY > 0 ? -1 : 1;
         const oldScale = scale;
         const newScale =
             direction > 0 ? oldScale * scaleBy : oldScale / scaleBy;
-        const clampedScale = Math.max(0.1, Math.min(10, newScale));
+        const clampedScale = Math.max(CANVAS_DEFAULTS.ZOOM_MIN, Math.min(CANVAS_DEFAULTS.ZOOM_MAX, newScale));
 
         setScale(clampedScale);
         const scaleChange = clampedScale / oldScale;
@@ -907,8 +948,8 @@ export default function CanvasEditor(props: CanvasEditorProps) {
         // Save current state to undo stack before adding new line
         setUndoStack((prev) => {
             const newStack = [...prev, lines];
-            // Limit undo stack to 50 items
-            if (newStack.length > 50) {
+            // Limit undo stack to prevent memory issues
+            if (newStack.length > CANVAS_DEFAULTS.UNDO_LIMIT) {
                 newStack.shift();
             }
             return newStack;
@@ -959,8 +1000,8 @@ export default function CanvasEditor(props: CanvasEditorProps) {
 
         const totalWidth = maxX - minX;
         const totalHeight = maxY - minY;
-        const containerWidth = canvas.width - 100;
-        const containerHeight = canvas.height - 100;
+        const containerWidth = canvas.width - CANVAS_DEFAULTS.CANVAS_PADDING;
+        const containerHeight = canvas.height - CANVAS_DEFAULTS.CANVAS_PADDING;
 
         const scaleX = containerWidth / totalWidth;
         const scaleY = containerHeight / totalHeight;
@@ -971,8 +1012,8 @@ export default function CanvasEditor(props: CanvasEditorProps) {
         setPanY((canvas.height - totalHeight * newScale) / 2 - minY * newScale);
     };
 
-    const zoomIn = () => setScale((prev) => Math.min(10, prev * 1.2));
-    const zoomOut = () => setScale((prev) => Math.max(0.1, prev / 1.2));
+    const zoomIn = () => setScale((prev) => Math.min(CANVAS_DEFAULTS.ZOOM_MAX, prev * CANVAS_DEFAULTS.ZOOM_FACTOR));
+    const zoomOut = () => setScale((prev) => Math.max(CANVAS_DEFAULTS.ZOOM_MIN, prev / CANVAS_DEFAULTS.ZOOM_FACTOR));
     const resetZoom = () => setScale(1);
 
     const undo = () => {
@@ -995,11 +1036,19 @@ export default function CanvasEditor(props: CanvasEditorProps) {
         }
     };
 
-    const resetDrawing = () => {
-        if (lines.length > 0 && confirm('Clear all brush strokes?')) {
-            setUndoStack((prev) => [...prev, lines]);
-            setLines([]);
-            setRedoStack([]);
+    const resetDrawing = async () => {
+        if (lines.length > 0) {
+            const confirmed = await showConfirm(
+                'Clear Brush Strokes',
+                'Are you sure you want to clear all brush strokes? This action cannot be undone.',
+                'Clear',
+                true
+            );
+            if (confirmed) {
+                setUndoStack((prev) => [...prev, lines]);
+                setLines([]);
+                setRedoStack([]);
+            }
         }
     };
 
@@ -1068,13 +1117,13 @@ export default function CanvasEditor(props: CanvasEditorProps) {
     // Download the mask for the currently selected object
     const downloadMask = () => {
         if (!selectedObject) {
-            alert('Please select an image first.');
+            showAlert('No Selection', 'Please select an image first.', 'warning');
             debug.log('[Mask] Download attempted without selection');
             return;
         }
         const relevant = lines.filter((l) => l.objectId === selectedObject.id);
         if (relevant.length === 0) {
-            alert('No brush strokes found for the selected image.');
+            showAlert('No Mask', 'No brush strokes found for the selected image.', 'warning');
             debug.log('[Mask] Download attempted without mask');
             return;
         }
@@ -1115,6 +1164,7 @@ export default function CanvasEditor(props: CanvasEditorProps) {
         title: string,
         message: string,
         type: 'info' | 'warning' | 'error' = 'info',
+        actionType?: string,
     ) => {
         setAlertModal({
             isOpen: true,
@@ -1122,6 +1172,27 @@ export default function CanvasEditor(props: CanvasEditorProps) {
             message,
             type,
         });
+        
+        // Auto-dismiss after a few seconds for success messages
+        if (type === 'info') {
+            setTimeout(() => {
+                setAlertModal((prev) => ({ ...prev, isOpen: false }));
+            }, CANVAS_DEFAULTS.TOAST_DISMISS_MS);
+        }
+        
+        // Add to action history for toast notifications
+        if (actionType) {
+            const timestamp = Date.now();
+            setActionHistory((prev) => [
+                { type: actionType, message: `${title}: ${message}`, time: timestamp },
+                ...prev.slice(0, 4), // Keep only last 5 items
+            ]);
+            
+            // Auto-clear toast after a few seconds
+            setTimeout(() => {
+                setActionHistory((prev) => prev.filter(item => item.time !== timestamp));
+            }, CANVAS_DEFAULTS.TOAST_DISMISS_MS);
+        }
     };
 
     const showConfirm = (
@@ -1181,17 +1252,10 @@ export default function CanvasEditor(props: CanvasEditorProps) {
             debug.log('[Erase] Mask stats', stats);
 
             // Convert images to base64
-            const originalCanvas = document.createElement('canvas');
-            originalCanvas.width = selectedObject.image.width;
-            originalCanvas.height = selectedObject.image.height;
-            const originalCtx = originalCanvas.getContext('2d');
-            if (!originalCtx)
-                throw new Error('Failed to create canvas context');
-            originalCtx.drawImage(selectedObject.image, 0, 0);
             let originalImage = '';
             let maskImage = '';
             try {
-                originalImage = originalCanvas.toDataURL('image/png');
+                originalImage = imageToDataUrl(selectedObject.image);
             } catch (e) {
                 console.error(
                     '[AI Generate] toDataURL failed for original image, likely CORS taint',
@@ -1202,6 +1266,7 @@ export default function CanvasEditor(props: CanvasEditorProps) {
                     'Cannot read the original image due to browser security (CORS). Try uploading a local image or ensure the image URL allows cross-origin access.',
                     'error',
                 );
+                setIsGenerating(false);
                 return;
             }
             try {
@@ -1216,6 +1281,7 @@ export default function CanvasEditor(props: CanvasEditorProps) {
                     'Failed to serialize the mask image.',
                     'error',
                 );
+                setIsGenerating(false);
                 return;
             }
 
@@ -1258,7 +1324,7 @@ export default function CanvasEditor(props: CanvasEditorProps) {
                         const generatedObj = {
                             id: Date.now() + Math.random(),
                             image: newImage,
-                            x: sourceObject.x + sourceObject.image.width + 20, // 20px gap
+                            x: sourceObject.x + sourceObject.image.width + CANVAS_DEFAULTS.ERASE_GAP,
                             y: sourceObject.y,
                             label: `${sourceObject.label || 'Image'} (Edited)`,
                             isMainImage: false,
@@ -1337,15 +1403,7 @@ export default function CanvasEditor(props: CanvasEditorProps) {
             debug.log('[ReplaceText] Mask stats', stats);
 
             // Convert images to base64
-            const originalCanvas = document.createElement('canvas');
-            originalCanvas.width = selectedObject.image.width;
-            originalCanvas.height = selectedObject.image.height;
-            const originalCtx = originalCanvas.getContext('2d');
-            if (!originalCtx)
-                throw new Error('Failed to create canvas context');
-            originalCtx.drawImage(selectedObject.image, 0, 0);
-
-            const originalImage = originalCanvas.toDataURL('image/png');
+            const originalImage = imageToDataUrl(selectedObject.image);
             const maskImage = maskCanvas.toDataURL('image/png');
 
             // Make API call
@@ -1425,7 +1483,7 @@ export default function CanvasEditor(props: CanvasEditorProps) {
                         const generatedObj = {
                             id: Date.now() + Math.random(),
                             image: newImage,
-                            x: sourceObject.x + sourceObject.image.width + 20, // 20px gap to the right
+                            x: sourceObject.x + sourceObject.image.width + CANVAS_DEFAULTS.ERASE_GAP,
                             y: sourceObject.y,
                             label: `${sourceObject.label || 'Image'} (Edited)`,
                             isMainImage: false,
@@ -1523,17 +1581,7 @@ export default function CanvasEditor(props: CanvasEditorProps) {
             }
 
             // Convert images to base64
-            const originalCanvas = document.createElement('canvas');
-            originalCanvas.width = selectedObject.image.width;
-            originalCanvas.height = selectedObject.image.height;
-            const originalCtx = originalCanvas.getContext('2d');
-            if (!originalCtx) {
-                console.error('[AI Generate] Failed to create canvas context');
-                throw new Error('Failed to create canvas context');
-            }
-            originalCtx.drawImage(selectedObject.image, 0, 0);
-
-            const originalImage = originalCanvas.toDataURL('image/png');
+            const originalImage = imageToDataUrl(selectedObject.image);
             const maskImage = maskCanvas.toDataURL('image/png');
 
             debug.log('[AI Generate] Sending API request...', {
@@ -1632,8 +1680,275 @@ export default function CanvasEditor(props: CanvasEditorProps) {
         }
     };
 
+    // Centralized API call utility
+    const callApi = async (url: string, body: any) => {
+        const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': csrf,
+            },
+            body: JSON.stringify(body),
+        });
+        
+        if (!response.ok) {
+            let errorData: any = {};
+            try {
+                errorData = await response.json();
+            } catch (e) {
+                // Ignore parse errors
+            }
+            throw new Error(errorData.message || response.statusText || 'API request failed');
+        }
+        
+        return await response.json();
+    };
+
+    // Enhancement: Expand Image
+    const handleExpandImage = async () => {
+        if (isGenerating) return;
+        
+        if (!selectedObject) {
+            showAlert('No Selection', 'Please select an image first.', 'warning', 'expand');
+            return;
+        }
+
+        setGeneratingType('expand');
+        setIsGenerating(true);
+        setUndoStack((prev) => {
+            const newStack = [...prev, lines];
+            return newStack.length > CANVAS_DEFAULTS.UNDO_LIMIT ? newStack.slice(1) : newStack;
+        });
+
+        try {
+            const direction = await showPrompt(
+                'Expand Image',
+                'Choose expansion direction (all, top, bottom, left, right):',
+                'Direction',
+                'all'
+            );
+
+            if (!direction) {
+                setIsGenerating(false);
+                setGeneratingType(null);
+                return;
+            }
+
+            const validDirections = ['all', 'top', 'bottom', 'left', 'right'];
+            if (!validDirections.includes(direction.toLowerCase())) {
+                showAlert('Invalid Direction', 'Please enter one of: all, top, bottom, left, right', 'warning', 'expand');
+                setIsGenerating(false);
+                setGeneratingType(null);
+                return;
+            }
+
+            debug.log('[Expand Image] Starting expansion...', { direction });
+
+            const imageDataUrl = imageToDataUrl(selectedObject.image);
+
+            const result = await callApi('/api/expand-image', {
+                image: imageDataUrl,
+                direction: direction.toLowerCase(),
+                expansionRatio: 1.5,
+            });
+
+            if (result.expandedImage) {
+                const expandedImg = new Image();
+                expandedImg.crossOrigin = 'anonymous';
+                expandedImg.onload = () => {
+                    // Add as new object beside the original instead of replacing
+                    const newObject: CanvasObject = {
+                        id: Date.now(),
+                        image: expandedImg,
+                        x: selectedObject.x + selectedObject.image.width + CANVAS_DEFAULTS.OBJECT_SPACING,
+                        y: selectedObject.y,
+                        label: 'Expanded Image',
+                        isMainImage: false,
+                    };
+                    setCanvasObjects((prev) => [...prev, newObject]);
+                    setSelectedObject(newObject);
+                    showAlert('Success', 'Image expanded successfully!', 'info', 'expand');
+                    
+                    // Clear loading states after image loads
+                    setIsGenerating(false);
+                    setGeneratingType(null);
+                };
+                expandedImg.onerror = () => {
+                    showAlert('Error', 'Failed to load expanded image', 'error', 'expand');
+                    setIsGenerating(false);
+                    setGeneratingType(null);
+                };
+                expandedImg.src = result.expandedImage;
+            } else {
+                throw new Error('No expanded image in API result');
+            }
+        } catch (error) {
+            showAlert('Error', error instanceof Error ? error.message : 'Failed to expand image', 'error', 'expand');
+            setIsGenerating(false);
+            setGeneratingType(null);
+        }
+    };
+
+    // Enhancement: Upscale Image
+    const handleUpscaleImage = async () => {
+        if (isGenerating) return;
+        
+        if (!selectedObject) {
+            showAlert('No Selection', 'Please select an image first.', 'warning', 'upscale');
+            return;
+        }
+
+        setGeneratingType('upscale');
+        setIsGenerating(true);
+        setUndoStack((prev) => {
+            const newStack = [...prev, lines];
+            return newStack.length > CANVAS_DEFAULTS.UNDO_LIMIT ? newStack.slice(1) : newStack;
+        });
+
+        try {
+            const scaleInput = await showPrompt(
+                'Upscale Image',
+                'Enter scale factor (1.5 to 4.0, e.g., 2 for 2x):',
+                'Scale',
+                '2'
+            );
+
+            if (!scaleInput) {
+                setIsGenerating(false);
+                setGeneratingType(null);
+                return;
+            }
+
+            const scaleFactor = parseFloat(scaleInput);
+            if (isNaN(scaleFactor) || scaleFactor < 1.5 || scaleFactor > 4.0) {
+                showAlert('Invalid Scale', 'Please enter a number between 1.5 and 4.0', 'warning', 'upscale');
+                setIsGenerating(false);
+                setGeneratingType(null);
+                return;
+            }
+
+            debug.log('[Upscale Image] Starting upscaling...', { scale: scaleFactor });
+
+            const imageDataUrl = imageToDataUrl(selectedObject.image);
+
+            const result = await callApi('/api/upscale-image', {
+                image: imageDataUrl,
+                scale: scaleFactor,
+            });
+
+            if (result.upscaledImage) {
+                const upscaledImg = new Image();
+                upscaledImg.crossOrigin = 'anonymous';
+                upscaledImg.onload = () => {
+                    // Add as new object beside the original instead of replacing
+                    const newObject: CanvasObject = {
+                        id: Date.now(),
+                        image: upscaledImg,
+                        x: selectedObject.x + selectedObject.image.width + CANVAS_DEFAULTS.OBJECT_SPACING,
+                        y: selectedObject.y,
+                        label: 'Upscaled Image',
+                        isMainImage: false,
+                    };
+                    setCanvasObjects((prev) => [...prev, newObject]);
+                    setSelectedObject(newObject);
+                    showAlert('Success', `Image upscaled from ${result.originalWidth}x${result.originalHeight} to ${result.newWidth}x${result.newHeight}!`, 'info', 'upscale');
+                    
+                    // Clear loading states after image loads
+                    setIsGenerating(false);
+                    setGeneratingType(null);
+                };
+                upscaledImg.onerror = () => {
+                    showAlert('Error', 'Failed to load upscaled image', 'error', 'upscale');
+                    setIsGenerating(false);
+                    setGeneratingType(null);
+                };
+                upscaledImg.src = result.upscaledImage;
+            } else {
+                throw new Error('No upscaled image in API result');
+            }
+        } catch (error) {
+            showAlert('Error', error instanceof Error ? error.message : 'Failed to upscale image', 'error', 'upscale');
+            setIsGenerating(false);
+            setGeneratingType(null);
+        }
+    };
+
+    // Enhancement: Remove Background
+    const handleRemoveBackground = async () => {
+        if (isGenerating) return;
+        
+        if (!selectedObject) {
+            showAlert('No Selection', 'Please select an image first.', 'warning', 'remove-bg');
+            return;
+        }
+
+        setGeneratingType('remove-bg');
+        setIsGenerating(true);
+        setUndoStack((prev) => {
+            const newStack = [...prev, lines];
+            return newStack.length > CANVAS_DEFAULTS.UNDO_LIMIT ? newStack.slice(1) : newStack;
+        });
+
+        try {
+            debug.log('[Remove Background] Starting background removal...');
+
+            const imageDataUrl = imageToDataUrl(selectedObject.image);
+
+            const result = await callApi('/api/remove-background', {
+                image: imageDataUrl,
+            });
+
+            if (result.processedImage) {
+                const processedImg = new Image();
+                processedImg.crossOrigin = 'anonymous';
+                processedImg.onload = () => {
+                    debug.log('[Remove Background] Processed image loaded, updating canvas...');
+                    // Add as new object beside the original instead of replacing
+                    const newObject: CanvasObject = {
+                        id: Date.now(),
+                        image: processedImg,
+                        x: selectedObject.x + selectedObject.image.width + CANVAS_DEFAULTS.OBJECT_SPACING,
+                        y: selectedObject.y,
+                        label: 'No Background',
+                        isMainImage: false,
+                    };
+                    setCanvasObjects((prev) => [...prev, newObject]);
+                    setSelectedObject(newObject);
+                    
+                    const dimensionsMatch = result.originalWidth === processedImg.width && 
+                                          result.originalHeight === processedImg.height;
+                    const method = result.method === 'improved-algorithm' ? 'advanced algorithm' : 'simple algorithm';
+                    const message = dimensionsMatch 
+                        ? `Background removed (${processedImg.width}x${processedImg.height}, PNG with transparency)`
+                        : `Background removed using ${method}`;
+                    
+                    showAlert('Success', message, 'info', 'remove-bg');
+                    
+                    // Clear loading states after image loads
+                    setIsGenerating(false);
+                    setGeneratingType(null);
+                };
+                processedImg.onerror = (e) => {
+                    console.error('[Remove Background] Error loading processed image:', e);
+                    showAlert('Error', 'Failed to load processed image', 'error', 'remove-bg');
+                    setIsGenerating(false);
+                    setGeneratingType(null);
+                };
+                processedImg.src = result.processedImage;
+            } else {
+                throw new Error('No processed image in API result');
+            }
+        } catch (error) {
+            console.error('[Remove Background] Error:', error);
+            showAlert('Error', error instanceof Error ? error.message : 'Failed to remove background', 'error', 'remove-bg');
+            setIsGenerating(false);
+            setGeneratingType(null);
+        }
+    };
+
     const applyChanges = () => {
-        alert('Apply changes functionality will be implemented soon.');
+        showAlert('Coming Soon', 'Apply changes functionality will be implemented soon.', 'info');
     };
 
     const downloadImage = () => {
@@ -1926,8 +2241,109 @@ export default function CanvasEditor(props: CanvasEditorProps) {
                         overflow: 'hidden',
                     }}
                 >
-                    {/* Skeleton Loader Overlay */}
-                    {isGenerating && (
+                    {/* Skeleton Loader beside original image when generating enhancements */}
+                    {isGenerating && generatingType && selectedObject && (
+                        <div
+                            style={{
+                                position: 'absolute',
+                                left: panX + selectedObject.x * scale + selectedObject.image.width * scale + 30,
+                                top: panY + selectedObject.y * scale,
+                                width: selectedObject.image.width * scale,
+                                height: selectedObject.image.height * scale,
+                                zIndex: 1000,
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                pointerEvents: 'none',
+                            }}
+                        >
+                            <div
+                                style={{
+                                    width: '100%',
+                                    height: '100%',
+                                    background: 'linear-gradient(135deg, var(--color-muted) 0%, color-mix(in oklab, var(--color-muted) 95%, var(--color-primary)) 100%)',
+                                    borderRadius: '16px',
+                                    display: 'flex',
+                                    flexDirection: 'column',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    boxShadow: '0 8px 24px rgba(0, 0, 0, 0.12), 0 2px 8px rgba(0, 0, 0, 0.08)',
+                                    gap: '20px',
+                                    position: 'relative',
+                                    overflow: 'hidden',
+                                }}
+                            >
+                                {/* Floating stars animation */}
+                                <div style={{ position: 'relative', width: '80px', height: '80px' }}>
+                                    {[...Array(5)].map((_, i) => (
+                                        <div
+                                            key={i}
+                                            style={{
+                                                position: 'absolute',
+                                                left: '50%',
+                                                top: '50%',
+                                                transform: 'translate(-50%, -50%)',
+                                                animation: `floatStar${i} ${2 + i * 0.3}s ease-in-out infinite`,
+                                                animationDelay: `${i * 0.2}s`,
+                                            }}
+                                        >
+                                            <svg
+                                                width={16 + i * 2}
+                                                height={16 + i * 2}
+                                                viewBox="0 0 24 24"
+                                                fill="var(--color-primary)"
+                                                style={{
+                                                    filter: 'drop-shadow(0 2px 4px rgba(0, 0, 0, 0.1))',
+                                                    opacity: 0.7 + i * 0.05,
+                                                }}
+                                            >
+                                                <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
+                                            </svg>
+                                        </div>
+                                    ))}
+                                </div>
+                                <div
+                                    style={{
+                                        fontSize: '15px',
+                                        color: 'var(--color-foreground)',
+                                        fontWeight: 600,
+                                        textAlign: 'center',
+                                        padding: '0 24px',
+                                        letterSpacing: '0.3px',
+                                    }}
+                                >
+                                    {generatingType === 'expand' && 'Expanding image...'}
+                                    {generatingType === 'upscale' && 'Upscaling image...'}
+                                    {generatingType === 'remove-bg' && 'Removing background...'}
+                                </div>
+                                <style>{`
+                                    @keyframes floatStar0 {
+                                        0%, 100% { transform: translate(-50%, -50%) translateY(0px) scale(1); }
+                                        50% { transform: translate(-50%, -50%) translateY(-20px) scale(1.1); }
+                                    }
+                                    @keyframes floatStar1 {
+                                        0%, 100% { transform: translate(-50%, -50%) translate(15px, -10px) scale(0.9); }
+                                        50% { transform: translate(-50%, -50%) translate(20px, -25px) scale(1); }
+                                    }
+                                    @keyframes floatStar2 {
+                                        0%, 100% { transform: translate(-50%, -50%) translate(-15px, -10px) scale(0.85); }
+                                        50% { transform: translate(-50%, -50%) translate(-20px, -25px) scale(0.95); }
+                                    }
+                                    @keyframes floatStar3 {
+                                        0%, 100% { transform: translate(-50%, -50%) translate(20px, 10px) scale(0.8); }
+                                        50% { transform: translate(-50%, -50%) translate(28px, -5px) scale(0.9); }
+                                    }
+                                    @keyframes floatStar4 {
+                                        0%, 100% { transform: translate(-50%, -50%) translate(-20px, 10px) scale(0.75); }
+                                        50% { transform: translate(-50%, -50%) translate(-28px, -5px) scale(0.85); }
+                                    }
+                                `}</style>
+                            </div>
+                        </div>
+                    )}
+                    
+                    {/* Full overlay loader for other operations */}
+                    {isGenerating && !generatingType && (
                         <div
                             style={{
                                 position: 'absolute',
@@ -1948,31 +2364,47 @@ export default function CanvasEditor(props: CanvasEditorProps) {
                                     flexDirection: 'column',
                                     alignItems: 'center',
                                     gap: '24px',
+                                    background: 'var(--color-card)',
+                                    padding: '40px 48px',
+                                    borderRadius: '16px',
+                                    boxShadow: '0 8px 24px rgba(0, 0, 0, 0.12)',
                                 }}
                             >
-                                <svg
-                                    width="48"
-                                    height="48"
-                                    viewBox="0 0 24 24"
-                                    fill="none"
-                                    stroke="var(--color-muted-foreground)"
-                                    strokeWidth="2"
-                                    className="animate-spin"
-                                >
-                                    <circle
-                                        cx="12"
-                                        cy="12"
-                                        r="10"
-                                        stroke="var(--color-border)"
-                                        strokeWidth="4"
-                                        fill="none"
-                                    />
-                                </svg>
+                                {/* Floating stars animation */}
+                                <div style={{ position: 'relative', width: '80px', height: '80px' }}>
+                                    {[...Array(5)].map((_, i) => (
+                                        <div
+                                            key={i}
+                                            style={{
+                                                position: 'absolute',
+                                                left: '50%',
+                                                top: '50%',
+                                                transform: 'translate(-50%, -50%)',
+                                                animation: `floatStar${i} ${2 + i * 0.3}s ease-in-out infinite`,
+                                                animationDelay: `${i * 0.2}s`,
+                                            }}
+                                        >
+                                            <svg
+                                                width={16 + i * 2}
+                                                height={16 + i * 2}
+                                                viewBox="0 0 24 24"
+                                                fill="var(--color-primary)"
+                                                style={{
+                                                    filter: 'drop-shadow(0 2px 4px rgba(0, 0, 0, 0.1))',
+                                                    opacity: 0.7 + i * 0.05,
+                                                }}
+                                            >
+                                                <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
+                                            </svg>
+                                        </div>
+                                    ))}
+                                </div>
                                 <div
                                     style={{
                                         fontSize: '18px',
                                         color: 'var(--color-foreground)',
-                                        fontWeight: 500,
+                                        fontWeight: 600,
+                                        letterSpacing: '0.3px',
                                     }}
                                 >
                                     Generating with AI...
@@ -2060,95 +2492,13 @@ export default function CanvasEditor(props: CanvasEditorProps) {
                                     }}
                                 >
                                     {/* AI Generate Quick Action */}
-                                    <button
-                                        style={{
-                                            padding: '10px 14px',
-                                            background: isGenerating
-                                                ? 'var(--color-muted)'
-                                                : 'var(--color-primary)',
-                                            color: isGenerating
-                                                ? 'var(--color-muted-foreground)'
-                                                : 'var(--color-primary-foreground)',
-                                            border: 'none',
-                                            borderRadius: '6px',
-                                            fontWeight: 500,
-                                            fontSize: '15px',
-                                            marginBottom: '10px',
-                                            cursor: isGenerating
-                                                ? 'not-allowed'
-                                                : 'pointer',
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            gap: '10px',
-                                            justifyContent: 'center',
-                                            boxShadow: isGenerating
-                                                ? 'none'
-                                                : 'var(--shadow-sm)',
-                                        }}
-                                        disabled={isGenerating}
-                                        onClick={() => {
-                                            debug.log(
-                                                '[UI] AI Generate button clicked',
-                                            );
-                                            handleGenerate();
-                                        }}
-                                    >
-                                        {isGenerating ? (
-                                            <span
-                                                style={{
-                                                    display: 'flex',
-                                                    alignItems: 'center',
-                                                    gap: '8px',
-                                                }}
-                                            >
-                                                <svg
-                                                    width="18"
-                                                    height="18"
-                                                    viewBox="0 0 24 24"
-                                                    fill="none"
-                                                    stroke="currentColor"
-                                                    strokeWidth="2"
-                                                    className="animate-spin"
-                                                >
-                                                    <circle
-                                                        cx="12"
-                                                        cy="12"
-                                                        r="10"
-                                                        stroke="currentColor"
-                                                        strokeWidth="4"
-                                                        fill="none"
-                                                    />
-                                                </svg>
-                                                Generating...
-                                            </span>
-                                        ) : (
-                                            <span
-                                                style={{
-                                                    display: 'flex',
-                                                    alignItems: 'center',
-                                                    gap: '8px',
-                                                }}
-                                            >
-                                                <svg
-                                                    width="18"
-                                                    height="18"
-                                                    viewBox="0 0 24 24"
-                                                    fill="none"
-                                                    stroke="white"
-                                                    strokeWidth="2"
-                                                >
-                                                    <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
-                                                </svg>
-                                                AI Generate
-                                            </span>
-                                        )}
-                                    </button>
                                     <ToolButton
                                         icon={<MousePointer size={18} />}
                                         label="Select"
                                         active={currentTool === 'select'}
                                         onClick={() => selectTool('select')}
                                         collapsed={sidebarCollapsed}
+                                        shortcut="V"
                                     />
                                     <ToolButton
                                         icon={<PenTool size={18} />}
@@ -2156,6 +2506,7 @@ export default function CanvasEditor(props: CanvasEditorProps) {
                                         active={currentTool === 'retouch'}
                                         onClick={() => selectTool('retouch')}
                                         collapsed={sidebarCollapsed}
+                                        shortcut="R"
                                     />
                                     <ToolButton
                                         icon={<Eraser size={18} />}
@@ -2163,6 +2514,7 @@ export default function CanvasEditor(props: CanvasEditorProps) {
                                         active={currentTool === 'erase'}
                                         onClick={() => selectTool('erase')}
                                         collapsed={sidebarCollapsed}
+                                        shortcut="E"
                                     />
                                     <ToolButton
                                         icon={<Upload size={18} />}
@@ -2172,6 +2524,7 @@ export default function CanvasEditor(props: CanvasEditorProps) {
                                             fileInputRef.current?.click()
                                         }
                                         collapsed={sidebarCollapsed}
+                                        shortcut="U"
                                     />
                                 </div>
                             </div>
@@ -2266,6 +2619,59 @@ export default function CanvasEditor(props: CanvasEditorProps) {
                                     </div>
                                 </div>
                             )}
+
+                            {/* Enhancement Tools Section */}
+                            <div style={{ marginBottom: '24px' }}>
+                                {!sidebarCollapsed && (
+                                    <div
+                                        style={{
+                                            fontSize: '13px',
+                                            fontWeight: 500,
+                                            color: 'var(--color-muted-foreground)',
+                                            marginBottom: '12px',
+                                            textTransform: 'uppercase',
+                                            letterSpacing: '0.5px',
+                                        }}
+                                    >
+                                        Enhancements
+                                    </div>
+                                )}
+                                <div
+                                    style={{
+                                        display: 'flex',
+                                        flexDirection: 'column',
+                                        gap: '8px',
+                                    }}
+                                >
+                                    <ToolButton
+                                        icon={<Maximize2 size={18} />}
+                                        label="Expand"
+                                        active={generatingType === 'expand'}
+                                        onClick={handleExpandImage}
+                                        collapsed={sidebarCollapsed}
+                                        disabled={isGenerating}
+                                        shortcut="X"
+                                    />
+                                    <ToolButton
+                                        icon={<ZoomIn size={18} />}
+                                        label="Upscale"
+                                        active={generatingType === 'upscale'}
+                                        onClick={handleUpscaleImage}
+                                        collapsed={sidebarCollapsed}
+                                        disabled={isGenerating}
+                                        shortcut="S"
+                                    />
+                                    <ToolButton
+                                        icon={<Scissors size={18} />}
+                                        label="Remove BG"
+                                        active={generatingType === 'remove-bg'}
+                                        onClick={handleRemoveBackground}
+                                        collapsed={sidebarCollapsed}
+                                        disabled={isGenerating}
+                                        shortcut="B"
+                                    />
+                                </div>
+                            </div>
 
                             {/* Tips Section */}
                             {!sidebarCollapsed && (
@@ -2589,27 +2995,6 @@ export default function CanvasEditor(props: CanvasEditorProps) {
                                             }
                                         />
                                         <FloatingActionButton
-                                            icon={<Wand2 size={16} />}
-                                            label="Generate"
-                                            onClick={() => {
-                                                debug.log(
-                                                    '[UI] Floating Generate clicked',
-                                                );
-                                                handleGenerate();
-                                            }}
-                                            disabled={
-                                                isGenerating ||
-                                                !(
-                                                    selectedObject &&
-                                                    lines.some(
-                                                        (l) =>
-                                                            l.objectId ===
-                                                            selectedObject.id,
-                                                    )
-                                                )
-                                            }
-                                        />
-                                        <FloatingActionButton
                                             icon={<Download size={16} />}
                                             label="Download Mask"
                                             onClick={() => {
@@ -2716,6 +3101,48 @@ export default function CanvasEditor(props: CanvasEditorProps) {
                 confirmText={confirmModal.confirmText}
                 isDanger={confirmModal.isDanger}
             />
+            
+            {/* Toast notifications for action history */}
+            {actionHistory.length > 0 && (
+                <div
+                    style={{
+                        position: 'fixed',
+                        bottom: '24px',
+                        right: '24px',
+                        zIndex: 9999,
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '8px',
+                        pointerEvents: 'none',
+                    }}
+                >
+                    {actionHistory.map((item, idx) => (
+                        <div
+                            key={`${item.time}-${idx}`}
+                            style={{
+                                background: 'var(--color-card)',
+                                color: 'var(--color-foreground)',
+                                borderRadius: '8px',
+                                boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
+                                padding: '12px 16px',
+                                fontSize: '14px',
+                                opacity: 0.95,
+                                minWidth: '280px',
+                                maxWidth: '400px',
+                                border: '1px solid var(--color-border)',
+                                animation: 'slideInRight 0.3s ease-out',
+                            }}
+                        >
+                            <div style={{ fontWeight: 600, marginBottom: '4px', textTransform: 'capitalize' }}>
+                                {item.type.replace('-', ' ')}
+                            </div>
+                            <div style={{ fontSize: '13px', color: 'var(--color-muted-foreground)' }}>
+                                {item.message}
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            )}
         </>
     );
 }
@@ -2727,56 +3154,89 @@ function ToolButton({
     active,
     onClick,
     collapsed,
+    disabled = false,
+    shortcut,
 }: {
     icon: React.ReactNode;
     label: string;
     active: boolean;
     onClick: () => void;
     collapsed: boolean;
+    disabled?: boolean;
+    shortcut?: string;
 }) {
     return (
         <button
-            onClick={onClick}
+            onClick={disabled ? undefined : onClick}
+            disabled={disabled}
             data-tool={label.toLowerCase()}
+            title={shortcut ? `${label} (${shortcut})` : label}
+            aria-label={shortcut ? `${label} (${shortcut})` : label}
             style={{
                 padding: collapsed ? '10px' : '8px 12px',
                 border: 'none',
                 borderRadius: '4px',
                 background: active ? 'var(--color-muted)' : 'transparent',
-                cursor: 'pointer',
+                cursor: disabled ? 'not-allowed' : 'pointer',
                 transition: 'all 0.15s ease',
                 textAlign: 'left',
                 display: 'flex',
                 alignItems: 'center',
-                justifyContent: collapsed ? 'center' : 'flex-start',
+                justifyContent: collapsed ? 'center' : 'space-between',
                 gap: '10px',
                 color: 'var(--color-foreground)',
+                opacity: disabled ? 0.5 : 1,
             }}
             className="tool-card"
         >
             <div
                 style={{
-                    fontSize: '18px',
-                    width: '20px',
-                    height: '20px',
                     display: 'flex',
                     alignItems: 'center',
-                    justifyContent: 'center',
-                    flexShrink: 0,
-                    color: 'var(--color-muted-foreground)',
+                    gap: '10px',
+                    flex: 1,
                 }}
             >
-                {icon}
-            </div>
-            {!collapsed && (
-                <span
+                <div
                     style={{
-                        fontSize: '14px',
-                        fontWeight: active ? 500 : 400,
-                        color: 'var(--color-foreground)',
+                        fontSize: '18px',
+                        width: '20px',
+                        height: '20px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        flexShrink: 0,
+                        color: 'var(--color-muted-foreground)',
                     }}
                 >
-                    {label}
+                    {icon}
+                </div>
+                {!collapsed && (
+                    <span
+                        style={{
+                            fontSize: '14px',
+                            fontWeight: active ? 500 : 400,
+                            color: 'var(--color-foreground)',
+                        }}
+                    >
+                        {label}
+                    </span>
+                )}
+            </div>
+            {!collapsed && shortcut && (
+                <span
+                    style={{
+                        fontSize: '12px',
+                        fontWeight: 500,
+                        color: 'var(--color-muted-foreground)',
+                        opacity: 0.7,
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.5px',
+                        minWidth: '16px',
+                        textAlign: 'right',
+                    }}
+                >
+                    {shortcut}
                 </span>
             )}
         </button>

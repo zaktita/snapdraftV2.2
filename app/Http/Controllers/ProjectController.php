@@ -87,6 +87,7 @@ class ProjectController extends Controller
                 'format' => $project->format,
                 'featured_image' => $project->featured_image ? asset('storage/' . $project->featured_image) : null,
                 'created_at' => $project->created_at->toISOString(),
+                'updated_at' => $project->updated_at->toISOString(),
                 'images_count' => $project->images_count,
                 'is_favorite' => $project->is_favorite,
             ];
@@ -234,10 +235,7 @@ class ProjectController extends Controller
         
         $project->update(['is_favorite' => !$project->is_favorite]);
 
-        return response()->json([
-            'success' => true,
-            'is_favorite' => $project->is_favorite
-        ]);
+        return back();
     }
 
     /**

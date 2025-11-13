@@ -18,6 +18,11 @@ class EnsureUserHasCredits
         $user = $request->user();
 
         if (!$user || !$user->hasCredits()) {
+            // For Inertia requests, redirect back properly
+            if ($request->header('X-Inertia')) {
+                return redirect()->back()->with('error', 'You have no credits remaining. Please upgrade your plan or purchase additional credits.');
+            }
+            
             return back()->with('error', 'You have no credits remaining. Please upgrade your plan or purchase additional credits.');
         }
 

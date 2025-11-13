@@ -1,6 +1,6 @@
-import { Head, Link, router } from '@inertiajs/react';
-import { ArrowLeft, ArrowRight, Upload, X, Zap, ChevronDown } from 'lucide-react';
-import { useState, useRef, ChangeEvent } from 'react';
+import { Head, Link, router, usePage } from '@inertiajs/react';
+import { ArrowLeft, ArrowRight, Upload, X, Zap, ChevronDown, AlertCircle } from 'lucide-react';
+import { useState, useRef, ChangeEvent, useEffect } from 'react';
 import text from '@/routes/projects/wizards/text';
 
 const formatOptions = [
@@ -15,6 +15,7 @@ const formatOptions = [
 ];
 
 export default function TextWizard() {
+    const page = usePage<{ error?: string }>();
     const [currentStep, setCurrentStep] = useState(1);
     const [projectName, setProjectName] = useState('');
     const [ideaDescription, setIdeaDescription] = useState('');
@@ -22,8 +23,18 @@ export default function TextWizard() {
     const [styleImages, setStyleImages] = useState<string[]>([]);
     const [styleImageFiles, setStyleImageFiles] = useState<File[]>([]);
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [showError, setShowError] = useState(false);
     
     const imageInputRef = useRef<HTMLInputElement>(null);
+
+    // Show error message if present
+    useEffect(() => {
+        if (page.props.error) {
+            setShowError(true);
+            const timer = setTimeout(() => setShowError(false), 7000);
+            return () => clearTimeout(timer);
+        }
+    }, [page.props.error]);
 
     // Handle image upload
     const handleImageUpload = (e: ChangeEvent<HTMLInputElement>) => {
@@ -142,6 +153,46 @@ export default function TextWizard() {
                             <ArrowLeft size={14} />
                             Back to Projects
                         </Link>
+                        
+                        {/* Error Alert */}
+                        {showError && page.props.error && (
+                            <div style={{
+                                padding: '12px 16px',
+                                marginBottom: '16px',
+                                backgroundColor: 'hsl(var(--destructive) / 0.1)',
+                                border: '1px solid hsl(var(--destructive) / 0.3)',
+                                borderRadius: '8px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '12px'
+                            }}>
+                                <AlertCircle size={18} style={{ color: 'hsl(var(--destructive))', flexShrink: 0 }} />
+                                <p style={{ 
+                                    margin: 0, 
+                                    fontSize: '14px', 
+                                    color: 'hsl(var(--destructive))',
+                                    lineHeight: 1.5
+                                }}>
+                                    {page.props.error}
+                                </p>
+                                <button
+                                    onClick={() => setShowError(false)}
+                                    style={{
+                                        marginLeft: 'auto',
+                                        background: 'none',
+                                        border: 'none',
+                                        cursor: 'pointer',
+                                        color: 'hsl(var(--destructive))',
+                                        padding: '4px',
+                                        display: 'flex',
+                                        alignItems: 'center'
+                                    }}
+                                >
+                                    <X size={16} />
+                                </button>
+                            </div>
+                        )}
+                        
                         <h1 style={{
                             fontSize: '24px',
                             fontWeight: 600,

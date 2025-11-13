@@ -33,8 +33,10 @@ import {
     Heart,
     LayoutGrid,
     List,
+    MoreHorizontal,
     MoreVertical,
     Plus,
+    Star,
     Trash2,
 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
@@ -55,6 +57,7 @@ interface Project {
     title: string;
     featured_image?: string;
     created_at: string;
+    updated_at: string;
     images_count: number;
     is_favorite: boolean;
 }
@@ -89,6 +92,9 @@ export default function ProjectsIndex({ projects: projectsData = [], success }: 
     const [activeTab, setActiveTab] = useState<FilterTab>(filterParam || 'all');
     const [sortBy, setSortBy] = useState<SortOption>('date-desc');
     const [showSuccess, setShowSuccess] = useState(!!success);
+    
+    // Local state to track optimistic favorite updates
+    const [optimisticFavorites, setOptimisticFavorites] = useState<Record<number, boolean>>({});
 
     // Auto-hide success message after 5 seconds
     useEffect(() => {
@@ -142,9 +148,42 @@ export default function ProjectsIndex({ projects: projectsData = [], success }: 
 
     const formatDate = (dateString: string) => {
         const date = new Date(dateString);
+        const now = new Date();
+        const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000);
+        
+        // Less than a minute
+        if (diffInSeconds < 60) {
+            return 'a few seconds ago';
+        }
+        
+        // Less than an hour
+        const diffInMinutes = Math.floor(diffInSeconds / 60);
+        if (diffInMinutes < 60) {
+            return `${diffInMinutes} min ago`;
+        }
+        
+        // Less than a day
+        const diffInHours = Math.floor(diffInMinutes / 60);
+        if (diffInHours < 24) {
+            return `${diffInHours} hour${diffInHours > 1 ? 's' : ''} ago`;
+        }
+        
+        // Less than a week
+        const diffInDays = Math.floor(diffInHours / 24);
+        if (diffInDays < 7) {
+            return `${diffInDays} day${diffInDays > 1 ? 's' : ''} ago`;
+        }
+        
+        // Less than a month
+        const diffInWeeks = Math.floor(diffInDays / 7);
+        if (diffInWeeks < 4) {
+            return `${diffInWeeks} week${diffInWeeks > 1 ? 's' : ''} ago`;
+        }
+        
+        // Default to date format
         return date.toLocaleDateString('en-US', {
-            month: 'short',
             day: 'numeric',
+            month: 'short',
             year: 'numeric',
         });
     };
@@ -152,8 +191,37 @@ export default function ProjectsIndex({ projects: projectsData = [], success }: 
     const handleToggleFavorite = (projectId: number, e: React.MouseEvent) => {
         e.preventDefault();
         e.stopPropagation();
+        
+        // Get current favorite state (from optimistic state or original project data)
+        const project = projects.find(p => p.id === projectId);
+        const currentState = optimisticFavorites[projectId] ?? project?.is_favorite ?? false;
+        const newState = !currentState;
+        
+        // Optimistically update the UI immediately
+        setOptimisticFavorites(prev => ({
+            ...prev,
+            [projectId]: newState
+        }));
+        
+        // Send request to backend
         router.post(`/projects/${projectId}/toggle-favorite`, {}, {
             preserveScroll: true,
+            preserveState: true,
+            onError: () => {
+                // Revert optimistic update on error
+                setOptimisticFavorites(prev => ({
+                    ...prev,
+                    [projectId]: currentState
+                }));
+            },
+            onSuccess: () => {
+                // Clear optimistic state on success so backend data takes over
+                setOptimisticFavorites(prev => {
+                    const newState = { ...prev };
+                    delete newState[projectId];
+                    return newState;
+                });
+            }
         });
     };
 
@@ -355,6 +423,7 @@ export default function ProjectsIndex({ projects: projectsData = [], success }: 
                                         onDelete={handleDelete}
                                         onRename={handleRename}
                                         onGenerateMore={handleGenerateMore}
+                                        isFavorite={optimisticFavorites[project.id] ?? project.is_favorite}
                                     />
                                 ))}
                             </div>
@@ -369,6 +438,7 @@ export default function ProjectsIndex({ projects: projectsData = [], success }: 
                                         onDelete={handleDelete}
                                         onRename={handleRename}
                                         onGenerateMore={handleGenerateMore}
+                                        isFavorite={optimisticFavorites[project.id] ?? project.is_favorite}
                                     />
                                 ))}
                             </div>
@@ -387,12 +457,16 @@ interface ProjectCardProps {
     onDelete: (id: number) => void;
     onRename: (id: number, newTitle: string) => void;
     onGenerateMore: (id: number, e: React.MouseEvent) => void;
+    isFavorite: boolean;
 }
 
-function ProjectCard({ project, formatDate, onToggleFavorite, onDelete, onRename, onGenerateMore }: ProjectCardProps) {
+function ProjectCard({ project, formatDate, onToggleFavorite, onDelete, onRename, onGenerateMore, isFavorite }: ProjectCardProps) {
     const [isEditing, setIsEditing] = useState(false);
     const [editTitle, setEditTitle] = useState(project.title);
+    const [showActions, setShowActions] = useState(false);
+    const [showDropdown, setShowDropdown] = useState(false);
     const inputRef = useRef<HTMLInputElement>(null);
+    const dropdownRef = useRef<HTMLDivElement>(null);
 
     // Sync local state when project.title changes from backend
     useEffect(() => {
@@ -406,10 +480,28 @@ function ProjectCard({ project, formatDate, onToggleFavorite, onDelete, onRename
         }
     }, [isEditing]);
 
-    const handleDoubleClick = (e: React.MouseEvent) => {
+    // Close dropdown when clicking outside
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+                setShowDropdown(false);
+            }
+        };
+
+        if (showDropdown) {
+            document.addEventListener('mousedown', handleClickOutside);
+        }
+
+        return () => {
+            document.removeEventListener('mousedown', handleClickOutside);
+        };
+    }, [showDropdown]);
+
+    const handleRename = (e: React.MouseEvent) => {
         e.preventDefault();
         e.stopPropagation();
         setIsEditing(true);
+        setShowDropdown(false);
     };
 
     const handleBlur = () => {
@@ -417,7 +509,6 @@ function ProjectCard({ project, formatDate, onToggleFavorite, onDelete, onRename
         if (trimmedTitle && trimmedTitle !== project.title) {
             onRename(project.id, trimmedTitle);
         } else {
-            // Revert to original if empty or unchanged
             setEditTitle(project.title);
         }
         setIsEditing(false);
@@ -432,11 +523,28 @@ function ProjectCard({ project, formatDate, onToggleFavorite, onDelete, onRename
         }
     };
 
+    const handleDelete = (e: React.MouseEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setShowDropdown(false);
+        onDelete(project.id);
+    };
+
+    const toggleDropdown = (e: React.MouseEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setShowDropdown(!showDropdown);
+    };
+
     return (
         <Link href={`/projects/${project.id}`}>
-            <div className="group cursor-pointer rounded-lg overflow-hidden bg-muted/40 hover:bg-muted/60 transition-colors">
-                {/* Image Placeholder */}
-                <div className="aspect-video bg-muted/60 p-0 relative overflow-hidden">
+            <div 
+                className="group cursor-pointer rounded-xl overflow-hidden bg-background border border-border hover:border-border/60 transition-all"
+                onMouseEnter={() => setShowActions(true)}
+                onMouseLeave={() => setShowActions(false)}
+            >
+                {/* Image Container */}
+                <div className="aspect-[4/3] bg-muted relative overflow-hidden">
                     {project.featured_image ? (
                         <img 
                             src={project.featured_image} 
@@ -446,95 +554,94 @@ function ProjectCard({ project, formatDate, onToggleFavorite, onDelete, onRename
                     ) : (
                         <div className="flex h-full items-center justify-center">
                             <div className="text-center">
-                                <div className="mx-auto mb-3 size-12 rounded-full bg-background/80 flex items-center justify-center">
-                                    <svg className="size-6 text-muted-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <div className="mx-auto mb-2 size-10 rounded-full bg-muted-foreground/10 flex items-center justify-center">
+                                    <svg className="size-5 text-muted-foreground/60" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
                                     </svg>
                                 </div>
-                                <p className="text-sm font-medium text-muted-foreground">No image</p>
                             </div>
                         </div>
                     )}
-                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/5 transition-colors" />
+                    
+                    {/* Dark overlay on hover */}
+                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors pointer-events-none" />
+                    
+                    {/* Favorite Icon - Top Right on Hover */}
+                    <button
+                        onClick={(e) => onToggleFavorite(project.id, e)}
+                        className={`absolute top-3 right-3 rounded-full p-2 bg-background/90 backdrop-blur-sm shadow-sm transition-all ${
+                            showActions ? 'opacity-100' : 'opacity-0'
+                        }`}
+                        title="Toggle favorite"
+                    >
+                        {isFavorite ? (
+                            <Star className="size-4 fill-yellow-400 stroke-yellow-400" />
+                        ) : (
+                            <Star className="size-4 stroke-muted-foreground" />
+                        )}
+                    </button>
                 </div>
                 
                 {/* Card Content */}
-                <div className="px-6 py-4">
-                    {isEditing ? (
-                        <input
-                            ref={inputRef}
-                            type="text"
-                            value={editTitle}
-                            onChange={(e) => setEditTitle(e.target.value)}
-                            onBlur={handleBlur}
-                            onKeyDown={handleKeyDown}
-                            onClick={(e) => e.stopPropagation()}
-                            className="w-full text-[18px] font-semibold border-b-2 border-primary bg-transparent outline-none"
-                        />
-                    ) : (
-                        <h3 
-                            className="text-[18px] font-semibold group-hover:opacity-80 cursor-text" 
-                            onDoubleClick={handleDoubleClick}
-                            title="Double-click to rename"
-                        >
-                            {project.title}
-                        </h3>
-                    )}
-                    
-                    <div className="mt-4 flex items-center justify-between">
-                        <div className="flex items-center gap-3 text-sm">
-                            <span className="text-muted-foreground">{formatDate(project.created_at)}</span>
-                            <Badge
-                                variant="secondary"
-                                className="text-xs font-medium"
-                            >
-                                {project.images_count} images
-                            </Badge>
+                <div className="p-4">
+                    <div className="flex items-start justify-between gap-2">
+                        <div className="flex-1 min-w-0">
+                            {isEditing ? (
+                                <input
+                                    ref={inputRef}
+                                    type="text"
+                                    value={editTitle}
+                                    onChange={(e) => setEditTitle(e.target.value)}
+                                    onBlur={handleBlur}
+                                    onKeyDown={handleKeyDown}
+                                    onClick={(e) => e.stopPropagation()}
+                                    className="w-full text-base font-medium border-b-2 border-primary bg-transparent outline-none mb-1"
+                                />
+                            ) : (
+                                <h3 className="text-base font-medium text-foreground mb-1 truncate">
+                                    {project.title}
+                                </h3>
+                            )}
+                            
+                            <p className="text-xs text-muted-foreground">
+                                Edited {formatDate(project.updated_at)}
+                            </p>
                         </div>
-                        
-                        {/* Actions Menu */}
-                        <div className="flex items-center gap-1">
+
+                        {/* Three Dots Menu */}
+                        <div 
+                            ref={dropdownRef}
+                            className={`relative flex-shrink-0 transition-all ${showActions ? 'opacity-100' : 'opacity-0'}`}
+                        >
                             <button
-                                onClick={(e) => onGenerateMore(project.id, e)}
-                                className="rounded p-1.5 transition-colors hover:bg-muted"
-                                title="Generate more images"
+                                onClick={toggleDropdown}
+                                className="rounded-full p-1 hover:bg-muted transition-colors"
+                                title="More actions"
                             >
-                                <Plus className="size-4" />
+                                <MoreHorizontal className="size-4" />
                             </button>
                             
-                            <button
-                                onClick={(e) => onToggleFavorite(project.id, e)}
-                                className="rounded p-1.5 transition-colors hover:bg-muted"
-                                title="Toggle favorite"
+                            {/* Dropdown Menu */}
+                            <div 
+                                className={`absolute right-0 bottom-full mb-1 w-40 rounded-lg bg-background border border-border shadow-lg py-1 z-10 ${
+                                    showDropdown ? 'block' : 'hidden'
+                                }`}
                             >
-                                {project.is_favorite ? (
-                                    <Heart className="size-4 fill-current text-red-500" />
-                                ) : (
-                                    <Heart className="size-4" />
-                                )}
-                            </button>
-                            
-                            <button
-                                onClick={(e) => {
-                                    e.preventDefault();
-                                    router.visit(`/projects/${project.id}/edit`);
-                                }}
-                                className="rounded p-1.5 transition-colors hover:bg-muted"
-                                title="Edit project"
-                            >
-                                <Edit className="size-4" />
-                            </button>
-                            
-                            <button
-                                onClick={(e) => {
-                                    e.preventDefault();
-                                    onDelete(project.id);
-                                }}
-                                className="rounded p-1.5 transition-colors hover:bg-muted text-destructive"
-                                title="Delete project"
-                            >
-                                <Trash2 className="size-4" />
-                            </button>
+                                <button
+                                    onClick={handleRename}
+                                    className="w-full px-4 py-2 text-left text-sm hover:bg-muted transition-colors flex items-center gap-2"
+                                >
+                                    <Edit className="size-3.5" />
+                                    Rename
+                                </button>
+                                <button
+                                    onClick={handleDelete}
+                                    className="w-full px-4 py-2 text-left text-sm hover:bg-muted transition-colors flex items-center gap-2 text-destructive"
+                                >
+                                    <Trash2 className="size-3.5" />
+                                    Delete
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -543,7 +650,6 @@ function ProjectCard({ project, formatDate, onToggleFavorite, onDelete, onRename
     );
 }
 
-// Project List Item Component
 interface ProjectListItemProps {
     project: Project;
     formatDate: (date: string) => string;
@@ -551,12 +657,16 @@ interface ProjectListItemProps {
     onDelete: (id: number) => void;
     onRename: (id: number, newTitle: string) => void;
     onGenerateMore: (id: number, e: React.MouseEvent) => void;
+    isFavorite: boolean;
 }
 
-function ProjectListItem({ project, formatDate, onToggleFavorite, onDelete, onRename, onGenerateMore }: ProjectListItemProps) {
+function ProjectListItem({ project, formatDate, onToggleFavorite, onDelete, onRename, onGenerateMore, isFavorite }: ProjectListItemProps) {
     const [isEditing, setIsEditing] = useState(false);
     const [editTitle, setEditTitle] = useState(project.title);
+    const [showActions, setShowActions] = useState(false);
+    const [showDropdown, setShowDropdown] = useState(false);
     const inputRef = useRef<HTMLInputElement>(null);
+    const dropdownRef = useRef<HTMLDivElement>(null);
 
     // Sync local state when project.title changes from backend
     useEffect(() => {
@@ -570,10 +680,28 @@ function ProjectListItem({ project, formatDate, onToggleFavorite, onDelete, onRe
         }
     }, [isEditing]);
 
-    const handleDoubleClick = (e: React.MouseEvent) => {
+    // Close dropdown when clicking outside
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+                setShowDropdown(false);
+            }
+        };
+
+        if (showDropdown) {
+            document.addEventListener('mousedown', handleClickOutside);
+        }
+
+        return () => {
+            document.removeEventListener('mousedown', handleClickOutside);
+        };
+    }, [showDropdown]);
+
+    const handleRename = (e: React.MouseEvent) => {
         e.preventDefault();
         e.stopPropagation();
         setIsEditing(true);
+        setShowDropdown(false);
     };
 
     const handleBlur = () => {
@@ -581,7 +709,6 @@ function ProjectListItem({ project, formatDate, onToggleFavorite, onDelete, onRe
         if (trimmedTitle && trimmedTitle !== project.title) {
             onRename(project.id, trimmedTitle);
         } else {
-            // Revert to original if empty or unchanged
             setEditTitle(project.title);
         }
         setIsEditing(false);
@@ -596,12 +723,29 @@ function ProjectListItem({ project, formatDate, onToggleFavorite, onDelete, onRe
         }
     };
 
+    const handleDelete = (e: React.MouseEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setShowDropdown(false);
+        onDelete(project.id);
+    };
+
+    const toggleDropdown = (e: React.MouseEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setShowDropdown(!showDropdown);
+    };
+
     return (
         <Link href={`/projects/${project.id}`}>
-            <div className="group cursor-pointer rounded-lg bg-muted/40 hover:bg-muted/60 transition-colors">
-                <div className="flex items-center gap-6 p-4">
+            <div 
+                className="group cursor-pointer rounded-lg bg-background border border-border hover:border-border/60 transition-all p-4"
+                onMouseEnter={() => setShowActions(true)}
+                onMouseLeave={() => setShowActions(false)}
+            >
+                <div className="flex items-center gap-4">
                     {/* Thumbnail */}
-                    <div className="h-20 w-32 shrink-0 overflow-hidden rounded-md bg-muted/60 relative">
+                    <div className="h-16 w-24 shrink-0 overflow-hidden rounded-lg bg-muted relative">
                         {project.featured_image ? (
                             <img 
                                 src={project.featured_image} 
@@ -610,17 +754,16 @@ function ProjectListItem({ project, formatDate, onToggleFavorite, onDelete, onRe
                             />
                         ) : (
                             <div className="flex h-full items-center justify-center">
-                                <svg className="size-5 text-muted-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <svg className="size-4 text-muted-foreground/60" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
                                 </svg>
                             </div>
                         )}
-                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/5 transition-colors" />
                     </div>
 
                     {/* Content */}
-                    <div className="flex min-w-0 flex-1 items-center justify-between gap-6">
-                        <div className="flex min-w-0 flex-1 items-center gap-8">
+                    <div className="flex min-w-0 flex-1 items-center justify-between gap-4">
+                        <div className="min-w-0 flex-1">
                             {/* Title */}
                             {isEditing ? (
                                 <input
@@ -631,75 +774,72 @@ function ProjectListItem({ project, formatDate, onToggleFavorite, onDelete, onRe
                                     onBlur={handleBlur}
                                     onKeyDown={handleKeyDown}
                                     onClick={(e) => e.stopPropagation()}
-                                    className="min-w-0 flex-1 text-[18px] font-semibold border-b-2 border-primary bg-transparent outline-none"
+                                    className="w-full text-base font-medium border-b-2 border-primary bg-transparent outline-none"
                                 />
                             ) : (
-                                <h3 
-                                    className="min-w-0 flex-1 truncate text-[18px] font-semibold group-hover:opacity-80 cursor-text" 
-                                    onDoubleClick={handleDoubleClick}
-                                    title="Double-click to rename"
-                                >
+                                <h3 className="truncate text-base font-medium text-foreground">
                                     {project.title}
                                 </h3>
                             )}
 
-                            {/* Metadata */}
-                            <div className="flex shrink-0 items-center gap-4">
-                                <span className="text-sm text-muted-foreground">
-                                    {formatDate(project.created_at)}
-                                </span>
-                                <Badge
-                                    variant="secondary"
-                                    className="text-xs font-medium"
-                                >
-                                    {project.images_count} images
-                                </Badge>
-                            </div>
+                            {/* Subtitle */}
+                            <p className="text-xs text-muted-foreground mt-0.5">
+                                Edited {formatDate(project.updated_at)}
+                            </p>
                         </div>
 
                         {/* Actions */}
-                        <div className="flex shrink-0 items-center gap-1">
-                            <button
-                                onClick={(e) => onGenerateMore(project.id, e)}
-                                className="rounded p-1.5 transition-colors hover:bg-muted"
-                                title="Generate more images"
-                            >
-                                <Plus className="size-4" />
-                            </button>
-                            
+                        <div className="flex shrink-0 items-center gap-2">
+                            {/* Favorite Icon */}
                             <button
                                 onClick={(e) => onToggleFavorite(project.id, e)}
-                                className="rounded p-1.5 transition-colors hover:bg-muted"
+                                className={`rounded-full p-1.5 hover:bg-muted transition-all ${
+                                    showActions ? 'opacity-100' : 'opacity-0'
+                                }`}
                                 title="Toggle favorite"
                             >
-                                {project.is_favorite ? (
-                                    <Heart className="size-4 fill-current text-red-500" />
+                                {isFavorite ? (
+                                    <Star className="size-4 fill-yellow-400 stroke-yellow-400" />
                                 ) : (
-                                    <Heart className="size-4" />
+                                    <Star className="size-4 stroke-muted-foreground" />
                                 )}
                             </button>
-                            
-                            <button
-                                onClick={(e) => {
-                                    e.preventDefault();
-                                    router.visit(`/projects/${project.id}/edit`);
-                                }}
-                                className="rounded p-1.5 transition-colors hover:bg-muted"
-                                title="Edit project"
+
+                            {/* Three Dots Menu */}
+                            <div 
+                                ref={dropdownRef}
+                                className={`relative transition-all ${showActions ? 'opacity-100' : 'opacity-0'}`}
                             >
-                                <Edit className="size-4" />
-                            </button>
-                            
-                            <button
-                                onClick={(e) => {
-                                    e.preventDefault();
-                                    onDelete(project.id);
-                                }}
-                                className="rounded p-1.5 transition-colors hover:bg-muted text-destructive"
-                                title="Delete project"
-                            >
-                                <Trash2 className="size-4" />
-                            </button>
+                                <button
+                                    onClick={toggleDropdown}
+                                    className="rounded-full p-1.5 hover:bg-muted"
+                                    title="More actions"
+                                >
+                                    <MoreHorizontal className="size-4" />
+                                </button>
+                                
+                                {/* Dropdown Menu */}
+                                <div 
+                                    className={`absolute right-0 top-full mt-1 w-40 rounded-lg bg-background border border-border shadow-lg py-1 z-10 ${
+                                        showDropdown ? 'block' : 'hidden'
+                                    }`}
+                                >
+                                    <button
+                                        onClick={handleRename}
+                                        className="w-full px-4 py-2 text-left text-sm hover:bg-muted transition-colors flex items-center gap-2"
+                                    >
+                                        <Edit className="size-3.5" />
+                                        Rename
+                                    </button>
+                                    <button
+                                        onClick={handleDelete}
+                                        className="w-full px-4 py-2 text-left text-sm hover:bg-muted transition-colors flex items-center gap-2 text-destructive"
+                                    >
+                                        <Trash2 className="size-3.5" />
+                                        Delete
+                                    </button>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
