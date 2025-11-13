@@ -3,6 +3,7 @@ import {
     ConfirmModal,
     PromptModal,
 } from '@/components/canvas-modals';
+import { Skeleton } from '@/components/ui/skeleton';
 import { debug } from '@/lib/debug';
 import { Head, router } from '@inertiajs/react';
 import {
@@ -63,6 +64,20 @@ interface BrushLine {
     objectId?: number | null;
 }
 
+// API request body types
+interface ApiBody {
+    image?: string;
+    image_url?: string;
+    tool?: string;
+    mask?: string;
+    maskImage?: string;
+    sourceImage?: string;
+    prompt?: string;
+    replacementText?: string;
+    expansionRatio?: number;
+    [key: string]: any; // Allow additional properties
+}
+
 // Constants
 const CANVAS_DEFAULTS = {
     BRUSH_SIZE: 50,
@@ -70,12 +85,17 @@ const CANVAS_DEFAULTS = {
     ZOOM_FACTOR: 1.2,
     ZOOM_MIN: 0.1,
     ZOOM_MAX: 10,
+    ZOOM_SCALE_FACTOR: 1.1,
     OBJECT_SPACING: 50,
     UNDO_LIMIT: 50,
     TOAST_DISMISS_MS: 3000,
     CANVAS_PADDING: 100,
     ERASE_GAP: 20,
 };
+
+// Object ID counter to prevent collisions
+let objectIdCounter = 0;
+const generateObjectId = () => ++objectIdCounter;
 
 // Utility function to convert image to data URL
 const imageToDataUrl = (img: HTMLImageElement): string => {
@@ -449,13 +469,54 @@ export default function CanvasEditor(props: CanvasEditorProps) {
             }
         };
 
-        window.addEventListener('paste', handlePaste as any);
-        document.addEventListener('paste', handlePaste as any);
+        // Type-safe wrapper for paste event
+        const handlePasteTyped = (e: Event) => {
+            if (e instanceof ClipboardEvent) {
+                handlePaste(e);
+            }
+        };
+        
+        window.addEventListener('paste', handlePasteTyped);
+        document.addEventListener('paste', handlePasteTyped);
         return () => {
-            window.removeEventListener('paste', handlePaste as any);
-            document.removeEventListener('paste', handlePaste as any);
+            window.removeEventListener('paste', handlePasteTyped);
+            document.removeEventListener('paste', handlePasteTyped);
         };
     }, [canvas, scale, panX, panY, cursorPosition, canvasObjects]);
+
+    // Auto-dismiss alert modal for info type
+    useEffect(() => {
+        if (alertModal.isOpen && alertModal.type === 'info') {
+            const timer = setTimeout(() => {
+                setAlertModal((prev) => ({ ...prev, isOpen: false }));
+            }, CANVAS_DEFAULTS.TOAST_DISMISS_MS);
+            
+            return () => clearTimeout(timer);
+        }
+    }, [alertModal.isOpen, alertModal.type]);
+
+    // Auto-clear action history toasts
+    useEffect(() => {
+        if (actionHistory.length > 0) {
+            const latestAction = actionHistory[0];
+            const timer = setTimeout(() => {
+                setActionHistory((prev) => prev.filter(item => item.time !== latestAction.time));
+            }, CANVAS_DEFAULTS.TOAST_DISMISS_MS);
+            
+            return () => clearTimeout(timer);
+        }
+    }, [actionHistory.length > 0 ? actionHistory[0]?.time : null]);
+
+    // Sync draggedObject and selectedObject when canvasObjects change during drag
+    useEffect(() => {
+        if (draggedObject) {
+            const updatedObject = canvasObjects.find(obj => obj.id === draggedObject.id);
+            if (updatedObject) {
+                setSelectedObject(updatedObject);
+                setDraggedObject(updatedObject);
+            }
+        }
+    }, [canvasObjects, draggedObject?.id]);
 
     // Draw scene when state changes
     useEffect(() => {
@@ -558,7 +619,7 @@ export default function CanvasEditor(props: CanvasEditorProps) {
 
                 // Now create the object and render
                 const mainImageObj: CanvasObject = {
-                    id: Date.now(),
+                    id: generateObjectId(),
                     image: img,
                     x: 0,
                     y: 0,
@@ -845,22 +906,13 @@ export default function CanvasEditor(props: CanvasEditorProps) {
             const newY = (y - dragOffset.y - panY) / scale;
 
             // Update object position immutably
-            setCanvasObjects(prev => {
-                const updatedObjects = prev.map(obj => 
+            setCanvasObjects(prev => 
+                prev.map(obj => 
                     obj.id === draggedObject.id
                         ? { ...obj, x: newX, y: newY }
                         : obj
-                );
-                
-                // Find and update references
-                const updatedObject = updatedObjects.find(obj => obj.id === draggedObject.id);
-                if (updatedObject) {
-                    setSelectedObject(updatedObject);
-                    setDraggedObject(updatedObject);
-                }
-                
-                return updatedObjects;
-            });
+                )
+            );
             return;
         }
 
@@ -902,7 +954,7 @@ export default function CanvasEditor(props: CanvasEditorProps) {
         }
 
         const newObj: CanvasObject = {
-            id: Date.now() + Math.floor(Math.random() * 1000),
+            id: generateObjectId(),
             image: img,
             x: targetX,
             y: targetY,
@@ -931,7 +983,7 @@ export default function CanvasEditor(props: CanvasEditorProps) {
         const mouseX = e.clientX - rect.left;
         const mouseY = e.clientY - rect.top;
 
-        const scaleBy = 1.1; // Finer control for mouse wheel
+        const scaleBy = CANVAS_DEFAULTS.ZOOM_SCALE_FACTOR;
         const direction = e.deltaY > 0 ? -1 : 1;
         const oldScale = scale;
         const newScale =
@@ -958,7 +1010,7 @@ export default function CanvasEditor(props: CanvasEditorProps) {
         setRedoStack([]);
 
         const newLine: BrushLine = {
-            id: Date.now() + Math.random(),
+            id: generateObjectId(),
             points: [x, y],
             brushSize: brushSize,
             brushOpacity: brushOpacity / 100,
@@ -1173,13 +1225,6 @@ export default function CanvasEditor(props: CanvasEditorProps) {
             type,
         });
         
-        // Auto-dismiss after a few seconds for success messages
-        if (type === 'info') {
-            setTimeout(() => {
-                setAlertModal((prev) => ({ ...prev, isOpen: false }));
-            }, CANVAS_DEFAULTS.TOAST_DISMISS_MS);
-        }
-        
         // Add to action history for toast notifications
         if (actionType) {
             const timestamp = Date.now();
@@ -1187,11 +1232,6 @@ export default function CanvasEditor(props: CanvasEditorProps) {
                 { type: actionType, message: `${title}: ${message}`, time: timestamp },
                 ...prev.slice(0, 4), // Keep only last 5 items
             ]);
-            
-            // Auto-clear toast after a few seconds
-            setTimeout(() => {
-                setActionHistory((prev) => prev.filter(item => item.time !== timestamp));
-            }, CANVAS_DEFAULTS.TOAST_DISMISS_MS);
         }
     };
 
@@ -1322,7 +1362,7 @@ export default function CanvasEditor(props: CanvasEditorProps) {
                     const sourceObject = selectedObject;
                     if (sourceObject) {
                         const generatedObj = {
-                            id: Date.now() + Math.random(),
+                            id: generateObjectId(),
                             image: newImage,
                             x: sourceObject.x + sourceObject.image.width + CANVAS_DEFAULTS.ERASE_GAP,
                             y: sourceObject.y,
@@ -1481,7 +1521,7 @@ export default function CanvasEditor(props: CanvasEditorProps) {
                     const sourceObject = selectedObject;
                     if (sourceObject) {
                         const generatedObj = {
-                            id: Date.now() + Math.random(),
+                            id: generateObjectId(),
                             image: newImage,
                             x: sourceObject.x + sourceObject.image.width + CANVAS_DEFAULTS.ERASE_GAP,
                             y: sourceObject.y,
@@ -1681,7 +1721,7 @@ export default function CanvasEditor(props: CanvasEditorProps) {
     };
 
     // Centralized API call utility
-    const callApi = async (url: string, body: any) => {
+    const callApi = async (url: string, body: ApiBody) => {
         const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
         const response = await fetch(url, {
             method: 'POST',
@@ -1759,7 +1799,7 @@ export default function CanvasEditor(props: CanvasEditorProps) {
                 expandedImg.onload = () => {
                     // Add as new object beside the original instead of replacing
                     const newObject: CanvasObject = {
-                        id: Date.now(),
+                        id: generateObjectId(),
                         image: expandedImg,
                         x: selectedObject.x + selectedObject.image.width + CANVAS_DEFAULTS.OBJECT_SPACING,
                         y: selectedObject.y,
@@ -1843,7 +1883,7 @@ export default function CanvasEditor(props: CanvasEditorProps) {
                 upscaledImg.onload = () => {
                     // Add as new object beside the original instead of replacing
                     const newObject: CanvasObject = {
-                        id: Date.now(),
+                        id: generateObjectId(),
                         image: upscaledImg,
                         x: selectedObject.x + selectedObject.image.width + CANVAS_DEFAULTS.OBJECT_SPACING,
                         y: selectedObject.y,
@@ -1906,7 +1946,7 @@ export default function CanvasEditor(props: CanvasEditorProps) {
                     debug.log('[Remove Background] Processed image loaded, updating canvas...');
                     // Add as new object beside the original instead of replacing
                     const newObject: CanvasObject = {
-                        id: Date.now(),
+                        id: generateObjectId(),
                         image: processedImg,
                         x: selectedObject.x + selectedObject.image.width + CANVAS_DEFAULTS.OBJECT_SPACING,
                         y: selectedObject.y,
@@ -2241,7 +2281,7 @@ export default function CanvasEditor(props: CanvasEditorProps) {
                         overflow: 'hidden',
                     }}
                 >
-                    {/* Skeleton Loader beside original image when generating enhancements */}
+                    {/* Skeleton beside original image when generating enhancements */}
                     {isGenerating && generatingType && selectedObject && (
                         <div
                             style={{
@@ -2251,98 +2291,40 @@ export default function CanvasEditor(props: CanvasEditorProps) {
                                 width: selectedObject.image.width * scale,
                                 height: selectedObject.image.height * scale,
                                 zIndex: 1000,
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
                                 pointerEvents: 'none',
                             }}
                         >
+                            <Skeleton 
+                                className="w-full h-full rounded-2xl"
+                                style={{
+                                    boxShadow: '0 8px 24px rgba(0, 0, 0, 0.12), 0 2px 8px rgba(0, 0, 0, 0.08)',
+                                }}
+                            />
                             <div
                                 style={{
-                                    width: '100%',
-                                    height: '100%',
-                                    background: 'linear-gradient(135deg, var(--color-muted) 0%, color-mix(in oklab, var(--color-muted) 95%, var(--color-primary)) 100%)',
-                                    borderRadius: '16px',
-                                    display: 'flex',
-                                    flexDirection: 'column',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    boxShadow: '0 8px 24px rgba(0, 0, 0, 0.12), 0 2px 8px rgba(0, 0, 0, 0.08)',
-                                    gap: '20px',
-                                    position: 'relative',
-                                    overflow: 'hidden',
+                                    position: 'absolute',
+                                    bottom: '16px',
+                                    left: '50%',
+                                    transform: 'translateX(-50%)',
+                                    fontSize: '13px',
+                                    color: 'var(--color-foreground)',
+                                    fontWeight: 600,
+                                    textAlign: 'center',
+                                    padding: '8px 16px',
+                                    background: 'var(--color-background)',
+                                    borderRadius: '8px',
+                                    boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)',
+                                    letterSpacing: '0.3px',
                                 }}
                             >
-                                {/* Floating stars animation */}
-                                <div style={{ position: 'relative', width: '80px', height: '80px' }}>
-                                    {[...Array(5)].map((_, i) => (
-                                        <div
-                                            key={i}
-                                            style={{
-                                                position: 'absolute',
-                                                left: '50%',
-                                                top: '50%',
-                                                transform: 'translate(-50%, -50%)',
-                                                animation: `floatStar${i} ${2 + i * 0.3}s ease-in-out infinite`,
-                                                animationDelay: `${i * 0.2}s`,
-                                            }}
-                                        >
-                                            <svg
-                                                width={16 + i * 2}
-                                                height={16 + i * 2}
-                                                viewBox="0 0 24 24"
-                                                fill="var(--color-primary)"
-                                                style={{
-                                                    filter: 'drop-shadow(0 2px 4px rgba(0, 0, 0, 0.1))',
-                                                    opacity: 0.7 + i * 0.05,
-                                                }}
-                                            >
-                                                <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
-                                            </svg>
-                                        </div>
-                                    ))}
-                                </div>
-                                <div
-                                    style={{
-                                        fontSize: '15px',
-                                        color: 'var(--color-foreground)',
-                                        fontWeight: 600,
-                                        textAlign: 'center',
-                                        padding: '0 24px',
-                                        letterSpacing: '0.3px',
-                                    }}
-                                >
-                                    {generatingType === 'expand' && 'Expanding image...'}
-                                    {generatingType === 'upscale' && 'Upscaling image...'}
-                                    {generatingType === 'remove-bg' && 'Removing background...'}
-                                </div>
-                                <style>{`
-                                    @keyframes floatStar0 {
-                                        0%, 100% { transform: translate(-50%, -50%) translateY(0px) scale(1); }
-                                        50% { transform: translate(-50%, -50%) translateY(-20px) scale(1.1); }
-                                    }
-                                    @keyframes floatStar1 {
-                                        0%, 100% { transform: translate(-50%, -50%) translate(15px, -10px) scale(0.9); }
-                                        50% { transform: translate(-50%, -50%) translate(20px, -25px) scale(1); }
-                                    }
-                                    @keyframes floatStar2 {
-                                        0%, 100% { transform: translate(-50%, -50%) translate(-15px, -10px) scale(0.85); }
-                                        50% { transform: translate(-50%, -50%) translate(-20px, -25px) scale(0.95); }
-                                    }
-                                    @keyframes floatStar3 {
-                                        0%, 100% { transform: translate(-50%, -50%) translate(20px, 10px) scale(0.8); }
-                                        50% { transform: translate(-50%, -50%) translate(28px, -5px) scale(0.9); }
-                                    }
-                                    @keyframes floatStar4 {
-                                        0%, 100% { transform: translate(-50%, -50%) translate(-20px, 10px) scale(0.75); }
-                                        50% { transform: translate(-50%, -50%) translate(-28px, -5px) scale(0.85); }
-                                    }
-                                `}</style>
+                                {generatingType === 'expand' && 'Expanding...'}
+                                {generatingType === 'upscale' && 'Upscaling...'}
+                                {generatingType === 'remove-bg' && 'Removing background...'}
                             </div>
                         </div>
                     )}
                     
-                    {/* Full overlay loader for other operations */}
+                    {/* Full overlay skeleton for other operations */}
                     {isGenerating && !generatingType && (
                         <div
                             style={{
@@ -2363,51 +2345,17 @@ export default function CanvasEditor(props: CanvasEditorProps) {
                                     display: 'flex',
                                     flexDirection: 'column',
                                     alignItems: 'center',
-                                    gap: '24px',
+                                    gap: '16px',
                                     background: 'var(--color-card)',
-                                    padding: '40px 48px',
+                                    padding: '32px 40px',
                                     borderRadius: '16px',
                                     boxShadow: '0 8px 24px rgba(0, 0, 0, 0.12)',
                                 }}
                             >
-                                {/* Floating stars animation */}
-                                <div style={{ position: 'relative', width: '80px', height: '80px' }}>
-                                    {[...Array(5)].map((_, i) => (
-                                        <div
-                                            key={i}
-                                            style={{
-                                                position: 'absolute',
-                                                left: '50%',
-                                                top: '50%',
-                                                transform: 'translate(-50%, -50%)',
-                                                animation: `floatStar${i} ${2 + i * 0.3}s ease-in-out infinite`,
-                                                animationDelay: `${i * 0.2}s`,
-                                            }}
-                                        >
-                                            <svg
-                                                width={16 + i * 2}
-                                                height={16 + i * 2}
-                                                viewBox="0 0 24 24"
-                                                fill="var(--color-primary)"
-                                                style={{
-                                                    filter: 'drop-shadow(0 2px 4px rgba(0, 0, 0, 0.1))',
-                                                    opacity: 0.7 + i * 0.05,
-                                                }}
-                                            >
-                                                <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
-                                            </svg>
-                                        </div>
-                                    ))}
-                                </div>
-                                <div
-                                    style={{
-                                        fontSize: '18px',
-                                        color: 'var(--color-foreground)',
-                                        fontWeight: 600,
-                                        letterSpacing: '0.3px',
-                                    }}
-                                >
-                                    Generating with AI...
+                                <Skeleton className="w-24 h-24 rounded-xl" />
+                                <div className="space-y-2">
+                                    <Skeleton className="h-4 w-48" />
+                                    <Skeleton className="h-3 w-36" />
                                 </div>
                             </div>
                         </div>
