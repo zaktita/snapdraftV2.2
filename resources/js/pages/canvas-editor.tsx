@@ -9,6 +9,7 @@ import { Head, router } from '@inertiajs/react';
 import {
     ArrowLeft,
     ChevronLeft,
+    Crop,
     Download,
     Eraser,
     Lightbulb,
@@ -149,6 +150,12 @@ export default function CanvasEditor(props: CanvasEditorProps) {
     const [actionHistory, setActionHistory] = useState<Array<{type: string; message: string; time: number}>>([]);
     const [cursorPosition, setCursorPosition] = useState({ x: 0, y: 0 });
     const internalClipboardRef = useRef<HTMLImageElement | null>(null);
+    
+    // Crop rectangle state (in canvas coordinates)
+    const [cropMode, setCropMode] = useState(false);
+    const [cropRect, setCropRect] = useState<{x: number; y: number; w: number; h: number} | null>(null);
+    const [cropDragHandle, setCropDragHandle] = useState<string | null>(null); // 'move', 'nw', 'ne', 'sw', 'se', 'n', 's', 'e', 'w'
+    const [cropDragStart, setCropDragStart] = useState<{x: number; y: number; rectX: number; rectY: number; rectW: number; rectH: number} | null>(null);
 
     // Modal state
     const [promptModal, setPromptModal] = useState<{
@@ -670,6 +677,12 @@ export default function CanvasEditor(props: CanvasEditorProps) {
         // Draw all canvas objects
         canvasObjects.forEach((obj) => drawCanvasObject(obj));
 
+        // If in crop mode, draw crop overlay instead of normal UI
+        if (cropMode && cropRect) {
+            drawCropRectangle();
+            return;
+        }
+
         // Draw brush strokes
         canvasObjects.forEach((obj) => {
             const objectLines = lines.filter(
@@ -760,6 +773,57 @@ export default function CanvasEditor(props: CanvasEditorProps) {
         ctx.restore();
     };
 
+    const drawCropRectangle = () => {
+        if (!ctx || !cropRect) return;
+
+        const screenX = panX + cropRect.x * scale;
+        const screenY = panY + cropRect.y * scale;
+        const screenW = cropRect.w * scale;
+        const screenH = cropRect.h * scale;
+
+        ctx.save();
+
+        // Darken area outside crop rect
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+        ctx.fillRect(0, 0, canvas!.width, canvas!.height);
+        ctx.clearRect(screenX, screenY, screenW, screenH);
+        ctx.globalCompositeOperation = 'destination-over';
+        canvasObjects.forEach((obj) => drawCanvasObject(obj));
+        ctx.globalCompositeOperation = 'source-over';
+
+        // Draw crop rectangle border
+        ctx.strokeStyle = '#2196F3';
+        ctx.lineWidth = 2;
+        ctx.setLineDash([]);
+        ctx.strokeRect(screenX, screenY, screenW, screenH);
+
+        // Draw corner handles (8x8 squares)
+        const handleSize = 8;
+        ctx.fillStyle = '#2196F3';
+        const corners = [
+            { x: screenX - handleSize / 2, y: screenY - handleSize / 2 }, // nw
+            { x: screenX + screenW - handleSize / 2, y: screenY - handleSize / 2 }, // ne
+            { x: screenX - handleSize / 2, y: screenY + screenH - handleSize / 2 }, // sw
+            { x: screenX + screenW - handleSize / 2, y: screenY + screenH - handleSize / 2 }, // se
+        ];
+        corners.forEach(corner => {
+            ctx.fillRect(corner.x, corner.y, handleSize, handleSize);
+        });
+
+        // Draw edge handles (middle of each side)
+        const edges = [
+            { x: screenX + screenW / 2 - handleSize / 2, y: screenY - handleSize / 2 }, // n
+            { x: screenX + screenW / 2 - handleSize / 2, y: screenY + screenH - handleSize / 2 }, // s
+            { x: screenX - handleSize / 2, y: screenY + screenH / 2 - handleSize / 2 }, // w
+            { x: screenX + screenW - handleSize / 2, y: screenY + screenH / 2 - handleSize / 2 }, // e
+        ];
+        edges.forEach(edge => {
+            ctx.fillRect(edge.x, edge.y, handleSize, handleSize);
+        });
+
+        ctx.restore();
+    };
+
     const drawBrushCursor = () => {
         if (!ctx) return;
 
@@ -814,6 +878,51 @@ export default function CanvasEditor(props: CanvasEditorProps) {
         );
     };
 
+    const getCropHandleAtPoint = (screenX: number, screenY: number): string | null => {
+        if (!cropRect) return null;
+        
+        const screenRectX = panX + cropRect.x * scale;
+        const screenRectY = panY + cropRect.y * scale;
+        const screenRectW = cropRect.w * scale;
+        const screenRectH = cropRect.h * scale;
+        const handleSize = 8;
+        const tolerance = 5;
+
+        // Check corners
+        const corners = [
+            { handle: 'nw', x: screenRectX, y: screenRectY },
+            { handle: 'ne', x: screenRectX + screenRectW, y: screenRectY },
+            { handle: 'sw', x: screenRectX, y: screenRectY + screenRectH },
+            { handle: 'se', x: screenRectX + screenRectW, y: screenRectY + screenRectH },
+        ];
+        for (const corner of corners) {
+            if (Math.abs(screenX - corner.x) < handleSize + tolerance && Math.abs(screenY - corner.y) < handleSize + tolerance) {
+                return corner.handle;
+            }
+        }
+
+        // Check edges
+        const edges = [
+            { handle: 'n', x: screenRectX + screenRectW / 2, y: screenRectY },
+            { handle: 's', x: screenRectX + screenRectW / 2, y: screenRectY + screenRectH },
+            { handle: 'w', x: screenRectX, y: screenRectY + screenRectH / 2 },
+            { handle: 'e', x: screenRectX + screenRectW, y: screenRectY + screenRectH / 2 },
+        ];
+        for (const edge of edges) {
+            if (Math.abs(screenX - edge.x) < handleSize + tolerance && Math.abs(screenY - edge.y) < handleSize + tolerance) {
+                return edge.handle;
+            }
+        }
+
+        // Check if inside rect (move)
+        if (screenX >= screenRectX && screenX <= screenRectX + screenRectW &&
+            screenY >= screenRectY && screenY <= screenRectY + screenRectH) {
+            return 'move';
+        }
+
+        return null;
+    };
+
     const getObjectAtPoint = (screenX: number, screenY: number) => {
         for (let i = canvasObjects.length - 1; i >= 0; i--) {
             const obj = canvasObjects[i];
@@ -837,6 +946,23 @@ export default function CanvasEditor(props: CanvasEditorProps) {
             tool: currentTool,
             isSpacePressed,
         });
+
+        // Crop mode interactions
+        if (cropMode && cropRect) {
+            const handle = getCropHandleAtPoint(x, y);
+            if (handle) {
+                setCropDragHandle(handle);
+                setCropDragStart({
+                    x,
+                    y,
+                    rectX: cropRect.x,
+                    rectY: cropRect.y,
+                    rectW: cropRect.w,
+                    rectH: cropRect.h,
+                });
+                return;
+            }
+        }
 
         // Pan with space+drag or middle mouse button
         if (e.button === 1 || (e.button === 0 && isSpacePressed)) {
@@ -891,6 +1017,62 @@ export default function CanvasEditor(props: CanvasEditorProps) {
         // Update cursor position for custom cursor
         setCursorPosition({ x, y });
 
+        // Crop mode dragging
+        if (cropMode && cropDragHandle && cropDragStart && cropRect) {
+            const dx = (x - cropDragStart.x) / scale;
+            const dy = (y - cropDragStart.y) / scale;
+
+            let newRect = { ...cropRect };
+
+            switch (cropDragHandle) {
+                case 'move':
+                    newRect.x = cropDragStart.rectX + dx;
+                    newRect.y = cropDragStart.rectY + dy;
+                    break;
+                case 'nw':
+                    newRect.x = cropDragStart.rectX + dx;
+                    newRect.y = cropDragStart.rectY + dy;
+                    newRect.w = cropDragStart.rectW - dx;
+                    newRect.h = cropDragStart.rectH - dy;
+                    break;
+                case 'ne':
+                    newRect.y = cropDragStart.rectY + dy;
+                    newRect.w = cropDragStart.rectW + dx;
+                    newRect.h = cropDragStart.rectH - dy;
+                    break;
+                case 'sw':
+                    newRect.x = cropDragStart.rectX + dx;
+                    newRect.w = cropDragStart.rectW - dx;
+                    newRect.h = cropDragStart.rectH + dy;
+                    break;
+                case 'se':
+                    newRect.w = cropDragStart.rectW + dx;
+                    newRect.h = cropDragStart.rectH + dy;
+                    break;
+                case 'n':
+                    newRect.y = cropDragStart.rectY + dy;
+                    newRect.h = cropDragStart.rectH - dy;
+                    break;
+                case 's':
+                    newRect.h = cropDragStart.rectH + dy;
+                    break;
+                case 'w':
+                    newRect.x = cropDragStart.rectX + dx;
+                    newRect.w = cropDragStart.rectW - dx;
+                    break;
+                case 'e':
+                    newRect.w = cropDragStart.rectW + dx;
+                    break;
+            }
+
+            // Enforce minimum size
+            if (newRect.w < 50) newRect.w = 50;
+            if (newRect.h < 50) newRect.h = 50;
+
+            setCropRect(newRect);
+            return;
+        }
+
         if (isDragging) {
             const dx = e.clientX - lastPanPoint.x;
             const dy = e.clientY - lastPanPoint.y;
@@ -925,6 +1107,12 @@ export default function CanvasEditor(props: CanvasEditorProps) {
     };
 
     const handleMouseUp = () => {
+        // Clear crop drag state
+        if (cropDragHandle) {
+            setCropDragHandle(null);
+            setCropDragStart(null);
+        }
+
         setIsDragging(false);
         if (isPainting) {
             setIsPainting(false);
@@ -1745,6 +1933,96 @@ export default function CanvasEditor(props: CanvasEditorProps) {
         return await response.json();
     };
 
+    // Crop/Resize Canvas (crop if shrinking, outpaint if expanding)
+    const handleCropResize = async () => {
+        if (isGenerating) return;
+        const target = selectedObject || canvasObjects.find(o => o.isMainImage) || null;
+        if (!target) {
+            showAlert('No Selection', 'Please select an image first.', 'warning');
+            return;
+        }
+
+        // Enter interactive crop mode
+        // Initialize crop rectangle around the selected object
+        const initialRect = {
+            x: target.x,
+            y: target.y,
+            w: target.image.width,
+            h: target.image.height,
+        };
+        setCropRect(initialRect);
+        setCropMode(true);
+    };
+
+    const handleConfirmCrop = async () => {
+        if (!cropRect || isGenerating) return;
+        const target = selectedObject || canvasObjects.find(o => o.isMainImage) || null;
+        if (!target) return;
+
+        const srcW = target.image.width;
+        const srcH = target.image.height;
+        const newW = Math.round(cropRect.w);
+        const newH = Math.round(cropRect.h);
+
+        // offsetX/Y = where original image's (0,0) will be placed in the new canvas
+        // If crop rect starts at (10, 20), original (0,0) needs to be at (-10, -20) in new canvas
+        const offsetX = Math.round(-cropRect.x);
+        const offsetY = Math.round(-cropRect.y);
+
+        setCropMode(false);
+        setCropRect(null);
+        setGeneratingType('crop');
+        setIsGenerating(true);
+
+        try {
+            const imageDataUrl = imageToDataUrl(target.image);
+            const result = await callApi('/api/resize-canvas', {
+                image: imageDataUrl,
+                targetWidth: newW,
+                targetHeight: newH,
+                offsetX,
+                offsetY,
+            });
+
+            if (result.resultImage) {
+                const outImg = new Image();
+                outImg.crossOrigin = 'anonymous';
+                outImg.onload = () => {
+                    const newObject: CanvasObject = {
+                        id: generateObjectId(),
+                        image: outImg,
+                        x: target.x + target.image.width + CANVAS_DEFAULTS.OBJECT_SPACING,
+                        y: target.y,
+                        label: result.mode === 'crop' ? 'Cropped Image' : 'Resized (AI) Image',
+                        isMainImage: false,
+                    };
+                    setCanvasObjects((prev) => [...prev, newObject]);
+                    setSelectedObject(newObject);
+                    showAlert('Success', result.mode === 'crop' ? 'Image cropped.' : 'Canvas expanded with AI.', 'info', 'crop');
+                    setIsGenerating(false);
+                    setGeneratingType(null);
+                };
+                outImg.onerror = () => {
+                    showAlert('Error', 'Failed to load processed image', 'error', 'crop');
+                    setIsGenerating(false);
+                    setGeneratingType(null);
+                };
+                outImg.src = result.resultImage;
+            }
+        } catch (error) {
+            showAlert('Error', error instanceof Error ? error.message : 'Failed to crop/resize', 'error', 'crop');
+            setIsGenerating(false);
+            setGeneratingType(null);
+        }
+    };
+
+    const handleCancelCrop = () => {
+        setCropMode(false);
+        setCropRect(null);
+        setCropDragHandle(null);
+        setCropDragStart(null);
+    };
+
     // Enhancement: Expand Image
     const handleExpandImage = async () => {
         if (isGenerating) return;
@@ -2320,6 +2598,7 @@ export default function CanvasEditor(props: CanvasEditorProps) {
                                 {generatingType === 'expand' && 'Expanding...'}
                                 {generatingType === 'upscale' && 'Upscaling...'}
                                 {generatingType === 'remove-bg' && 'Removing background...'}
+                                {generatingType === 'crop' && 'Resizing canvas...'}
                             </div>
                         </div>
                     )}
@@ -2439,6 +2718,15 @@ export default function CanvasEditor(props: CanvasEditorProps) {
                                             : 'stretch',
                                     }}
                                 >
+                                    <ToolButton
+                                        icon={<Crop size={18} />}
+                                        label="Crop / Resize"
+                                        active={generatingType === 'crop'}
+                                        onClick={handleCropResize}
+                                        collapsed={sidebarCollapsed}
+                                        disabled={isGenerating}
+                                        shortcut="C"
+                                    />
                                     {/* AI Generate Quick Action */}
                                     <ToolButton
                                         icon={<MousePointer size={18} />}
@@ -2827,6 +3115,58 @@ export default function CanvasEditor(props: CanvasEditorProps) {
                                     cursor: getCursorStyle(),
                                 }}
                             />
+
+                            {/* Crop Mode Overlay Buttons */}
+                            {cropMode && !showUploadZone && (
+                                <div
+                                    style={{
+                                        position: 'absolute',
+                                        bottom: '24px',
+                                        left: '50%',
+                                        transform: 'translateX(-50%)',
+                                        display: 'flex',
+                                        gap: '12px',
+                                        zIndex: 1000,
+                                    }}
+                                >
+                                    <button
+                                        onClick={handleCancelCrop}
+                                        disabled={isGenerating}
+                                        style={{
+                                            padding: '10px 24px',
+                                            background: 'var(--color-card)',
+                                            border: '1px solid var(--color-border)',
+                                            borderRadius: '8px',
+                                            color: 'var(--color-foreground)',
+                                            cursor: isGenerating ? 'not-allowed' : 'pointer',
+                                            fontWeight: 500,
+                                            fontSize: '14px',
+                                            opacity: isGenerating ? 0.5 : 1,
+                                            transition: 'all 0.15s ease',
+                                        }}
+                                    >
+                                        Cancel
+                                    </button>
+                                    <button
+                                        onClick={handleConfirmCrop}
+                                        disabled={isGenerating}
+                                        style={{
+                                            padding: '10px 24px',
+                                            background: '#2196F3',
+                                            border: 'none',
+                                            borderRadius: '8px',
+                                            color: 'white',
+                                            cursor: isGenerating ? 'not-allowed' : 'pointer',
+                                            fontWeight: 500,
+                                            fontSize: '14px',
+                                            opacity: isGenerating ? 0.5 : 1,
+                                            transition: 'all 0.15s ease',
+                                        }}
+                                    >
+                                        Confirm Crop
+                                    </button>
+                                </div>
+                            )}
 
                             {/* Upload Zone */}
                             {showUploadZone && (

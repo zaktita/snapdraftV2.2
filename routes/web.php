@@ -120,6 +120,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('/api/remove-background', [ImageEditController::class, 'removeBackground'])
         ->name('api.remove-background');
     
+    // Resize canvas (crop or expand with AI)
+    Route::post('/api/resize-canvas', [ImageEditController::class, 'resizeCanvas'])
+        ->name('api.resize-canvas');
+    
     // Test Gemini inpainting
     Route::get('/test/gemini-inpaint', [ImageEditController::class, 'testInpaint']);
 

@@ -521,6 +521,215 @@ class ImageEditController extends Controller
     }
 
     /**
+     * Resize the canvas around the image. If target area extends beyond the original image
+     * (expansion), fill the new space using AI outpainting (Gemini). If target area is smaller
+     * (cropping), crop deterministically without AI.
+     *
+     * Request params:
+     * - image: base64 data URL of the source image
+     * - targetWidth: int target canvas width
+     * - targetHeight: int target canvas height
+     * - offsetX: int X position where the original image's left should be placed in target canvas
+     * - offsetY: int Y position where the original image's top should be placed in target canvas
+     */
+    public function resizeCanvas(Request $request)
+    {
+        $validated = $request->validate([
+            'image' => 'required|string',
+            'targetWidth' => 'required|integer|min:1|max:8192',
+            'targetHeight' => 'required|integer|min:1|max:8192',
+            'offsetX' => 'required|integer',
+            'offsetY' => 'required|integer',
+        ]);
+
+        try {
+            Log::info('[resize-canvas] Starting', [
+                'targetWidth' => $validated['targetWidth'],
+                'targetHeight' => $validated['targetHeight'],
+                'offsetX' => $validated['offsetX'],
+                'offsetY' => $validated['offsetY'],
+            ]);
+
+            $imageData = self::decodeDataUrl($validated['image']);
+            if (!$imageData) {
+                return response()->json(['message' => 'Invalid image data'], 422);
+            }
+
+            $img = imagecreatefromstring($imageData);
+            if (!$img) {
+                return response()->json(['message' => 'Invalid image format'], 422);
+            }
+
+            $srcW = imagesx($img);
+            $srcH = imagesy($img);
+            $dstW = (int)$validated['targetWidth'];
+            $dstH = (int)$validated['targetHeight'];
+            $offsetX = (int)$validated['offsetX'];
+            $offsetY = (int)$validated['offsetY'];
+
+            // Determine if any area lies outside the original image bounds (expansion)
+            $expandsLeft = $offsetX < 0;
+            $expandsTop = $offsetY < 0;
+            $expandsRight = ($offsetX + $srcW) > $dstW;
+            $expandsBottom = ($offsetY + $srcH) > $dstH;
+
+            $needsOutpaint = $dstW > $srcW || $dstH > $srcH || $expandsLeft || $expandsTop || $expandsRight || $expandsBottom;
+
+            if (!$needsOutpaint) {
+                // Pure cropping (no AI). Copy the intersecting region from source to target.
+                // Create target with transparency
+                $dst = imagecreatetruecolor($dstW, $dstH);
+                imagealphablending($dst, false);
+                imagesavealpha($dst, true);
+                $trans = imagecolorallocatealpha($dst, 0, 0, 0, 127);
+                imagefilledrectangle($dst, 0, 0, $dstW, $dstH, $trans);
+
+                // Compute source and destination rectangles
+                // We place the original at (offsetX, offsetY) on the destination.
+                // If offset is positive, source starts at (0,0) and dest at (offsetX, offsetY)
+                // If offset is negative, we shift source start accordingly.
+                $srcX = max(0, -$offsetX);
+                $srcY = max(0, -$offsetY);
+                $dstX = max(0, $offsetX);
+                $dstY = max(0, $offsetY);
+
+                $copyW = min($srcW - $srcX, $dstW - $dstX);
+                $copyH = min($srcH - $srcY, $dstH - $dstY);
+                if ($copyW <= 0 || $copyH <= 0) {
+                    imagedestroy($img);
+                    imagedestroy($dst);
+                    return response()->json(['message' => 'Crop area is empty'], 422);
+                }
+
+                imagecopy(
+                    $dst,
+                    $img,
+                    $dstX, $dstY,
+                    $srcX, $srcY,
+                    $copyW, $copyH
+                );
+
+                ob_start();
+                imagepng($dst, null, 9);
+                $data = ob_get_clean();
+                $base64 = base64_encode($data);
+
+                imagedestroy($img);
+                imagedestroy($dst);
+
+                Log::info('[resize-canvas] Cropping success');
+                return response()->json([
+                    'resultImage' => 'data:image/png;base64,' . $base64,
+                    'mode' => 'crop',
+                    'width' => $dstW,
+                    'height' => $dstH,
+                ]);
+            }
+
+            // Expansion/outpainting path
+            // Build expanded canvas of target size and place original at offset
+            $expanded = imagecreatetruecolor($dstW, $dstH);
+            // Fill background with white (or transparent). We'll use white to help the model.
+            $white = imagecolorallocate($expanded, 255, 255, 255);
+            imagefilledrectangle($expanded, 0, 0, $dstW, $dstH, $white);
+            imagecopy($expanded, $img, max(0, $offsetX), max(0, $offsetY), max(0, -$offsetX), max(0, -$offsetY), $srcW - max(0, -$offsetX), $srcH - max(0, -$offsetY));
+
+            // Create mask: white everywhere to generate, black where original pixels are placed
+            $mask = imagecreatetruecolor($dstW, $dstH);
+            $maskWhite = imagecolorallocate($mask, 255, 255, 255);
+            $maskBlack = imagecolorallocate($mask, 0, 0, 0);
+            imagefilledrectangle($mask, 0, 0, $dstW, $dstH, $maskWhite);
+            imagefilledrectangle($mask, max(0, $offsetX), max(0, $offsetY), max(0, $offsetX) + $srcW, max(0, $offsetY) + $srcH, $maskBlack);
+
+            ob_start();
+            imagepng($expanded);
+            $expandedData = ob_get_clean();
+            $expandedBase64 = base64_encode($expandedData);
+
+            ob_start();
+            imagepng($mask);
+            $maskData = ob_get_clean();
+            $maskBase64 = base64_encode($maskData);
+
+            imagedestroy($img);
+            imagedestroy($expanded);
+            imagedestroy($mask);
+
+            // Prompt tailored for resize/outpaint
+            $prompt = "You are an expert image editor. Fill the white masked areas so the scene extends naturally " .
+                      "to match the original image's style, perspective, colors, and lighting. Keep the black area (original) unchanged.";
+
+            Log::info('[resize-canvas] Calling Gemini for outpainting', ['target' => $dstW . 'x' . $dstH]);
+
+            $apiKey = config('services.gemini.api_key');
+            $imageModel = config('services.gemini.image_model', 'gemini-2.5-flash-image-preview');
+
+            $response = Http::withoutVerifying()->timeout(120)
+                ->post("https://generativelanguage.googleapis.com/v1beta/models/{$imageModel}:generateContent?key={$apiKey}", [
+                    'contents' => [
+                        [
+                            'role' => 'user',
+                            'parts' => [
+                                ['text' => $prompt],
+                                [
+                                    'inlineData' => [
+                                        'mimeType' => 'image/png',
+                                        'data' => $expandedBase64,
+                                    ],
+                                ],
+                                [
+                                    'inlineData' => [
+                                        'mimeType' => 'image/png',
+                                        'data' => $maskBase64,
+                                    ],
+                                ],
+                            ],
+                        ],
+                    ],
+                    'generationConfig' => [
+                        'temperature' => 0.9,
+                        'topK' => 40,
+                        'topP' => 0.95,
+                        'maxOutputTokens' => 8192,
+                    ],
+                ]);
+
+            if (!$response->successful()) {
+                Log::error('[resize-canvas] Gemini API error', [
+                    'status' => $response->status(),
+                    'body' => $response->body(),
+                ]);
+                throw new \Exception('Gemini API error: ' . $response->body());
+            }
+
+            $result = $response->json();
+            if (isset($result['candidates'][0]['content']['parts'])) {
+                foreach ($result['candidates'][0]['content']['parts'] as $part) {
+                    if (isset($part['inlineData']['data'])) {
+                        $generatedBase64 = $part['inlineData']['data'];
+                        $dataUrl = 'data:image/png;base64,' . $generatedBase64;
+                        Log::info('[resize-canvas] Outpaint success');
+                        return response()->json([
+                            'resultImage' => $dataUrl,
+                            'mode' => 'expand',
+                            'width' => $dstW,
+                            'height' => $dstH,
+                        ]);
+                    }
+                }
+            }
+
+            throw new \Exception('No image in Gemini response');
+
+        } catch (\Throwable $e) {
+            Log::error('[resize-canvas] Error: ' . $e->getMessage());
+            return response()->json([
+                'message' => 'Resize failed',
+                'error' => $e->getMessage(),
+            ], 500);
+        }
+    }
+    /**
      * Improved background removal using edge detection and intelligent transparency.
      */
     private function improvedBackgroundRemoval($img, $width, $height)
