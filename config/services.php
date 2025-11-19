@@ -57,6 +57,8 @@ return [
     'openrouter' => [
         'api_key' => env('OPENROUTER_API_KEY'),
         'model' => env('OPENROUTER_MODEL', 'openrouter/auto'),
+        // Image model for canvas editor (inpainting, outpainting, prompt-based editing)
+        'image_model' => 'openai/gpt-5-image',
         'site_url' => env('APP_URL'),
         'site_name' => env('APP_NAME', 'SnapDraft'),
     ],

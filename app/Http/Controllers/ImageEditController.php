@@ -5,9 +5,16 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Http;
+use App\Services\CanvasEditorService;
 
 class ImageEditController extends Controller
 {
+    protected $canvasEditorService;
+
+    public function __construct(CanvasEditorService $canvasEditorService)
+    {
+        $this->canvasEditorService = $canvasEditorService;
+    }
     /**
      * Simple inpainting using Gemini Flash Image model.
      */
@@ -32,79 +39,27 @@ class ImageEditController extends Controller
 
             
 
-            // Re-encode as base64 for Gemini
+            // Re-encode as base64 for OpenRouter
             $originalBase64 = base64_encode($originalData);
             $maskBase64 = base64_encode($maskData);
 
-            // Build prompt: "inpaint the masked area and [user prompt]"
-            $fullPrompt = "You are an expert image editor. The user has provided an image and a mask (white areas show where to edit). " . 
-                          $validated['prompt'] . ". Only modify the white areas in the mask. Keep the rest of the image unchanged.";
-            
-            Log::info('[generate-with-mask] Calling Gemini', ['model' => config('services.gemini.image_model')]);
+            Log::info('[generate-with-mask] Calling OpenRouter GPT-5 Image');
 
-            // Call Gemini API with image + mask + prompt
-            $apiKey = config('services.gemini.api_key');
-            $imageModel = config('services.gemini.image_model', 'gemini-2.5-flash-image-preview');
-            
-            $response = Http::withoutVerifying()->timeout(120)
-                ->post("https://generativelanguage.googleapis.com/v1beta/models/{$imageModel}:generateContent?key={$apiKey}", [
-                    'contents' => [
-                        [
-                            'role' => 'user',
-                            'parts' => [
-                                // Pass the exact prompt received from client (already formatted)
-                                ['text' => $validated['prompt']],
-                                [
-                                    'inlineData' => [
-                                        'mimeType' => 'image/png',
-                                        'data' => $originalBase64
-                                    ]
-                                ],
-                                [
-                                    'inlineData' => [
-                                        'mimeType' => 'image/png',
-                                        'data' => $maskBase64
-                                    ]
-                                ]
-                            ]
-                        ]
-                    ],
-                    'generationConfig' => [
-                        'temperature' => 1.0,
-                        'topK' => 40,
-                        'topP' => 0.95,
-                        'maxOutputTokens' => 8192,
-                    ]
-                ]);
+            // Call CanvasEditorService for inpainting
+            $resultBase64 = $this->canvasEditorService->inpaint(
+                $originalBase64,
+                $maskBase64,
+                $validated['prompt']
+            );
 
-            if (!$response->successful()) {
-                Log::error('[generate-with-mask] Gemini API error', [
-                    'status' => $response->status(),
-                    'body' => $response->body()
-                ]);
-                throw new \Exception('Gemini API error: ' . $response->body());
-            }
+            $dataUrl = 'data:image/png;base64,' . $resultBase64;
 
-            $result = $response->json();
-            
-            // Extract generated image from Gemini response
-            if (isset($result['candidates'][0]['content']['parts'])) {
-                foreach ($result['candidates'][0]['content']['parts'] as $part) {
-                    if (isset($part['inlineData']['data'])) {
-                        $generatedBase64 = $part['inlineData']['data'];
-                        $dataUrl = 'data:image/png;base64,' . $generatedBase64;
+            Log::info('[generate-with-mask] Success');
 
-                        Log::info('[generate-with-mask] Success');
-
-                        return response()->json([
-                            'generatedImage' => $dataUrl,
-                            'prompt' => $validated['prompt'],
-                        ]);
-                    }
-                }
-            }
-
-            throw new \Exception('No image in Gemini response');
+            return response()->json([
+                'generatedImage' => $dataUrl,
+                'prompt' => $validated['prompt'],
+            ]);
 
         } catch (\Throwable $e) {
             Log::error('[generate-with-mask] Error: ' . $e->getMessage());
@@ -317,76 +272,23 @@ class ImageEditController extends Controller
             imagedestroy($expandedImg);
             imagedestroy($mask);
 
-            // Build AI prompt for outpainting
-            $prompt = "You are an expert image editor. Outpaint this image to fill the white masked areas. " .
-                      "Seamlessly extend the existing content in a natural and coherent way. " .
-                      "Match the style, colors, lighting, and context of the original image. " .
-                      "The black area shows the original image that must remain unchanged.";
+            Log::info('[expand-image] Calling OpenRouter GPT-5 Image for outpainting');
 
-            Log::info('[expand-image] Calling Gemini for outpainting');
+            // Call CanvasEditorService for outpainting
+            $resultBase64 = $this->canvasEditorService->outpaint(
+                $expandedBase64,
+                $maskBase64
+            );
 
-            $apiKey = config('services.gemini.api_key');
-            $imageModel = config('services.gemini.image_model', 'gemini-2.5-flash-image');
-            
-            $response = Http::withoutVerifying()->timeout(120)
-                ->post("https://generativelanguage.googleapis.com/v1beta/models/{$imageModel}:generateContent?key={$apiKey}", [
-                    'contents' => [
-                        [
-                            'role' => 'user',
-                            'parts' => [
-                                ['text' => $prompt],
-                                [
-                                    'inlineData' => [
-                                        'mimeType' => 'image/png',
-                                        'data' => $expandedBase64
-                                    ]
-                                ],
-                                [
-                                    'inlineData' => [
-                                        'mimeType' => 'image/png',
-                                        'data' => $maskBase64
-                                    ]
-                                ]
-                            ]
-                        ]
-                    ],
-                    'generationConfig' => [
-                        'temperature' => 0.9,
-                        'topK' => 40,
-                        'topP' => 0.95,
-                        'maxOutputTokens' => 8192,
-                    ]
-                ]);
+            $dataUrl = 'data:image/png;base64,' . $resultBase64;
 
-            if (!$response->successful()) {
-                Log::error('[expand-image] Gemini API error', [
-                    'status' => $response->status(),
-                    'body' => $response->body()
-                ]);
-                throw new \Exception('Gemini API error: ' . $response->body());
-            }
+            Log::info('[expand-image] Success');
 
-            $result = $response->json();
-            
-            // Extract generated image
-            if (isset($result['candidates'][0]['content']['parts'])) {
-                foreach ($result['candidates'][0]['content']['parts'] as $part) {
-                    if (isset($part['inlineData']['data'])) {
-                        $generatedBase64 = $part['inlineData']['data'];
-                        $dataUrl = 'data:image/png;base64,' . $generatedBase64;
-
-                        Log::info('[expand-image] Success');
-
-                        return response()->json([
-                            'expandedImage' => $dataUrl,
-                            'newWidth' => $newWidth,
-                            'newHeight' => $newHeight,
-                        ]);
-                    }
-                }
-            }
-
-            throw new \Exception('No image in Gemini response');
+            return response()->json([
+                'expandedImage' => $dataUrl,
+                'newWidth' => $newWidth,
+                'newHeight' => $newHeight,
+            ]);
 
         } catch (\Throwable $e) {
             Log::error('[expand-image] Error: ' . $e->getMessage());
@@ -655,71 +557,23 @@ class ImageEditController extends Controller
             imagedestroy($expanded);
             imagedestroy($mask);
 
-            // Prompt tailored for resize/outpaint
-            $prompt = "You are an expert image editor. Fill the white masked areas so the scene extends naturally " .
-                      "to match the original image's style, perspective, colors, and lighting. Keep the black area (original) unchanged.";
+            Log::info('[resize-canvas] Calling OpenRouter GPT-5 Image for outpainting', ['target' => $dstW . 'x' . $dstH]);
 
-            Log::info('[resize-canvas] Calling Gemini for outpainting', ['target' => $dstW . 'x' . $dstH]);
+            // Call CanvasEditorService for outpainting
+            $resultBase64 = $this->canvasEditorService->outpaint(
+                $expandedBase64,
+                $maskBase64
+            );
 
-            $apiKey = config('services.gemini.api_key');
-            $imageModel = config('services.gemini.image_model', 'gemini-2.5-flash-image-preview');
-
-            $response = Http::withoutVerifying()->timeout(120)
-                ->post("https://generativelanguage.googleapis.com/v1beta/models/{$imageModel}:generateContent?key={$apiKey}", [
-                    'contents' => [
-                        [
-                            'role' => 'user',
-                            'parts' => [
-                                ['text' => $prompt],
-                                [
-                                    'inlineData' => [
-                                        'mimeType' => 'image/png',
-                                        'data' => $expandedBase64,
-                                    ],
-                                ],
-                                [
-                                    'inlineData' => [
-                                        'mimeType' => 'image/png',
-                                        'data' => $maskBase64,
-                                    ],
-                                ],
-                            ],
-                        ],
-                    ],
-                    'generationConfig' => [
-                        'temperature' => 0.9,
-                        'topK' => 40,
-                        'topP' => 0.95,
-                        'maxOutputTokens' => 8192,
-                    ],
-                ]);
-
-            if (!$response->successful()) {
-                Log::error('[resize-canvas] Gemini API error', [
-                    'status' => $response->status(),
-                    'body' => $response->body(),
-                ]);
-                throw new \Exception('Gemini API error: ' . $response->body());
-            }
-
-            $result = $response->json();
-            if (isset($result['candidates'][0]['content']['parts'])) {
-                foreach ($result['candidates'][0]['content']['parts'] as $part) {
-                    if (isset($part['inlineData']['data'])) {
-                        $generatedBase64 = $part['inlineData']['data'];
-                        $dataUrl = 'data:image/png;base64,' . $generatedBase64;
-                        Log::info('[resize-canvas] Outpaint success');
-                        return response()->json([
-                            'resultImage' => $dataUrl,
-                            'mode' => 'expand',
-                            'width' => $dstW,
-                            'height' => $dstH,
-                        ]);
-                    }
-                }
-            }
-
-            throw new \Exception('No image in Gemini response');
+            $dataUrl = 'data:image/png;base64,' . $resultBase64;
+            Log::info('[resize-canvas] Outpaint success');
+            
+            return response()->json([
+                'resultImage' => $dataUrl,
+                'mode' => 'expand',
+                'width' => $dstW,
+                'height' => $dstH,
+            ]);
 
         } catch (\Throwable $e) {
             Log::error('[resize-canvas] Error: ' . $e->getMessage());
@@ -930,6 +784,60 @@ class ImageEditController extends Controller
             'processedImage' => 'data:image/png;base64,' . $processedBase64,
             'method' => 'fallback',
         ]);
+    }
+
+    /**
+     * Generate or modify image area based on text prompt.
+     * Uses OpenRouter GPT-5 Image for AI-powered editing.
+     */
+    public function generateFromPrompt(Request $request)
+    {
+        $validated = $request->validate([
+            'image' => 'required|string',
+            'mask' => 'required|string',
+            'prompt' => 'required|string',
+        ]);
+
+        try {
+            Log::info('[generate-from-prompt] Starting', ['prompt' => $validated['prompt']]);
+
+            // Decode base64 data URLs
+            $imageData = self::decodeDataUrl($validated['image']);
+            $maskData = self::decodeDataUrl($validated['mask']);
+
+            if (!$imageData || !$maskData) {
+                return response()->json(['message' => 'Invalid image data'], 422);
+            }
+
+            // Re-encode as base64 for OpenRouter
+            $imageBase64 = base64_encode($imageData);
+            $maskBase64 = base64_encode($maskData);
+
+            Log::info('[generate-from-prompt] Calling OpenRouter GPT-5 Image');
+
+            // Call CanvasEditorService for prompt-based generation
+            $resultBase64 = $this->canvasEditorService->generateFromPrompt(
+                $imageBase64,
+                $maskBase64,
+                $validated['prompt']
+            );
+
+            $dataUrl = 'data:image/png;base64,' . $resultBase64;
+
+            Log::info('[generate-from-prompt] Success');
+
+            return response()->json([
+                'generatedImage' => $dataUrl,
+                'prompt' => $validated['prompt'],
+            ]);
+
+        } catch (\Throwable $e) {
+            Log::error('[generate-from-prompt] Error: ' . $e->getMessage());
+            return response()->json([
+                'message' => 'Prompt-based generation failed',
+                'error' => $e->getMessage()
+            ], 500);
+        }
     }
 
     private static function decodeDataUrl(string $dataUrl): ?string

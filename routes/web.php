@@ -124,6 +124,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('/api/resize-canvas', [ImageEditController::class, 'resizeCanvas'])
         ->name('api.resize-canvas');
     
+    // AI-powered prompt-based image generation/editing
+    Route::post('/api/generate-from-prompt', [ImageEditController::class, 'generateFromPrompt'])
+        ->name('api.generate-from-prompt');
+    
     // Test Gemini inpainting
     Route::get('/test/gemini-inpaint', [ImageEditController::class, 'testInpaint']);
 
