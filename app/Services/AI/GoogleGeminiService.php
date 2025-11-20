@@ -409,6 +409,171 @@ class GoogleGeminiService implements AIServiceInterface
     }
 
     /**
+     * Inpaint image using base64 strings (for Canvas Editor).
+     * This is a wrapper around editWithMask that accepts base64 data directly.
+     *
+     * @param string $imageBase64 Base64-encoded image data (without data URL prefix)
+     * @param string $maskBase64 Base64-encoded mask data (white = edit area, black = keep)
+     * @param string $prompt User's editing instructions
+     * @return string Base64-encoded result image
+     * @throws \Exception
+     */
+    public function inpaint(string $imageBase64, string $maskBase64, string $prompt): string
+    {
+        if (!$this->isAvailable()) {
+            throw new \Exception('Google Gemini API is not configured');
+        }
+
+        Log::info('[GoogleGeminiService] Inpainting', ['prompt' => $prompt]);
+
+        try {
+            // Use Gemini 2.5 Flash Image model for editing
+            $url = "{$this->baseUrl}/models/{$this->imageModel}:generateContent";
+
+            // Build the edit request with proper structure for Gemini image editing
+            $payload = [
+                'contents' => [
+                    [
+                        'role' => 'user',
+                        'parts' => [
+                            [
+                                'text' => $prompt
+                            ],
+                            [
+                                'inlineData' => [
+                                    'mimeType' => 'image/png',
+                                    'data' => $imageBase64
+                                ]
+                            ],
+                            [
+                                'inlineData' => [
+                                    'mimeType' => 'image/png',
+                                    'data' => $maskBase64
+                                ]
+                            ]
+                        ]
+                    ]
+                ],
+                'generationConfig' => [
+                    'temperature' => 0.4,
+                    'topK' => 32,
+                    'topP' => 1,
+                ]
+            ];
+
+            Log::info('[GoogleGeminiService] Sending inpaint request', [
+                'model' => $this->imageModel,
+                'image_size' => strlen($imageBase64),
+                'mask_size' => strlen($maskBase64)
+            ]);
+
+            $response = $this->http()->timeout(120)
+                ->post($url . '?key=' . $this->apiKey, $payload);
+
+            if (!$response->successful()) {
+                $errorBody = $response->body();
+                Log::error('[GoogleGeminiService] Gemini API error', [
+                    'status' => $response->status(),
+                    'body' => $errorBody
+                ]);
+                throw new \Exception("Gemini API error: {$response->status()} - {$errorBody}");
+            }
+
+            $result = $response->json();
+
+            // Extract image from response
+            // Gemini returns images in candidates[0].content.parts[] with inlineData
+            if (isset($result['candidates'][0]['content']['parts'])) {
+                foreach ($result['candidates'][0]['content']['parts'] as $part) {
+                    if (isset($part['inlineData']['data'])) {
+                        Log::info('[GoogleGeminiService] Inpainting successful');
+                        return $part['inlineData']['data'];
+                    }
+                }
+            }
+
+            Log::error('[GoogleGeminiService] Unexpected response structure', ['result' => $result]);
+            throw new \Exception('Invalid response from Gemini API - no image data found');
+
+        } catch (\Exception $e) {
+            Log::error('[GoogleGeminiService] Inpaint failed', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            throw $e;
+        }
+    }
+
+    /**
+     * Outpaint image using base64 strings (for Canvas Editor).
+     * Extends the image by filling masked areas naturally.
+     *
+     * @param string $expandedImageBase64 Base64-encoded expanded canvas with original image placed
+     * @param string $maskBase64 Base64-encoded mask (white = areas to generate)
+     * @param string $prompt Optional prompt for style guidance
+     * @return string Base64-encoded result image
+     * @throws \Exception
+     */
+    public function outpaint(string $expandedImageBase64, string $maskBase64, string $prompt = ''): string
+    {
+        if (!$this->isAvailable()) {
+            throw new \Exception('Google Gemini API is not configured');
+        }
+
+        Log::info('[GoogleGeminiService] Outpainting', ['prompt' => $prompt]);
+
+        try {
+            $defaultPrompt = "Fill the white masked areas so the scene extends naturally to match the original image's style, perspective, colors, and lighting.";
+            $fullPrompt = $prompt ? $prompt . ' ' . $defaultPrompt : $defaultPrompt;
+
+            // Use the same inpaint method with outpaint-specific prompt
+            return $this->inpaint($expandedImageBase64, $maskBase64, $fullPrompt);
+
+        } catch (\Exception $e) {
+            Log::error('[GoogleGeminiService] Outpaint failed', [
+                'error' => $e->getMessage(),
+            ]);
+            throw $e;
+        }
+    }
+
+    /**
+     * Generate or modify image area based on text prompt (for Canvas Editor).
+     * Similar to inpainting but more prompt-driven.
+     *
+     * @param string $imageBase64 Base64-encoded image data
+     * @param string $maskBase64 Base64-encoded mask (white = generation area)
+     * @param string $prompt Generation/modification instructions
+     * @return string Base64-encoded result image
+     * @throws \Exception
+     */
+    public function generateFromPrompt(string $imageBase64, string $maskBase64, string $prompt): string
+    {
+        if (!$this->isAvailable()) {
+            throw new \Exception('Google Gemini API is not configured');
+        }
+
+        Log::info('[GoogleGeminiService] Generating from prompt', ['prompt' => substr($prompt, 0, 100)]);
+
+        try {
+            // Enhance the prompt with positive/negative guidance
+            $enhancedPrompt = $prompt . " 
+
+Positive Prompt: seamless inpainting, background reconstruction, fill masked area with surrounding context, realistic, high quality, coherent
+
+Negative Prompt: artifacts, blur, distortion, mismatched, ugly, text, watermark, signature";
+
+            return $this->inpaint($imageBase64, $maskBase64, $enhancedPrompt);
+
+        } catch (\Exception $e) {
+            Log::error('[GoogleGeminiService] Generate from prompt failed', [
+                'error' => $e->getMessage(),
+            ]);
+            throw $e;
+        }
+    }
+
+    /**
      * Get the service name.
      */
     public function getServiceName(): string

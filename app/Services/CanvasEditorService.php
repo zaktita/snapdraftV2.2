@@ -45,25 +45,25 @@ class CanvasEditorService
         $imageDataUrl = 'data:image/png;base64,' . $imageBase64;
         $maskDataUrl = 'data:image/png;base64,' . $maskBase64;
 
+        $message = [
+            'role' => 'user',
+            'content' => [
+                [
+                    'type' => 'input_image',
+                    'image_url' => ['url' => $imageDataUrl],
+                    'mask_url'  => ['url' => $maskDataUrl],
+                ],
+                [
+                    'type' => 'text',
+                    'text' => $prompt,
+                ],
+            ]
+        ];
+
         $response = $this->httpClient()
             ->post('https://openrouter.ai/api/v1/chat/completions', [
                 'model' => $model,
-                'messages' => [
-                    [
-                        'role' => 'user',
-                        'content' => [
-                            [
-                                'type' => 'input_image',
-                                'image_url' => ['url' => $imageDataUrl],
-                                'mask_url'  => ['url' => $maskDataUrl],
-                            ],
-                            [
-                                'type' => 'text',
-                                'text' => $prompt,
-                            ],
-                        ]
-                    ],
-                ],
+                'messages' => [$message],
             ]);
 
         if (!$response->successful()) {
@@ -105,25 +105,25 @@ class CanvasEditorService
         $defaultPrompt = "Fill the white masked areas so the scene extends naturally to match the original image's style, perspective, colors, and lighting.";
         $fullPrompt = $prompt ? $prompt . ' ' . $defaultPrompt : $defaultPrompt;
 
+        $message = [
+            'role' => 'user',
+            'content' => [
+                [
+                    'type' => 'input_image',
+                    'image_url' => ['url' => $imageDataUrl],
+                    'mask_url'  => ['url' => $maskDataUrl],
+                ],
+                [
+                    'type' => 'text',
+                    'text' => $fullPrompt,
+                ],
+            ]
+        ];
+
         $response = $this->httpClient()
             ->post('https://openrouter.ai/api/v1/chat/completions', [
                 'model' => $model,
-                'messages' => [
-                    [
-                        'role' => 'user',
-                        'content' => [
-                            [
-                                'type' => 'input_image',
-                                'image_url' => ['url' => $imageDataUrl],
-                                'mask_url'  => ['url' => $maskDataUrl],
-                            ],
-                            [
-                                'type' => 'text',
-                                'text' => $fullPrompt,
-                            ],
-                        ]
-                    ],
-                ],
+                'messages' => [$message],
             ]);
 
         if (!$response->successful()) {
@@ -150,7 +150,6 @@ class CanvasEditorService
      */
     public function generateFromPrompt(string $imageBase64, string $maskBase64, string $prompt): string
     {
-        Log::info('[CanvasEditorService] Generate from prompt', ['prompt' => $prompt]);
 
         $apiKey = config('services.openrouter.api_key');
         $model = 'openai/gpt-5-image';
@@ -162,25 +161,32 @@ class CanvasEditorService
         $imageDataUrl = 'data:image/png;base64,' . $imageBase64;
         $maskDataUrl = 'data:image/png;base64,' . $maskBase64;
 
+        $message = [
+            'role' => 'user',
+            'content' => [
+                [
+                    'type' => 'input_image',
+                    'image_url' => ['url' => $imageDataUrl],
+                    'mask_url'  => ['url' => $maskDataUrl],
+                ],
+                [
+                    'type' => 'text',
+                    'text' => $prompt . " Positive Prompt:
+
+seamless inpainting, background reconstruction, fill masked area with surrounding context, realistic, high quality, coherent
+
+Negative Prompt:
+
+artifacts, blur, distortion, object, mismatched, ugly, text, watermark, signature",
+                ],
+            ]
+        ];
+        Log::info(['message' => $message]);
+
         $response = $this->httpClient()
             ->post('https://openrouter.ai/api/v1/chat/completions', [
                 'model' => $model,
-                'messages' => [
-                    [
-                        'role' => 'user',
-                        'content' => [
-                            [
-                                'type' => 'input_image',
-                                'image_url' => ['url' => $imageDataUrl],
-                                'mask_url'  => ['url' => $maskDataUrl],
-                            ],
-                            [
-                                'type' => 'text',
-                                'text' => $prompt . " Only modify the white areas in the mask. Blend naturally with the existing image.",
-                            ],
-                        ]
-                    ],
-                ],
+                'messages' => [$message],
             ]);
 
         if (!$response->successful()) {
@@ -212,18 +218,32 @@ class CanvasEditorService
 
     private function extractImageBase64(array $result): string
     {
-        // 1) Preferred: images array with data URL
+        Log::info($result);
+        Log::info('Extracting image from OpenRouter response');
+        // 1) Preferred: images array with data URL (GPT-5 Image format)
         $url = $result['choices'][0]['message']['images'][0]['image_url']['url']
             ?? null;
         if (is_string($url)) {
+
             return $this->extractBase64FromDataUrl($url);
         }
 
-        // 2) Look into message.content (array of parts or data URL string)
+        // 2) Look into message.content (can be string, array, or direct base64)
         $content = $result['choices'][0]['message']['content'] ?? null;
-        if (is_string($content) && str_starts_with($content, 'data:image')) {
-            return $this->extractBase64FromDataUrl($content);
+        
+        // 2a) String content - could be data URL or raw base64
+        if (is_string($content)) {
+            // Data URL format
+            if (str_starts_with($content, 'data:image')) {
+                return $this->extractBase64FromDataUrl($content);
+            }
+            // Potential raw base64 (very long string)
+            if (strlen($content) > 500 && base64_decode($content, true) !== false) {
+                return $content;
+            }
         }
+        
+        // 2b) Array content - search for image data
         if (is_array($content)) {
             foreach ($content as $part) {
                 if (isset($part['image_url']['url']) && is_string($part['image_url']['url'])) {
@@ -243,6 +263,14 @@ class CanvasEditorService
             return $result['data'][0]['b64_json'];
         }
 
-        throw new \Exception('No image in OpenRouter response');
+        // 4) Log the structure for debugging
+        Log::error('[CanvasEditorService] Unable to extract image from response', [
+            'has_choices' => isset($result['choices']),
+            'has_message' => isset($result['choices'][0]['message']),
+            'message_keys' => array_keys($result['choices'][0]['message'] ?? []),
+            'content_type' => gettype($content),
+        ]);
+
+        throw new \Exception('No image in OpenRouter response. Check logs for response structure.');
     }
 }

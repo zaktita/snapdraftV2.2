@@ -5,15 +5,15 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Http;
-use App\Services\CanvasEditorService;
+use App\Services\AI\GoogleGeminiService;
 
 class ImageEditController extends Controller
 {
-    protected $canvasEditorService;
+    protected $geminiService;
 
-    public function __construct(CanvasEditorService $canvasEditorService)
+    public function __construct(GoogleGeminiService $geminiService)
     {
-        $this->canvasEditorService = $canvasEditorService;
+        $this->geminiService = $geminiService;
     }
     /**
      * Simple inpainting using Gemini Flash Image model.
@@ -29,24 +29,18 @@ class ImageEditController extends Controller
         try {
             Log::info('[generate-with-mask] Starting', ['prompt' => $validated['prompt']]);
 
-            // Decode base64 data URLs to get just the base64 data
-            $originalData = self::decodeDataUrl($validated['originalImage']);
-            $maskData = self::decodeDataUrl($validated['mask']);
+            // Extract base64 from data URLs (strip the data:image/png;base64, prefix)
+            $originalBase64 = self::extractBase64FromDataUrl($validated['originalImage']);
+            $maskBase64 = self::extractBase64FromDataUrl($validated['mask']);
 
-            if (!$originalData || !$maskData) {
+            if (!$originalBase64 || !$maskBase64) {
                 return response()->json(['message' => 'Invalid image data'], 422);
             }
 
-            
+            Log::info('[generate-with-mask] Calling Google Gemini');
 
-            // Re-encode as base64 for OpenRouter
-            $originalBase64 = base64_encode($originalData);
-            $maskBase64 = base64_encode($maskData);
-
-            Log::info('[generate-with-mask] Calling OpenRouter GPT-5 Image');
-
-            // Call CanvasEditorService for inpainting
-            $resultBase64 = $this->canvasEditorService->inpaint(
+            // Call GoogleGeminiService for inpainting
+            $resultBase64 = $this->geminiService->inpaint(
                 $originalBase64,
                 $maskBase64,
                 $validated['prompt']
@@ -272,10 +266,10 @@ class ImageEditController extends Controller
             imagedestroy($expandedImg);
             imagedestroy($mask);
 
-            Log::info('[expand-image] Calling OpenRouter GPT-5 Image for outpainting');
+            Log::info('[expand-image] Calling Google Gemini for outpainting');
 
-            // Call CanvasEditorService for outpainting
-            $resultBase64 = $this->canvasEditorService->outpaint(
+            // Call GoogleGeminiService for outpainting
+            $resultBase64 = $this->geminiService->outpaint(
                 $expandedBase64,
                 $maskBase64
             );
@@ -557,10 +551,10 @@ class ImageEditController extends Controller
             imagedestroy($expanded);
             imagedestroy($mask);
 
-            Log::info('[resize-canvas] Calling OpenRouter GPT-5 Image for outpainting', ['target' => $dstW . 'x' . $dstH]);
+            Log::info('[resize-canvas] Calling Google Gemini for outpainting', ['target' => $dstW . 'x' . $dstH]);
 
-            // Call CanvasEditorService for outpainting
-            $resultBase64 = $this->canvasEditorService->outpaint(
+            // Call GoogleGeminiService for outpainting
+            $resultBase64 = $this->geminiService->outpaint(
                 $expandedBase64,
                 $maskBase64
             );
@@ -801,22 +795,18 @@ class ImageEditController extends Controller
         try {
             Log::info('[generate-from-prompt] Starting', ['prompt' => $validated['prompt']]);
 
-            // Decode base64 data URLs
-            $imageData = self::decodeDataUrl($validated['image']);
-            $maskData = self::decodeDataUrl($validated['mask']);
+            // Extract base64 from data URLs (strip the data:image/png;base64, prefix)
+            $imageBase64 = self::extractBase64FromDataUrl($validated['image']);
+            $maskBase64 = self::extractBase64FromDataUrl($validated['mask']);
 
-            if (!$imageData || !$maskData) {
+            if (!$imageBase64 || !$maskBase64) {
                 return response()->json(['message' => 'Invalid image data'], 422);
             }
 
-            // Re-encode as base64 for OpenRouter
-            $imageBase64 = base64_encode($imageData);
-            $maskBase64 = base64_encode($maskData);
+            Log::info('[generate-from-prompt] Calling Google Gemini');
 
-            Log::info('[generate-from-prompt] Calling OpenRouter GPT-5 Image');
-
-            // Call CanvasEditorService for prompt-based generation
-            $resultBase64 = $this->canvasEditorService->generateFromPrompt(
+            // Call GoogleGeminiService for prompt-based generation
+            $resultBase64 = $this->geminiService->generateFromPrompt(
                 $imageBase64,
                 $maskBase64,
                 $validated['prompt']
@@ -840,6 +830,102 @@ class ImageEditController extends Controller
         }
     }
 
+    /**
+     * Erase masked area: inpaints the white regions of the mask and returns
+     * both the generated image and a composite placing it 20px to the right
+     * of the original image.
+     */
+    public function erase(Request $request)
+    {
+        $validated = $request->validate([
+            'image' => 'required|string',
+            'mask' => 'required|string',
+            'prompt' => 'nullable|string',
+        ]);
+
+        try {
+            $prompt = $validated['prompt'] ?? 'Erase the white masked region and fill it seamlessly with matching background.';
+            Log::info('[erase] Starting', ['prompt' => $prompt]);
+
+            // Extract base64 strings from data URLs
+            $imageBase64 = self::extractBase64FromDataUrl($validated['image']);
+            $maskBase64 = self::extractBase64FromDataUrl($validated['mask']);
+            if (!$imageBase64 || !$maskBase64) {
+                return response()->json(['message' => 'Invalid image or mask data'], 422);
+            }
+
+            Log::info('[erase] Payload pre-flight', [
+                'image_len' => strlen($imageBase64),
+                'mask_len' => strlen($maskBase64),
+                'image_head' => substr($imageBase64,0,60),
+                'mask_head' => substr($maskBase64,0,60),
+            ]);
+
+            // Call inpaint to generate erased version
+            $generatedBase64 = $this->geminiService->inpaint($imageBase64, $maskBase64, $prompt);
+
+            // Build composite placing generated image 20px to the right of original
+            $originalBinary = base64_decode($imageBase64);
+            $generatedBinary = base64_decode($generatedBase64);
+            if ($originalBinary === false || $generatedBinary === false) {
+                throw new \Exception('Failed to decode image data for composition');
+            }
+
+            $originalImg = imagecreatefromstring($originalBinary);
+            $generatedImg = imagecreatefromstring($generatedBinary);
+            if (!$originalImg || !$generatedImg) {
+                throw new \Exception('Failed to create image resources');
+            }
+
+            $origW = imagesx($originalImg); $origH = imagesy($originalImg);
+            $genW = imagesx($generatedImg); $genH = imagesy($generatedImg);
+            $gap = 20;
+            $compW = $origW + $gap + $genW;
+            $compH = max($origH, $genH);
+
+            $composite = imagecreatetruecolor($compW, $compH);
+            // Transparent background
+            imagealphablending($composite, false);
+            imagesavealpha($composite, true);
+            $trans = imagecolorallocatealpha($composite, 0, 0, 0, 127);
+            imagefilledrectangle($composite, 0, 0, $compW, $compH, $trans);
+
+            // Copy original and generated
+            imagecopy($composite, $originalImg, 0, 0, 0, 0, $origW, $origH);
+            imagecopy($composite, $generatedImg, $origW + $gap, 0, 0, 0, $genW, $genH);
+
+            ob_start();
+            imagepng($composite, null, 9);
+            $compositeData = ob_get_clean();
+            $compositeBase64 = base64_encode($compositeData);
+
+            // Cleanup
+            imagedestroy($originalImg);
+            imagedestroy($generatedImg);
+            imagedestroy($composite);
+
+            Log::info('[erase] Success');
+
+            return response()->json([
+                'originalImage' => $validated['image'],
+                'generatedImage' => 'data:image/png;base64,' . $generatedBase64,
+                'compositeImage' => 'data:image/png;base64,' . $compositeBase64,
+                'gap' => $gap,
+                'originalWidth' => $origW,
+                'generatedWidth' => $genW,
+                'compositeWidth' => $compW,
+                'height' => $compH,
+                'prompt' => $prompt,
+            ]);
+        } catch (\Throwable $e) {
+            Log::error('[erase] Error: ' . $e->getMessage());
+            return response()->json([
+                'message' => 'Erase operation failed',
+                'error' => $e->getMessage(),
+            ], 500);
+        }
+    }
+
     private static function decodeDataUrl(string $dataUrl): ?string
     {
         if (!str_starts_with($dataUrl, 'data:')) {
@@ -850,5 +936,20 @@ class ImageEditController extends Controller
         }
         $data = base64_decode($m[1], true);
         return $data === false ? null : $data;
+    }
+
+    /**
+     * Extract base64 string from data URL
+     * Returns pure base64 string without the data:image/...;base64, prefix
+     */
+    private static function extractBase64FromDataUrl(string $dataUrl): ?string
+    {
+        if (!str_starts_with($dataUrl, 'data:')) {
+            return null;
+        }
+        if (!preg_match('/^data:[^;]+;base64,(.*)$/', $dataUrl, $m)) {
+            return null;
+        }
+        return $m[1]; // Return the base64 string directly
     }
 }

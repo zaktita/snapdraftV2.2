@@ -1514,7 +1514,7 @@ export default function CanvasEditor(props: CanvasEditorProps) {
             }
 
             // Make API call
-            const response = await fetch('/api/generate-with-mask', {
+            const response = await fetch('/api/erase-image', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -1524,14 +1524,9 @@ export default function CanvasEditor(props: CanvasEditorProps) {
                             ?.getAttribute('content') || '',
                 },
                 body: JSON.stringify({
-                    originalImage,
+                    image: originalImage,
                     mask: maskImage,
-                    prompt: 'erase',
-                    brushStrokes: relevant,
-                    imageSize: {
-                        width: selectedObject.image.width,
-                        height: selectedObject.image.height,
-                    },
+                    prompt: 'erase the selected areas',
                 }),
             });
 

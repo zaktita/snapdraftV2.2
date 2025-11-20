@@ -127,6 +127,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
     // AI-powered prompt-based image generation/editing
     Route::post('/api/generate-from-prompt', [ImageEditController::class, 'generateFromPrompt'])
         ->name('api.generate-from-prompt');
+
+    // Erase (inpaint masked area and provide composite)
+    Route::post('/api/erase-image', [ImageEditController::class, 'erase'])
+        ->name('api.erase-image');
     
     // Test Gemini inpainting
     Route::get('/test/gemini-inpaint', [ImageEditController::class, 'testInpaint']);
