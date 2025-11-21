@@ -28,6 +28,7 @@ class TextWizardController extends Controller
             'format' => 'required|string|in:square,portrait,landscape',
             'reference_images' => 'nullable|array|max:5',
             'reference_images.*' => 'nullable|image|mimes:jpeg,jpg,png,webp|max:10240',
+            'text_accurate' => 'nullable|boolean',
         ]);
 
         // Create the project
@@ -40,6 +41,7 @@ class TextWizardController extends Controller
                 'wizard_type' => 'text',
                 'format' => $validated['format'],
                 'has_references' => $request->hasFile('reference_images'),
+                'text_accurate' => $validated['text_accurate'] ?? false,
             ],
         ]);
 
@@ -60,7 +62,8 @@ class TextWizardController extends Controller
         // Queue AI processing job with the description as the prompt
         $prompt = $validated['idea_description'];
         $format = $validated['format'];
-        \App\Jobs\GenerateSingleImageJob::dispatch($project, $prompt, $format);
+        $textAccurate = $validated['text_accurate'] ?? false;
+        \App\Jobs\GenerateSingleImageJob::dispatch($project, $prompt, $format, $textAccurate);
 
         return redirect()->route('projects.show', $project->id)
             ->with('success', 'Project created! AI generation will begin shortly.');

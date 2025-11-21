@@ -12,17 +12,23 @@ class GoogleGeminiService implements AIServiceInterface
 {
     protected ?string $apiKey;
     // Text/analysis model
-    protected string $textModel = 'gemini-2.0-flash-exp';
-    // Image generation model (from server.js.example)
-    protected string $imageModel = 'gemini-2.5-flash-image-preview';
+    protected string $textModel = 'gemini-1.5-flash';
+    // Image generation model (default for most tasks)
+    protected string $imageModel = 'gemini-3-pro-image-preview';
+    // Text-to-image model (no references)
+    protected string $textToImageModel = 'imagen-3.0-generate-001';
+    // Text-accurate model (4x credits)
+    protected string $textAccurateModel = 'gemini-3-pro-image-preview';
     protected string $baseUrl = 'https://generativelanguage.googleapis.com/v1beta';
     protected PromptService $promptService;
 
     public function __construct(PromptService $promptService)
     {
         $this->apiKey = config('services.gemini.api_key');
-        $this->textModel = config('services.gemini.model', 'gemini-2.0-flash-exp');
-        $this->imageModel = config('services.gemini.image_model', 'gemini-2.5-flash-image-preview');
+        $this->textModel = config('services.gemini.model', 'gemini-1.5-flash');
+        $this->imageModel = config('services.gemini.image_model', 'gemini-3-pro-image-preview');
+        $this->textToImageModel = config('services.gemini.text_to_image_model', 'imagen-3.0-generate-001');
+        $this->textAccurateModel = config('services.gemini.text_accurate_model', 'gemini-3-pro-image-preview');
         $this->promptService = $promptService;
     }
 
@@ -153,12 +159,20 @@ class GoogleGeminiService implements AIServiceInterface
 
     /**
      * Generate image with reference images (Style Mirror approach from your Node.js code)
+     * 
+     * @param string $prompt User's generation prompt
+     * @param array $referenceImagePaths Paths to brand reference images
+     * @param array $productImagePaths Paths to product overlay images
+     * @param string $format Image format (square, portrait, landscape, story)
+     * @param bool $textAccurate Use text-accurate model (4x credits)
+     * @return array Generation result with image_data, mime_type, model, metadata
      */
     public function generateWithReferences(
         string $prompt,
         array $referenceImagePaths,
         array $productImagePaths = [],
-        string $format = 'square'
+        string $format = 'square',
+        bool $textAccurate = false
     ): array {
         if (!$this->isAvailable()) {
             // Generate a test/placeholder image when API is not configured
@@ -166,16 +180,19 @@ class GoogleGeminiService implements AIServiceInterface
             return $this->generatePlaceholderImage($prompt, $format);
         }
 
+        // Determine which model to use
+        $hasReferences = !empty($referenceImagePaths);
+        $modelToUse = $this->selectModel($hasReferences, $textAccurate);
+
         Log::info('Generating image with Style Mirror approach', [
             'prompt' => substr($prompt, 0, 100),
             'references' => count($referenceImagePaths),
-            'products' => count($productImagePaths)
+            'products' => count($productImagePaths),
+            'model' => $modelToUse,
+            'text_accurate' => $textAccurate,
         ]);
 
         try {
-            // Use image generation model (matches server.js.example)
-            $imageModel = $this->imageModel;
-
             // Convert reference images to base64 (up to 5)
             $referenceImageParts = [];
             foreach (array_slice($referenceImagePaths, 0, 5) as $imagePath) {
@@ -210,6 +227,11 @@ class GoogleGeminiService implements AIServiceInterface
             // Build the generation prompt using PromptService
             $fullPrompt = $this->promptService->csvGeneration($prompt, $productNames);
 
+            // Strengthen instructions when text accuracy is requested (reduces ambiguity)
+            if ($textAccurate) {
+                $fullPrompt .= "\nEnsure any textual elements (if present) are perfectly legible, sharp, correctly spelled, and avoid distorted glyphs or placeholder gibberish. Prioritize clear typography integrity.";
+            }
+
             // Build request parts
             $parts = array_merge(
                 [['text' => $fullPrompt]],
@@ -220,7 +242,7 @@ class GoogleGeminiService implements AIServiceInterface
             // Call Gemini API
             $startTime = microtime(true);
             $response = $this->http()->timeout(120)
-                ->post("{$this->baseUrl}/models/{$imageModel}:generateContent?key={$this->apiKey}", [
+                ->post("{$this->baseUrl}/models/{$modelToUse}:generateContent?key={$this->apiKey}", [
                     'contents' => [
                         [
                             'role' => 'user',
@@ -258,11 +280,13 @@ class GoogleGeminiService implements AIServiceInterface
                         return [
                             'image_data' => $imageBase64,
                             'mime_type' => $mimeType,
-                            'model' => $imageModel,
+                            'model' => $modelToUse,
                             'prompt' => $fullPrompt,
                             'metadata' => [
                                 'format' => $format,
                                 'style_mirror' => true,
+                                'text_accurate' => $textAccurate,
+                                'credits_multiplier' => $textAccurate ? 4 : 1,
                                 'generation_time_ms' => round($generationTime),
                                 'tokens_used' => $result['usageMetadata']['totalTokenCount'] ?? 0,
                                 'prompt_tokens' => $result['usageMetadata']['promptTokenCount'] ?? 0,
@@ -278,6 +302,38 @@ class GoogleGeminiService implements AIServiceInterface
             Log::error('Image generation failed', ['error' => $e->getMessage()]);
             throw $e;
         }
+    }
+
+    /**
+     * Select the appropriate model based on context.
+     * 
+     * @param bool $hasReferences Whether reference images are provided
+     * @param bool $textAccurate Whether text accuracy is required (4x credits)
+     * @return string Model identifier to use
+     */
+    protected function selectModel(bool $hasReferences, bool $textAccurate): string
+    {
+        // Priority 1: Text-accurate model (if requested)
+        if ($textAccurate) {
+            // If preview models were configured previously, log advisory to switch (handled by config patch)
+            if (str_contains($this->textAccurateModel, 'preview')) {
+                Log::warning('Text-accurate model is a preview variant; this may increase latency', [
+                    'model' => $this->textAccurateModel
+                ]);
+            }
+            Log::info('Using text-accurate model (4x credits)', ['model' => $this->textAccurateModel]);
+            return $this->textAccurateModel;
+        }
+
+        // Priority 2: Text-to-image model (if no references)
+        if (!$hasReferences) {
+            Log::info('Using text-to-image model (no references)', ['model' => $this->textToImageModel]);
+            return $this->textToImageModel;
+        }
+
+        // Priority 3: Default image model
+        Log::info('Using default image model', ['model' => $this->imageModel]);
+        return $this->imageModel;
     }
 
     /**

@@ -37,7 +37,8 @@ class GenerateSingleImageJob implements ShouldQueue
     public function __construct(
         public Project $project,
         public string $prompt,
-        public string $format = 'square'
+        public string $format = 'square',
+        public bool $textAccurate = false
     ) {
         //
     }
@@ -51,14 +52,20 @@ class GenerateSingleImageJob implements ShouldQueue
             'project_id' => $this->project->id,
             'prompt' => $this->prompt,
             'format' => $this->format,
+            'text_accurate' => $this->textAccurate,
         ]);
 
-        // Check if user has credits
+        // Determine credit cost (1 for normal, 4 for text-accurate)
+        $creditCost = $this->textAccurate ? 4 : 1;
+
+        // Check if user has sufficient credits
         $user = $this->project->user;
-        if (!$user->hasCredits()) {
-            Log::warning('User has no credits remaining', [
+        if (!$user->hasCredits($creditCost)) {
+            Log::warning('User has insufficient credits', [
                 'user_id' => $user->id,
                 'project_id' => $this->project->id,
+                'required_credits' => $creditCost,
+                'available_credits' => $user->credits_remaining,
             ]);
 
             GenerationHistory::create([
@@ -66,14 +73,14 @@ class GenerateSingleImageJob implements ShouldQueue
                 'project_id' => $this->project->id,
                 'ai_model' => $aiService->getActiveServiceName(),
                 'status' => 'failed',
-                'error_message' => 'Insufficient credits',
+                'error_message' => "Insufficient credits (need {$creditCost}, have {$user->credits_remaining})",
             ]);
 
             return;
         }
 
-        // Deduct credit
-        $user->useCredit();
+        // Deduct credits (1 or 4 depending on text accuracy)
+        $user->useCredit($creditCost);
 
         // Create generation history record
         $generation = GenerationHistory::create([
@@ -102,7 +109,8 @@ class GenerateSingleImageJob implements ShouldQueue
                 $this->prompt,
                 $referenceImagePaths,
                 $productImagePaths,
-                $this->format
+                $this->format,
+                $this->textAccurate
             );
 
             // Save the generated image

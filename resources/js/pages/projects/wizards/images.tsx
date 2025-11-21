@@ -13,6 +13,7 @@ export default function ImagesWizard() {
     const [dragOver, setDragOver] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [showError, setShowError] = useState(false);
+    const [textAccurate, setTextAccurate] = useState(false);
     
     const imageInputRef = useRef<HTMLInputElement>(null);
 
@@ -88,6 +89,7 @@ export default function ImagesWizard() {
         const fd = new FormData();
         fd.append('project_name', projectName.trim());
         fd.append('content_description', contentDescription.trim());
+        fd.append('text_accurate', textAccurate ? '1' : '0');
         // format optional; default handled server-side; leave out or send 'square'
         // fd.append('format', 'square');
         styleImageFiles.slice(0, 10).forEach((f) => fd.append('reference_images[]', f));
@@ -124,6 +126,59 @@ export default function ImagesWizard() {
     return (
         <>
             <Head title="Images Wizard" />
+            
+                        {/* Loading Overlay During Submission */}
+                        {isSubmitting && (
+                            <div style={{
+                                position: 'fixed',
+                                top: 0,
+                                left: 0,
+                                right: 0,
+                                bottom: 0,
+                                background: 'rgba(0, 0, 0, 0.8)',
+                                zIndex: 9999,
+                                display: 'flex',
+                                flexDirection: 'column',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                backdropFilter: 'blur(4px)',
+                            }}>
+                                <div style={{
+                                    background: 'var(--color-card)',
+                                    borderRadius: '16px',
+                                    padding: '40px 48px',
+                                    maxWidth: '400px',
+                                    textAlign: 'center',
+                                    boxShadow: '0 20px 60px rgba(0, 0, 0, 0.3)',
+                                }}>
+                                    <div style={{
+                                        width: '64px',
+                                        height: '64px',
+                                        margin: '0 auto 24px',
+                                        border: '4px solid var(--color-muted)',
+                                        borderTopColor: 'hsl(var(--primary))',
+                                        borderRadius: '50%',
+                                        animation: 'spin 0.8s linear infinite',
+                                    }} />
+                                    <h3 style={{
+                                        fontSize: '20px',
+                                        fontWeight: 600,
+                                        color: 'var(--color-foreground)',
+                                        marginBottom: '12px',
+                                    }}>
+                                        Starting Generation...
+                                    </h3>
+                                    <p style={{
+                                        fontSize: '14px',
+                                        color: 'var(--color-muted-foreground)',
+                                        lineHeight: 1.6,
+                                        margin: 0,
+                                    }}>
+                                        Setting up your project and starting image generation. You'll be redirected to your project dashboard shortly.
+                                    </p>
+                                </div>
+                            </div>
+                        )}
             
             <div style={{
                 fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", "Oxygen", "Ubuntu", "Cantarell", sans-serif',
@@ -452,6 +507,71 @@ export default function ImagesWizard() {
                                     </p>
                                 </div>
 
+                                {/* Text Accuracy Toggle */}
+                                <div style={{
+                                    marginTop: '20px',
+                                    padding: '24px',
+                                    background: 'var(--color-card)',
+                                    border: `2px solid ${textAccurate ? 'hsl(var(--primary))' : 'var(--color-border)'}`,
+                                    borderRadius: '12px',
+                                    transition: 'all 0.2s ease',
+                                }}>
+                                    <label style={{
+                                        display: 'flex',
+                                        alignItems: 'flex-start',
+                                        gap: '16px',
+                                        cursor: 'pointer',
+                                    }}>
+                                        <input
+                                            type="checkbox"
+                                            checked={textAccurate}
+                                            onChange={(e) => setTextAccurate(e.target.checked)}
+                                            style={{
+                                                marginTop: '4px',
+                                                width: '20px',
+                                                height: '20px',
+                                                cursor: 'pointer',
+                                                accentColor: 'hsl(var(--primary))',
+                                            }}
+                                        />
+                                        <div style={{ flex: 1 }}>
+                                            <div style={{
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                gap: '10px',
+                                                marginBottom: '8px',
+                                            }}>
+                                                <span style={{
+                                                    fontSize: '16px',
+                                                    fontWeight: 600,
+                                                    color: 'var(--color-foreground)',
+                                                }}>
+                                                    Enable High-Accuracy Text Rendering
+                                                </span>
+                                                <span style={{
+                                                    fontSize: '12px',
+                                                    fontWeight: 700,
+                                                    padding: '4px 10px',
+                                                    borderRadius: '14px',
+                                                    background: 'hsl(var(--primary) / 0.15)',
+                                                    color: 'hsl(var(--primary))',
+                                                    letterSpacing: '0.3px',
+                                                }}>
+                                                    4× CREDITS
+                                                </span>
+                                            </div>
+                                            <p style={{
+                                                margin: 0,
+                                                fontSize: '14px',
+                                                lineHeight: 1.6,
+                                                color: 'var(--color-muted-foreground)',
+                                            }}>
+                                                Superior text rendering and precision for designs with headlines, product labels, or detailed typography.
+                                            </p>
+                                        </div>
+                                    </label>
+                                </div>
+
                                 <div style={{
                                     background: 'var(--color-muted)',
                                     border: '1px solid var(--color-border)',
@@ -522,7 +642,7 @@ export default function ImagesWizard() {
                         >
                             {currentStep === 3 ? (
                                 <>
-                                    {isSubmitting ? 'Starting Generation...' : 'Start Generation'}
+                                    {isSubmitting ? 'Starting Generation...' : `Generate (${textAccurate ? '4' : '1'} credit${textAccurate ? 's' : ''})`}
                                     <Zap size={16} />
                                 </>
                             ) : (

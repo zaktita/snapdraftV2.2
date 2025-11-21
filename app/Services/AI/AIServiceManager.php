@@ -78,12 +78,20 @@ class AIServiceManager
 
     /**
      * Generate image with reference images (Style Mirror approach)
+     * 
+     * @param string $prompt User's generation prompt
+     * @param array $referenceImagePaths Paths to brand reference images
+     * @param array $productImagePaths Paths to product overlay images
+     * @param string $format Image format (square, portrait, landscape, story)
+     * @param bool $textAccurate Use text-accurate model (4x credits)
+     * @return array Generation result
      */
     public function generateWithReferences(
         string $prompt,
         array $referenceImagePaths,
         array $productImagePaths = [],
-        string $format = 'square'
+        string $format = 'square',
+        bool $textAccurate = false
     ): array {
         try {
             Log::info('AIServiceManager: Attempting Style Mirror generation with primary service');
@@ -94,7 +102,8 @@ class AIServiceManager
                     $prompt,
                     $referenceImagePaths,
                     $productImagePaths,
-                    $format
+                    $format,
+                    $textAccurate
                 );
             }
 

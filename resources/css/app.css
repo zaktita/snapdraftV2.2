@@ -215,5 +215,15 @@
   }
   .ds-progress-bar {
     @apply h-full rounded-full bg-muted-foreground;
+
+  /* Loading Spinner Animation */
+  @keyframes spin {
+    from {
+      transform: rotate(0deg);
+    }
+    to {
+      transform: rotate(360deg);
+    }
+  }
   }
 }

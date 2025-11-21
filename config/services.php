@@ -47,10 +47,14 @@ return [
 
     'gemini' => [
         'api_key' => env('GEMINI_API_KEY'),
-        // Text/analysis model
-        'model' => env('GEMINI_MODEL', 'gemini-2.0-flash-exp'),
-        // Image generation model (used by Style Mirror)
-        'image_model' => env('GEMINI_IMAGE_MODEL', 'gemini-2.5-flash-image'),
+        // Text/analysis model (must be a vision-language model like Gemini 1.5 Flash/Pro)
+        'model' => env('GEMINI_MODEL', 'gemini-1.5-flash'),
+        // Image generation model (default for most tasks)
+        'image_model' => env('GEMINI_IMAGE_MODEL', 'gemini-3-pro-image-preview'),
+        // Text-to-image model (no references)
+        'text_to_image_model' => env('GEMINI_TEXT_TO_IMAGE_MODEL', 'imagen-3.0-generate-001'),
+        // Text-accurate model (4x credits)
+        'text_accurate_model' => env('GEMINI_TEXT_ACCURATE_MODEL', 'gemini-3-pro-image-preview'),
         'rate_limit' => env('GEMINI_RATE_LIMIT', 30), // Requests per minute
     ],
 

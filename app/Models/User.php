@@ -72,18 +72,20 @@ class User extends Authenticatable
     /**
      * Check if user has credits remaining.
      */
-    public function hasCredits(): bool
+    public function hasCredits(int $amount = 1): bool
     {
-        return $this->credits_remaining > 0;
+        return $this->credits_remaining >= $amount;
     }
 
     /**
      * Decrement user credits.
+     * 
+     * @param int $amount Number of credits to deduct (default 1, or 4 for text-accurate)
      */
-    public function useCredit(): void
+    public function useCredit(int $amount = 1): void
     {
-        if ($this->credits_remaining > 0) {
-            $this->decrement('credits_remaining');
+        if ($this->credits_remaining >= $amount) {
+            $this->decrement('credits_remaining', $amount);
             $this->increment('total_generations');
             $this->update(['last_generation_at' => now()]);
         }

@@ -32,6 +32,7 @@ class GenerateBatchImagesJob implements ShouldQueue
         try {
             // Get CSV data from project settings
             $csvData = $this->project->settings['csv_data'] ?? [];
+            $textAccurate = $this->project->settings['text_accurate'] ?? false;
 
             if (empty($csvData)) {
                 Log::warning('No CSV data found for batch generation', ['project_id' => $this->project->id]);
@@ -56,7 +57,7 @@ class GenerateBatchImagesJob implements ShouldQueue
 
                 // Create job with delay to prevent API rate limiting (2 seconds between each generation)
                 $delaySeconds = $jobIndex * 2; // 2 seconds between each job
-                $job = (new GenerateSingleImageJob($this->project, $prompt, $format))
+                $job = (new GenerateSingleImageJob($this->project, $prompt, $format, $textAccurate))
                     ->delay(now()->addSeconds($delaySeconds));
 
                 $jobs[] = $job;

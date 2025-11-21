@@ -32,6 +32,7 @@ class CSVWizardController extends Controller
             'reference_images.*' => 'nullable|image|mimes:jpeg,jpg,png,webp|max:10240',
             'product_images' => 'nullable|array|max:5',
             'product_images.*' => 'nullable|image|mimes:jpeg,jpg,png,webp|max:10240',
+            'text_accurate' => 'nullable|boolean', // Text accuracy toggle
         ]);
 
         // Create the project
@@ -43,6 +44,7 @@ class CSVWizardController extends Controller
                 'wizard_type' => 'csv',
                 'has_reference_images' => $request->hasFile('reference_images'),
                 'has_product_images' => $request->hasFile('product_images'),
+                'text_accurate' => $validated['text_accurate'] ?? false,
             ],
         ]);
 

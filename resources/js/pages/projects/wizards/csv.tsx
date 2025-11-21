@@ -56,6 +56,7 @@ export default function CSVWizard() {
     const [editableData, setEditableData] = useState<CSVRow[]>([]);
     const [editableHeaders, setEditableHeaders] = useState<string[]>(['title', 'description', 'format']);
     const [showError, setShowError] = useState(false);
+    const [textAccurate, setTextAccurate] = useState(false);
     
     const csvInputRef = useRef<HTMLInputElement>(null);
     const imageInputRef = useRef<HTMLInputElement>(null);
@@ -315,6 +316,7 @@ export default function CSVWizard() {
         const fd = new FormData();
         fd.append('project_name', name);
         fd.append('csv_file', csvFile);
+        fd.append('text_accurate', textAccurate ? '1' : '0');
         
         // Add reference images only if provided (optional)
         if (styleImageFiles.length > 0) {
@@ -382,6 +384,59 @@ export default function CSVWizard() {
     return (
         <>
             <Head title="Create CSV Project" />
+            
+                        {/* Loading Overlay During Submission */}
+                        {isSubmitting && (
+                            <div style={{
+                                position: 'fixed',
+                                top: 0,
+                                left: 0,
+                                right: 0,
+                                bottom: 0,
+                                background: 'rgba(0, 0, 0, 0.8)',
+                                zIndex: 9999,
+                                display: 'flex',
+                                flexDirection: 'column',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                backdropFilter: 'blur(4px)',
+                            }}>
+                                <div style={{
+                                    background: 'var(--color-card)',
+                                    borderRadius: '16px',
+                                    padding: '40px 48px',
+                                    maxWidth: '400px',
+                                    textAlign: 'center',
+                                    boxShadow: '0 20px 60px rgba(0, 0, 0, 0.3)',
+                                }}>
+                                    <div style={{
+                                        width: '64px',
+                                        height: '64px',
+                                        margin: '0 auto 24px',
+                                        border: '4px solid var(--color-muted)',
+                                        borderTopColor: 'hsl(var(--primary))',
+                                        borderRadius: '50%',
+                                        animation: 'spin 0.8s linear infinite',
+                                    }} />
+                                    <h3 style={{
+                                        fontSize: '20px',
+                                        fontWeight: 600,
+                                        color: 'var(--color-foreground)',
+                                        marginBottom: '12px',
+                                    }}>
+                                        Starting Generation...
+                                    </h3>
+                                    <p style={{
+                                        fontSize: '14px',
+                                        color: 'var(--color-muted-foreground)',
+                                        lineHeight: 1.6,
+                                        margin: 0,
+                                    }}>
+                                        Setting up your project and queuing {selectedRows.size} image{selectedRows.size !== 1 ? 's' : ''} for generation. You'll be redirected to your project dashboard shortly.
+                                    </p>
+                                </div>
+                            </div>
+                        )}
             
             <div style={{
                 fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", "Oxygen", "Ubuntu", "Cantarell", sans-serif',
@@ -1190,9 +1245,73 @@ export default function CSVWizard() {
                                         <div style={{ flex: 1 }}>
                                             <div style={{ fontSize: '13px', color: 'var(--color-muted-foreground)', marginBottom: '4px' }}>Credit Cost</div>
                                             <div style={{ fontSize: '16px', fontWeight: 500, color: 'var(--color-foreground)' }}>
-                                                This will use {selectedRows.size} of your 1,250 available credits
+                                                This will use {textAccurate ? selectedRows.size * 4 : selectedRows.size} of your 1,250 available credits
                                             </div>
                                         </div>
+                                    </div>
+
+                                    {/* Text Accuracy Toggle */}
+                                    <div style={{
+                                        marginTop: '24px',
+                                        padding: '20px',
+                                        background: 'var(--color-card)',
+                                        border: `2px solid ${textAccurate ? 'hsl(var(--primary))' : 'var(--color-border)'}`,
+                                        borderRadius: '12px',
+                                        transition: 'all 0.2s ease',
+                                    }}>
+                                        <label style={{
+                                            display: 'flex',
+                                            alignItems: 'flex-start',
+                                            gap: '16px',
+                                            cursor: 'pointer',
+                                        }}>
+                                            <input
+                                                type="checkbox"
+                                                checked={textAccurate}
+                                                onChange={(e) => setTextAccurate(e.target.checked)}
+                                                style={{
+                                                    marginTop: '2px',
+                                                    width: '18px',
+                                                    height: '18px',
+                                                    cursor: 'pointer',
+                                                    accentColor: 'hsl(var(--primary))',
+                                                }}
+                                            />
+                                            <div style={{ flex: 1 }}>
+                                                <div style={{
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    gap: '8px',
+                                                    marginBottom: '6px',
+                                                }}>
+                                                    <span style={{
+                                                        fontSize: '15px',
+                                                        fontWeight: 600,
+                                                        color: 'var(--color-foreground)',
+                                                    }}>
+                                                        Increase Text Accuracy
+                                                    </span>
+                                                    <span style={{
+                                                        fontSize: '11px',
+                                                        fontWeight: 600,
+                                                        padding: '2px 8px',
+                                                        borderRadius: '12px',
+                                                        background: 'hsl(var(--primary) / 0.1)',
+                                                        color: 'hsl(var(--primary))',
+                                                    }}>
+                                                        4× CREDITS
+                                                    </span>
+                                                </div>
+                                                <p style={{
+                                                    margin: 0,
+                                                    fontSize: '13px',
+                                                    lineHeight: 1.5,
+                                                    color: 'var(--color-muted-foreground)',
+                                                }}>
+                                                    Enable superior text rendering and accuracy for images with headlines, product labels, or precise typography.
+                                                </p>
+                                            </div>
+                                        </label>
                                     </div>
                                 </div>
                             </div>
@@ -1267,7 +1386,7 @@ export default function CSVWizard() {
                                 </>
                             ) : currentStep === 5 ? (
                                 <>
-                                    Generate {selectedRows.size} Image{selectedRows.size !== 1 ? 's' : ''}
+                                    Generate ({textAccurate ? selectedRows.size * 4 : selectedRows.size} credits)
                                     <Zap size={16} />
                                 </>
                             ) : (
