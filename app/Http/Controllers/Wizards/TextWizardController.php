@@ -59,6 +59,19 @@ class TextWizardController extends Controller
             }
         }
 
+        // Create generation history record
+        $generation = $project->generationHistory()->create([
+            'user_id' => Auth::id(),
+            'prompt' => $validated['idea_description'],
+            'model' => 'gemini-2.5-flash-image',
+            'status' => 'pending',
+            'parameters' => [
+                'format' => $validated['format'],
+                'text_accurate' => $validated['text_accurate'] ?? false,
+                'wizard_type' => 'text',
+            ],
+        ]);
+
         // Queue AI processing job with the description as the prompt
         $prompt = $validated['idea_description'];
         $format = $validated['format'];
@@ -66,6 +79,7 @@ class TextWizardController extends Controller
         \App\Jobs\GenerateSingleImageJob::dispatch($project, $prompt, $format, $textAccurate);
 
         return redirect()->route('projects.show', $project->id)
-            ->with('success', 'Project created! AI generation will begin shortly.');
+            ->with('success', 'Project created! Your image is being generated...')
+            ->with('generating', true);
     }
 }

@@ -7,7 +7,7 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use RuntimeException;
 
-class GoogleGeminiService implements AIServiceInterface
+class GoogleGeminiService
 {
     protected string $baseUrl = 'https://generativelanguage.googleapis.com/v1beta';
     protected ?string $apiKey;
@@ -256,29 +256,10 @@ Negative Prompt: artifacts, blur, distortion, mismatched, ugly, text, watermark,
     protected function parseResponse($response): array
     {
         if (!$response->successful()) {
-            Log::error('Gemini API returned non-200 status', [
-                'status' => $response->status(),
-                'body' => $response->body(),
-            ]);
-            throw new RuntimeException('Gemini API Error (' . $response->status() . '): ' . $response->body());
+            throw new RuntimeException('Gemini API Error: ' . $response->body());
         }
 
         $json = $response->json();
-        
-        Log::info('Gemini API Response Structure', [
-            'has_candidates' => isset($json['candidates']),
-            'candidate_count' => isset($json['candidates']) ? count($json['candidates']) : 0,
-            'raw_response' => json_encode($json, JSON_PRETTY_PRINT),
-        ]);
-
-        // Check for NO_IMAGE finish reason
-        if (isset($json['candidates'][0]['finishReason']) && $json['candidates'][0]['finishReason'] === 'NO_IMAGE') {
-            Log::error('Gemini refused to generate image', [
-                'finish_reason' => $json['candidates'][0]['finishReason'],
-                'response' => $json,
-            ]);
-            throw new RuntimeException("Gemini refused to generate an image. The prompt may contain content that violates safety filters or is not suitable for image generation.");
-        }
 
         // The image data is nested in inlineData
         $candidate = $json['candidates'][0]['content']['parts'][0] ?? null;
@@ -286,33 +267,17 @@ Negative Prompt: artifacts, blur, distortion, mismatched, ugly, text, watermark,
         // Check if we got an image back
         if (isset($candidate['inlineData']['data'])) {
             return [
-                'image_data' => $candidate['inlineData']['data'],  // Changed from image_base64 to image_data
+                'image_base64' => $candidate['inlineData']['data'],
                 'mime_type' => $candidate['inlineData']['mimeType'] ?? 'image/png',
             ];
         }
 
-        // Check alternate structure (sometimes images are in different part indices)
-        if (isset($json['candidates'][0]['content']['parts'])) {
-            foreach ($json['candidates'][0]['content']['parts'] as $part) {
-                if (isset($part['inlineData']['data'])) {
-                    return [
-                        'image_data' => $part['inlineData']['data'],  // Changed from image_base64 to image_data
-                        'mime_type' => $part['inlineData']['mimeType'] ?? 'image/png',
-                    ];
-                }
-            }
-        }
-
         // Handle refusal (sometimes it returns text if safety filters trip)
         if (isset($candidate['text'])) {
-            Log::warning('Gemini refused to generate image', ['reason' => $candidate['text']]);
             throw new RuntimeException("Model refused to generate image. Reason: " . $candidate['text']);
         }
 
-        Log::error('Unexpected response format from Gemini', [
-            'response_structure' => json_encode($json, JSON_PRETTY_PRINT),
-        ]);
-        throw new RuntimeException("Unexpected response format from Gemini. Check logs for details.");
+        throw new RuntimeException("Unexpected response format from Gemini.");
     }
 
     protected function fileToPart(string $path): ?array
@@ -369,30 +334,5 @@ Negative Prompt: artifacts, blur, distortion, mismatched, ugly, text, watermark,
     public function getServiceName(): string
     {
         return 'Google Gemini';
-    }
-
-    /**
-     * Analyze brand style from reference images (stub for interface compatibility)
-     * The simplified approach doesn't need separate analysis - references are passed directly
-     */
-    public function analyzeBrandStyle(array $imageUrls): array
-    {
-        // Return minimal structure for compatibility
-        // In the simplified approach, we don't analyze separately
-        return [
-            'analyzed_at' => now()->toIso8601String(),
-            'model' => $this->model,
-            'note' => 'Simplified approach - style mirroring happens during generation',
-        ];
-    }
-
-    /**
-     * Generate image from prompt and style guide (legacy interface method)
-     * Redirects to generateWithReferences for compatibility
-     */
-    public function generateImage(string $prompt, ?array $styleGuide = null, string $format = 'square'): array
-    {
-        // For compatibility, call generateWithReferences with empty references
-        return $this->generateWithReferences($prompt, [], [], $format, false);
     }
 }

@@ -153,6 +153,11 @@ class ProjectController extends Controller
         // Authorize viewing the project
         $this->authorize('view', $project);
 
+        // Check for pending generations
+        $hasPendingGenerations = $project->generationHistory()
+            ->whereIn('status', ['pending', 'processing'])
+            ->exists();
+
         return Inertia::render('projects/show', [
             'project' => [
                 'id' => $project->id,
@@ -176,6 +181,7 @@ class ProjectController extends Controller
             // Pass optimistic UI flags from query params
             'justCreated' => $request->query('justCreated', false),
             'expectedImages' => (int) $request->query('expectedImages', 0),
+            'hasPendingGenerations' => $hasPendingGenerations,
         ]);
     }
 

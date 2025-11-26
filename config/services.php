@@ -47,13 +47,15 @@ return [
 
     'gemini' => [
         'api_key' => env('GEMINI_API_KEY'),
-        // Text/analysis model (must be a vision-language model like Gemini 1.5 Flash/Pro)
+        // Text/analysis model
         'model' => env('GEMINI_MODEL', 'gemini-1.5-flash'),
         // Image generation model (default for most tasks)
-        'image_model' => env('GEMINI_IMAGE_MODEL', 'gemini-3-pro-image-preview'),
+        'image_model' => env('GEMINI_IMAGE_MODEL', 'gemini-2.5-flash-image'),
         // Text-to-image model (no references)
+        // Text-to-image model (used when no reference images are supplied)
+        // Align fallback name with service default; update .env if Google changes naming.
         'text_to_image_model' => env('GEMINI_TEXT_TO_IMAGE_MODEL', 'imagen-3.0-generate-001'),
-        // Text-accurate model (4x credits)
+        // Text-accurate model (4x credits). Prefer stable non-preview for reliability.
         'text_accurate_model' => env('GEMINI_TEXT_ACCURATE_MODEL', 'gemini-3-pro-image-preview'),
         'rate_limit' => env('GEMINI_RATE_LIMIT', 30), // Requests per minute
     ],

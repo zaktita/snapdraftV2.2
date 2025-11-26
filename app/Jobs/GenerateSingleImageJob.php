@@ -9,13 +9,15 @@ use App\Services\FileUploadService;
 use Illuminate\Bus\Batchable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
+use Illuminate\Queue\SerializesModels;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Intervention\Image\Laravel\Facades\Image as InterventionImage;
 
 class GenerateSingleImageJob implements ShouldQueue
 {
-    use Batchable, Queueable;
+    use Batchable, Queueable, SerializesModels;
 
     /**
      * The number of times the job may be attempted.
@@ -32,15 +34,54 @@ class GenerateSingleImageJob implements ShouldQueue
     public $backoff = [60, 300, 900]; // 1 minute, 5 minutes, 15 minutes
 
     /**
+     * Allowed image formats
+     */
+    private const ALLOWED_FORMATS = ['square', 'portrait', 'landscape'];
+
+    /**
      * Create a new job instance.
      */
+    public bool $textAccurate = false;
+
     public function __construct(
         public Project $project,
         public string $prompt,
         public string $format = 'square',
-        public bool $textAccurate = false
+        bool $textAccurate = false
     ) {
-        //
+        // Validate inputs
+        $this->validateInputs();
+        
+        $this->textAccurate = (bool) $textAccurate;
+    }
+
+    /**
+     * Validate job input parameters
+     */
+    protected function validateInputs(): void
+    {
+        if (empty($this->prompt) {
+            throw new \InvalidArgumentException('Prompt cannot be empty');
+        }
+
+        if (!in_array($this->format, self::ALLOWED_FORMATS)) {
+            throw new \InvalidArgumentException(
+                sprintf('Invalid format "%s". Allowed formats: %s', 
+                    $this->format, 
+                    implode(', ', self::ALLOWED_FORMATS)
+                )
+            );
+        }
+
+        if (!$this->project->exists) {
+            throw new \InvalidArgumentException('Project does not exist');
+        }
+
+        // Sanitize prompt
+        $this->prompt = trim(strip_tags($this->prompt));
+        if (strlen($this->prompt) > 1000) {
+            throw new \InvalidArgumentException('Prompt too long (max 1000 characters)');
+        }
     }
 
     /**
@@ -58,8 +99,24 @@ class GenerateSingleImageJob implements ShouldQueue
         // Determine credit cost (1 for normal, 4 for text-accurate)
         $creditCost = $this->textAccurate ? 4 : 1;
 
+        // Use database transaction for atomic operations
+        DB::transaction(function () use ($aiService, $fileUploadService, $creditCost) {
+            $this->executeGeneration($aiService, $fileUploadService, $creditCost);
+        });
+    }
+
+    /**
+     * Execute the generation process within a transaction
+     */
+    protected function executeGeneration(AIServiceManager $aiService, FileUploadService $fileUploadService, int $creditCost): void
+    {
+        // Lock user record for update to prevent race conditions
+        $user = $this->project->user()->lockForUpdate()->first();
+        if (!$user) {
+            throw new \Exception("User not found for project {$this->project->id}");
+        }
+
         // Check if user has sufficient credits
-        $user = $this->project->user;
         if (!$user->hasCredits($creditCost)) {
             Log::warning('User has insufficient credits', [
                 'user_id' => $user->id,
@@ -90,21 +147,30 @@ class GenerateSingleImageJob implements ShouldQueue
             'status' => 'processing',
         ]);
 
+        $imageData = null;
+        $fullPath = null;
+        $thumbnailPath = null;
+
         try {
             // Get brand reference image paths
-            $referenceImagePaths = $this->project->brandReferences()
-                ->pluck('url')
-                ->map(fn($url) => Storage::disk('public')->path($url))
-                ->toArray();
+            $referenceImagePaths = $this->getValidImagePaths(
+                $this->project->brandReferences()->pluck('url')->toArray()
+            );
 
-            // Get product images if any (from project settings or images with metadata type 'product_overlay')
-            $productImagePaths = $this->project->images()
-                ->whereJsonContains('metadata->type', 'product_overlay')
-                ->pluck('url')
-                ->map(fn($url) => Storage::disk('public')->path($url))
-                ->toArray();
+            // Get product images if any
+            $productImagePaths = $this->getValidImagePaths(
+                $this->project->images()
+                    ->whereJsonContains('metadata->type', 'product_overlay')
+                    ->pluck('url')
+                    ->toArray()
+            );
 
-            // Generate image using AI service with Style Mirror approach
+            Log::info('Reference images found', [
+                'brand_references' => count($referenceImagePaths),
+                'product_overlays' => count($productImagePaths),
+            ]);
+
+            // Generate image using AI service
             $result = $aiService->generateWithReferences(
                 $this->prompt,
                 $referenceImagePaths,
@@ -113,76 +179,209 @@ class GenerateSingleImageJob implements ShouldQueue
                 $this->textAccurate
             );
 
-            // Save the generated image
-            if (isset($result['image_data'])) {
-                $imageData = base64_decode($result['image_data']);
-                $extension = match ($result['mime_type']) {
-                    'image/jpeg' => 'jpg',
-                    'image/png' => 'png',
-                    'image/webp' => 'webp',
-                    default => 'png'
-                };
-
-                $filename = 'generated_' . time() . '_' . uniqid() . '.' . $extension;
-                $directory = 'projects/' . $this->project->id . '/images';
-                $fullPath = $directory . '/' . $filename;
-
-                // Save full size image
-                Storage::disk('public')->put($fullPath, $imageData);
-
-                // Generate thumbnail using Intervention Image
-                try {
-                    $interventionImage = InterventionImage::read($imageData);
-                    $thumbnail = $interventionImage->cover(400, 400);
-                    $thumbnailPath = $directory . '/thumbnails/' . $filename;
-                    Storage::disk('public')->put($thumbnailPath, $thumbnail->toPng()->toString());
-                } catch (\Exception $e) {
-                    Log::warning('Failed to generate thumbnail', ['error' => $e->getMessage()]);
-                    $thumbnailPath = $fullPath; // Use full image as fallback
-                }
-
-                // Create Image record
-                $image = $this->project->images()->create([
-                    'url' => $fullPath,
-                    'thumbnail_url' => $thumbnailPath,
-                    'prompt' => $this->prompt,
-                    'order' => $this->project->images()->max('order') + 1,
-                    'metadata' => array_merge($result['metadata'] ?? [], [
-                        'ai_generated' => true,
-                        'model' => $result['model'],
-                        'format' => $this->format,
-                    ]),
-                ]);
-
-                // Update generation history
-                $generation->update([
-                    'status' => 'completed',
-                    'tokens_used' => $result['metadata']['tokens_used'] ?? 0,
-                    'cost' => $this->calculateCost($result['metadata']['tokens_used'] ?? 0),
-                ]);
-
-                Log::info('Image generation completed', [
-                    'project_id' => $this->project->id,
-                    'image_id' => $image->id,
-                    'generation_id' => $generation->id,
-                    'size_kb' => strlen($imageData) / 1024,
-                ]);
-            } else {
+            // Validate AI service response
+            if (!isset($result['image_data'])) {
                 throw new \Exception('No image data in AI service response');
             }
-        } catch (\Exception $e) {
-            Log::error('Image generation failed', [
-                'project_id' => $this->project->id,
-                'error' => $e->getMessage(),
+
+            // Decode and validate image data
+            $imageData = base64_decode($result['image_data']);
+            if ($imageData === false) {
+                throw new \Exception('Invalid base64 image data received from AI service');
+            }
+
+            if (!$this->isValidImageData($imageData)) {
+                throw new \Exception('Invalid image data format received from AI service');
+            }
+
+            // Determine file extension
+            $extension = $this->getFileExtension($result['mime_type'] ?? 'image/png');
+            $filename = 'generated_' . time() . '_' . uniqid() . '.' . $extension;
+            $directory = 'projects/' . $this->project->id . '/images';
+            $thumbnailDirectory = $directory . '/thumbnails';
+
+            // Create directories if they don't exist
+            Storage::disk('public')->makeDirectory($directory);
+            Storage::disk('public')->makeDirectory($thumbnailDirectory);
+
+            $fullPath = $directory . '/' . $filename;
+
+            // Save full size image
+            $fileSize = Storage::disk('public')->put($fullPath, $imageData);
+            if (!$fileSize) {
+                throw new \Exception('Failed to save image to storage');
+            }
+
+            // Generate thumbnail using Intervention Image with memory optimization
+            $thumbnailPath = $this->generateThumbnail($imageData, $thumbnailDirectory, $filename);
+
+            // Create Image record
+            $image = $this->project->images()->create([
+                'url' => $fullPath,
+                'thumbnail_url' => $thumbnailPath,
+                'prompt' => $this->prompt,
+                'order' => $this->project->images()->max('order') + 1,
+                'metadata' => array_merge($result['metadata'] ?? [], [
+                    'ai_generated' => true,
+                    'model' => $result['metadata']['model'] ?? 'gemini-2.5-flash-image',
+                    'format' => $this->format,
+                    'text_accurate' => $this->textAccurate,
+                    'file_size' => $fileSize,
+                ]),
             ]);
 
             // Update generation history
             $generation->update([
-                'status' => 'failed',
-                'error_message' => $e->getMessage(),
+                'status' => 'completed',
+                'tokens_used' => $result['metadata']['tokens_used'] ?? 0,
+                'cost' => $this->calculateCost($result['metadata']['tokens_used'] ?? 0),
+                'image_id' => $image->id,
             ]);
 
+            Log::info('Image generation completed', [
+                'project_id' => $this->project->id,
+                'image_id' => $image->id,
+                'generation_id' => $generation->id,
+                'size_kb' => strlen($imageData) / 1024,
+                'credits_used' => $creditCost,
+            ]);
+
+        } catch (\Exception $e) {
+            // Clean up any created files on failure
+            $this->cleanupFiles([$fullPath, $thumbnailPath]);
+
+            Log::error('Image generation failed', [
+                'project_id' => $this->project->id,
+                'generation_id' => $generation->id ?? null,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+
+            // Refund credits on failure (except for validation errors)
+            if (!($e instanceof \InvalidArgumentException)) {
+                $user->refundCredit($creditCost);
+                Log::info('Credits refunded due to generation failure', [
+                    'user_id' => $user->id,
+                    'credits_refunded' => $creditCost,
+                ]);
+            }
+
+            // Update generation history
+            if (isset($generation)) {
+                $generation->update([
+                    'status' => 'failed',
+                    'error_message' => $e->getMessage(),
+                ]);
+            }
+
             throw $e;
+        }
+    }
+
+    /**
+     * Get valid image paths from URLs
+     */
+    protected function getValidImagePaths(array $urls): array
+    {
+        return collect($urls)
+            ->map(function ($url) {
+                // Extract filename from URL
+                $filename = basename($url);
+                
+                // Check if file exists in storage
+                if (Storage::disk('public')->exists($filename)) {
+                    return Storage::disk('public')->path($filename);
+                }
+                
+                // Also check with full URL path
+                if (Storage::disk('public')->exists($url)) {
+                    return Storage::disk('public')->path($url);
+                }
+                
+                Log::warning('Reference image not found', ['url' => $url, 'filename' => $filename]);
+                return null;
+            })
+            ->filter()
+            ->values()
+            ->toArray();
+    }
+
+    /**
+     * Validate image data
+     */
+    protected function isValidImageData(string $imageData): bool
+    {
+        // Check minimum size (at least 100 bytes)
+        if (strlen($imageData) < 100) {
+            return false;
+        }
+
+        // Try to get image info
+        $imageInfo = @getimagesizefromstring($imageData);
+        return $imageInfo !== false && in_array($imageInfo[2], [IMAGETYPE_JPEG, IMAGETYPE_PNG, IMAGETYPE_WEBP]);
+    }
+
+    /**
+     * Get file extension from MIME type
+     */
+    protected function getFileExtension(string $mimeType): string
+    {
+        return match ($mimeType) {
+            'image/jpeg' => 'jpg',
+            'image/png' => 'png',
+            'image/webp' => 'webp',
+            default => 'png'
+        };
+    }
+
+    /**
+     * Generate thumbnail with memory optimization
+     */
+    protected function generateThumbnail(string $imageData, string $thumbnailDirectory, string $filename): string
+    {
+        try {
+            // Use temporary file to reduce memory usage for large images
+            $tempPath = tempnam(sys_get_temp_dir(), 'img_');
+            file_put_contents($tempPath, $imageData);
+
+            $interventionImage = InterventionImage::read($tempPath);
+            $thumbnail = $interventionImage->cover(400, 400);
+            
+            $thumbnailPath = $thumbnailDirectory . '/' . $filename;
+            $thumbnailData = $thumbnail->toPng()->toString();
+            
+            Storage::disk('public')->put($thumbnailPath, $thumbnailData);
+            
+            // Clean up temporary file
+            unlink($tempPath);
+            
+            return $thumbnailPath;
+            
+        } catch (\Exception $e) {
+            Log::warning('Failed to generate thumbnail', [
+                'error' => $e->getMessage(),
+                'filename' => $filename,
+            ]);
+            
+            // Return original path as fallback (don't use the same path)
+            return ''; // Empty string indicates no thumbnail
+        }
+    }
+
+    /**
+     * Clean up files on failure
+     */
+    protected function cleanupFiles(array $paths): void
+    {
+        foreach ($paths as $path) {
+            if ($path && Storage::disk('public')->exists($path)) {
+                try {
+                    Storage::disk('public')->delete($path);
+                    Log::info('Cleaned up file after failed generation', ['path' => $path]);
+                } catch (\Exception $e) {
+                    Log::warning('Failed to cleanup file', ['path' => $path, 'error' => $e->getMessage()]);
+                }
+            }
         }
     }
 
@@ -203,9 +402,10 @@ class GenerateSingleImageJob implements ShouldQueue
     {
         Log::error('GenerateSingleImageJob failed permanently', [
             'project_id' => $this->project->id,
-            'prompt' => $this->prompt,
+            'prompt' => substr($this->prompt, 0, 100), // Log only first 100 chars
             'error' => $exception->getMessage(),
             'attempts' => $this->attempts(),
+            'batch_id' => $this->batchId ?? null,
         ]);
 
         // Send email notification to project owner
@@ -252,6 +452,14 @@ class GenerateSingleImageJob implements ShouldQueue
 
         if (str_contains($message, 'credit') || str_contains($message, 'insufficient')) {
             return 'You have insufficient credits to complete this generation. Please upgrade your plan.';
+        }
+
+        if (str_contains($message, 'Invalid image data')) {
+            return 'The AI service returned invalid image data. Please try again with a different prompt.';
+        }
+
+        if (str_contains($message, 'empty') || str_contains($message, 'required')) {
+            return 'There was a problem with your request. Please check your input and try again.';
         }
 
         // Generic fallback

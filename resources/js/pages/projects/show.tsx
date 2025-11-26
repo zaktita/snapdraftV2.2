@@ -32,10 +32,11 @@ interface ProjectShowProps {
     project: Project;
     justCreated?: boolean; // Flag to indicate project was just created
     expectedImages?: number; // Expected number of images to generate
+    hasPendingGenerations?: boolean; // Whether there are pending AI generations
 }
 
-export default function ProjectShow({ project, justCreated = false, expectedImages = 0 }: ProjectShowProps) {
-    const page = usePage<{ success?: string }>();
+export default function ProjectShow({ project, justCreated = false, expectedImages = 0, hasPendingGenerations = false }: ProjectShowProps) {
+    const page = usePage<{ success?: string; generating?: boolean }>();
     const [selectedImages, setSelectedImages] = useState<number[]>([]);
     const [favoriteImages, setFavoriteImages] = useState<number[]>([]);
     const [isEditingTitle, setIsEditingTitle] = useState(false);
@@ -73,6 +74,17 @@ export default function ProjectShow({ project, justCreated = false, expectedImag
             setShowOptimisticProgress(false);
         }
     }, [progress]);
+    
+    // Poll for updates when there are pending generations
+    useEffect(() => {
+        if (hasPendingGenerations && !isGenerating) {
+            const interval = setInterval(() => {
+                router.reload({ only: ['project', 'hasPendingGenerations'] });
+            }, 5000); // Poll every 5 seconds
+            
+            return () => clearInterval(interval);
+        }
+    }, [hasPendingGenerations, isGenerating]);
     
     useEffect(() => {
         if (isEditingTitle && titleInputRef.current) {
@@ -268,6 +280,23 @@ export default function ProjectShow({ project, justCreated = false, expectedImag
                             </Button>
                         </div>
                     </div>
+
+                    {/* Generation Status Banner */}
+                    {(hasPendingGenerations || page.props.generating) && (
+                        <div className="mb-6 rounded-lg border border-blue-200 bg-blue-50 p-4 dark:border-blue-800 dark:bg-blue-950">
+                            <div className="flex items-center gap-3">
+                                <div className="size-5 animate-spin rounded-full border-2 border-blue-200 border-t-blue-600 dark:border-blue-800 dark:border-t-blue-400"></div>
+                                <div>
+                                    <p className="font-medium text-blue-900 dark:text-blue-100">
+                                        Generating your image...
+                                    </p>
+                                    <p className="text-sm text-blue-700 dark:text-blue-300">
+                                        This may take 30-60 seconds. The page will automatically update when complete.
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    )}
 
                     {/* Generation Progress - Show Optimistically if Just Created */}
                     {(showOptimisticProgress || (isGenerating && progress)) && (

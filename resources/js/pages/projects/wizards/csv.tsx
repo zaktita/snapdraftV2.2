@@ -61,14 +61,16 @@ export default function CSVWizard() {
     const csvInputRef = useRef<HTMLInputElement>(null);
     const imageInputRef = useRef<HTMLInputElement>(null);
 
-    // Show error message if present
+    // Show error message if present (supports legacy top-level or flash container)
+    const errorMessage = (page.props as any).error || (page.props as any).flash?.error;
+
     useEffect(() => {
-        if (page.props.error) {
+        if (errorMessage) {
             setShowError(true);
             const timer = setTimeout(() => setShowError(false), 7000);
             return () => clearTimeout(timer);
         }
-    }, [page.props.error]);
+    }, [errorMessage]);
 
     // Parse CSV
     const parseCSV = (text: string): CSVRow[] => {
@@ -328,9 +330,7 @@ export default function CSVWizard() {
             forceFormData: true,
             preserveScroll: false,
             onError: () => setIsSubmitting(false),
-            onSuccess: () => {
-                // Form submitted successfully, redirect will happen automatically
-            },
+            onFinish: () => setIsSubmitting(false),
         });
     };
 
@@ -479,7 +479,7 @@ export default function CSVWizard() {
                         </Link>
                         
                         {/* Error Alert */}
-                        {showError && page.props.error && (
+                        {showError && errorMessage && (
                             <div style={{
                                 padding: '12px 16px',
                                 marginBottom: '16px',
@@ -497,7 +497,7 @@ export default function CSVWizard() {
                                     color: 'hsl(var(--destructive))',
                                     lineHeight: 1.5
                                 }}>
-                                    {page.props.error}
+                                    {errorMessage}
                                 </p>
                                 <button
                                     onClick={() => setShowError(false)}
