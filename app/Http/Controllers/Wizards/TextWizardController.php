@@ -59,11 +59,11 @@ class TextWizardController extends Controller
             }
         }
 
-        // Create generation history record
+        // Create generation history record (pending before job dispatch)
         $generation = $project->generationHistory()->create([
             'user_id' => Auth::id(),
             'prompt' => $validated['idea_description'],
-            'model' => 'gemini-2.5-flash-image',
+            'ai_model' => 'gemini-2.5-flash-image',
             'status' => 'pending',
             'parameters' => [
                 'format' => $validated['format'],

@@ -60,7 +60,7 @@ class GenerateSingleImageJob implements ShouldQueue
      */
     protected function validateInputs(): void
     {
-        if (empty($this->prompt) {
+        if (empty($this->prompt)) {
             throw new \InvalidArgumentException('Prompt cannot be empty');
         }
 
