@@ -58,9 +58,24 @@ class ImagesWizardController extends Controller
         $prompt = $validated['content_description'];
         $format = $validated['format'] ?? 'square';
         $textAccurate = $validated['text_accurate'] ?? false;
-        \App\Jobs\GenerateSingleImageJob::dispatch($project, $prompt, $format, $textAccurate);
+
+        // Create generation history record (pending before job dispatch)
+        $generation = $project->generationHistory()->create([
+            'user_id' => Auth::id(),
+            'prompt' => $prompt,
+            'ai_model' => 'gemini-2.5-flash-image',
+            'status' => 'pending',
+            'parameters' => [
+                'format' => $format,
+                'text_accurate' => $textAccurate,
+                'wizard_type' => 'images',
+            ],
+        ]);
+
+        \App\Jobs\GenerateSingleImageJob::dispatch($project, $prompt, $format, $textAccurate, $generation->id);
 
         return redirect()->route('projects.show', $project->id)
-            ->with('success', 'Project created! AI generation will begin shortly.');
+            ->with('success', 'Project created! AI generation will begin shortly.')
+            ->with('generating', true);
     }
 }

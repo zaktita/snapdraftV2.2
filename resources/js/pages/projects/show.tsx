@@ -33,16 +33,23 @@ interface ProjectShowProps {
     justCreated?: boolean; // Flag to indicate project was just created
     expectedImages?: number; // Expected number of images to generate
     hasPendingGenerations?: boolean; // Whether there are pending AI generations
+    progress?: {
+        total: number;
+        completed: number;
+        failed: number;
+        pending: number;
+    } | null;
 }
 
-export default function ProjectShow({ project, justCreated = false, expectedImages = 0, hasPendingGenerations = false }: ProjectShowProps) {
+export default function ProjectShow({ project, justCreated = false, expectedImages = 0, hasPendingGenerations = false, progress = null }: ProjectShowProps) {
     const page = usePage<{ success?: string; generating?: boolean }>();
     const [selectedImages, setSelectedImages] = useState<number[]>([]);
     const [favoriteImages, setFavoriteImages] = useState<number[]>([]);
     const [isEditingTitle, setIsEditingTitle] = useState(false);
     const [editTitle, setEditTitle] = useState(project.title);
     const [showSuccess, setShowSuccess] = useState(false);
-    const [showOptimisticProgress, setShowOptimisticProgress] = useState(justCreated);
+    // Initialize banner state based on flash message OR pending generations prop
+    const [showGeneratingBanner, setShowGeneratingBanner] = useState(!!page.props.generating || hasPendingGenerations);
     const [lightboxOpen, setLightboxOpen] = useState(false);
     const [lightboxImageIndex, setLightboxImageIndex] = useState(0);
     const titleInputRef = useRef<HTMLInputElement>(null);
@@ -57,34 +64,34 @@ export default function ProjectShow({ project, justCreated = false, expectedImag
         }
     }, [page.props.success]);
     
-    // Track generation progress with auto-reload on completion
-    const { progress, isGenerating } = useGenerationProgress(
-        project.id, 
-        true,
-        () => {
-            // Hide optimistic progress and reload the page when generation completes
-            setShowOptimisticProgress(false);
-            router.reload({ only: ['project'] });
-        }
-    );
-    
-    // Hide optimistic progress once real progress data arrives
+    // Simple polling: check every 5 seconds if generating, reload when image count changes
     useEffect(() => {
-        if (progress && showOptimisticProgress) {
-            setShowOptimisticProgress(false);
-        }
-    }, [progress]);
-    
-    // Poll for updates when there are pending generations
-    useEffect(() => {
-        if (hasPendingGenerations && !isGenerating) {
-            const interval = setInterval(() => {
-                router.reload({ only: ['project', 'hasPendingGenerations'] });
-            }, 5000); // Poll every 5 seconds
-            
-            return () => clearInterval(interval);
-        }
-    }, [hasPendingGenerations, isGenerating]);
+        if (!showGeneratingBanner) return;
+        
+        const initialImageCount = project.images.length;
+        
+        const interval = setInterval(() => {
+            router.reload({ 
+                only: ['project', 'hasPendingGenerations', 'progress'],
+                onSuccess: (page) => {
+                    const newProject = (page.props as any).project;
+                    const stillPending = (page.props as any).hasPendingGenerations;
+                    
+                    // Stop polling if we have new images AND no more pending generations
+                    if (newProject.images.length > initialImageCount && !stillPending) {
+                        setShowGeneratingBanner(false);
+                        clearInterval(interval);
+                    } else if (!stillPending && newProject.images.length === initialImageCount) {
+                        // Case where generation might have failed (no new images, but no longer pending)
+                        setShowGeneratingBanner(false);
+                        clearInterval(interval);
+                    }
+                }
+            });
+        }, 3000); // Poll every 3 seconds
+        
+        return () => clearInterval(interval);
+    }, [showGeneratingBanner, project.images.length]);
     
     useEffect(() => {
         if (isEditingTitle && titleInputRef.current) {
@@ -282,7 +289,7 @@ export default function ProjectShow({ project, justCreated = false, expectedImag
                     </div>
 
                     {/* Generation Status Banner */}
-                    {(hasPendingGenerations || page.props.generating) && (
+                    {showGeneratingBanner && (
                         <div className="mb-6 rounded-lg border border-blue-200 bg-blue-50 p-4 dark:border-blue-800 dark:bg-blue-950">
                             <div className="flex items-center gap-3">
                                 <div className="size-5 animate-spin rounded-full border-2 border-blue-200 border-t-blue-600 dark:border-blue-800 dark:border-t-blue-400"></div>
@@ -298,26 +305,15 @@ export default function ProjectShow({ project, justCreated = false, expectedImag
                         </div>
                     )}
 
-                    {/* Generation Progress - Show Optimistically if Just Created */}
-                    {(showOptimisticProgress || (isGenerating && progress)) && (
+                    {/* Generation Progress - show optimistic progress when a generation was just started or pending */}
+                    {(justCreated || hasPendingGenerations || (progress && progress.pending > 0)) && (
                         <div className="mb-6">
-                            {showOptimisticProgress ? (
-                                // Optimistic progress - show immediately while waiting for first poll
-                                <BatchProgress
-                                    total={expectedImages || 1}
-                                    completed={0}
-                                    failed={0}
-                                    status="processing"
-                                />
-                            ) : progress ? (
-                                // Real progress from API
-                                <BatchProgress
-                                    total={progress.expected_total}
-                                    completed={progress.completed}
-                                    failed={progress.failed}
-                                    status={progress.is_complete ? 'completed' : 'processing'}
-                                />
-                            ) : null}
+                            <BatchProgress
+                                total={progress ? progress.total : (expectedImages || 1)}
+                                completed={progress ? progress.completed : 0}
+                                failed={progress ? progress.failed : 0}
+                                status={progress && progress.pending === 0 ? 'completed' : 'processing'}
+                            />
                         </div>
                     )}
 

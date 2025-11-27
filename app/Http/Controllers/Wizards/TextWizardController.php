@@ -76,7 +76,9 @@ class TextWizardController extends Controller
         $prompt = $validated['idea_description'];
         $format = $validated['format'];
         $textAccurate = $validated['text_accurate'] ?? false;
-        \App\Jobs\GenerateSingleImageJob::dispatch($project, $prompt, $format, $textAccurate);
+        
+        // Pass the generation ID so the job updates this record instead of creating a new one
+        \App\Jobs\GenerateSingleImageJob::dispatch($project, $prompt, $format, $textAccurate, $generation->id);
 
         return redirect()->route('projects.show', $project->id)
             ->with('success', 'Project created! Your image is being generated...')

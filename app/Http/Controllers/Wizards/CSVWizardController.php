@@ -104,7 +104,8 @@ class CSVWizardController extends Controller
             'project' => $project->id,
             'justCreated' => true,
             'expectedImages' => count($csvData),
-        ])->with('success', 'Generation started! Images will appear as they complete.');
+        ])->with('success', 'Generation started! Images will appear as they complete.')
+          ->with('generating', true);
     }
 
     /**

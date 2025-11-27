@@ -158,6 +158,22 @@ class ProjectController extends Controller
             ->whereIn('status', ['pending', 'processing'])
             ->exists();
 
+        // Calculate progress for active/recent batch (last 5 mins)
+        // We calculate this even if nothing is pending, so we can show "Completed" state
+        $recentGenerations = $project->generationHistory()
+            ->where('created_at', '>=', now()->subMinutes(5))
+            ->get();
+        
+        $progress = null;
+        if ($recentGenerations->isNotEmpty()) {
+            $progress = [
+                'total' => $recentGenerations->count(),
+                'completed' => $recentGenerations->where('status', 'completed')->count(),
+                'failed' => $recentGenerations->where('status', 'failed')->count(),
+                'pending' => $recentGenerations->whereIn('status', ['pending', 'processing'])->count(),
+            ];
+        }
+
         return Inertia::render('projects/show', [
             'project' => [
                 'id' => $project->id,
@@ -182,6 +198,7 @@ class ProjectController extends Controller
             'justCreated' => $request->query('justCreated', false),
             'expectedImages' => (int) $request->query('expectedImages', 0),
             'hasPendingGenerations' => $hasPendingGenerations,
+            'progress' => $progress,
         ]);
     }
 

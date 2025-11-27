@@ -2,6 +2,7 @@
 
 namespace App\Jobs;
 
+use App\Models\GenerationHistory;
 use App\Models\Project;
 use Illuminate\Bus\Batch;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -55,9 +56,24 @@ class GenerateBatchImagesJob implements ShouldQueue
                 $prompt = $this->buildPrompt($row);
                 $format = $row['format'] ?? 'square';
 
+                // Create generation history record for this item
+                $generation = GenerationHistory::create([
+                    'user_id' => $this->project->user_id,
+                    'project_id' => $this->project->id,
+                    'prompt' => $prompt,
+                    'ai_model' => 'gemini-2.5-flash-image',
+                    'status' => 'pending',
+                    'parameters' => [
+                        'format' => $format,
+                        'text_accurate' => $textAccurate,
+                        'wizard_type' => 'csv',
+                        'csv_row_index' => $jobIndex,
+                    ],
+                ]);
+
                 // Create job with delay to prevent API rate limiting (2 seconds between each generation)
                 $delaySeconds = $jobIndex * 2; // 2 seconds between each job
-                $job = (new GenerateSingleImageJob($this->project, $prompt, $format, $textAccurate))
+                $job = (new GenerateSingleImageJob($this->project, $prompt, $format, $textAccurate, $generation->id))
                     ->delay(now()->addSeconds($delaySeconds));
 
                 $jobs[] = $job;

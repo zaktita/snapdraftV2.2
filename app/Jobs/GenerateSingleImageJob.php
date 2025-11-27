@@ -47,7 +47,8 @@ class GenerateSingleImageJob implements ShouldQueue
         public Project $project,
         public string $prompt,
         public string $format = 'square',
-        bool $textAccurate = false
+        bool $textAccurate = false,
+        public ?int $generationId = null
     ) {
         // Validate inputs
         $this->validateInputs();
@@ -79,8 +80,8 @@ class GenerateSingleImageJob implements ShouldQueue
 
         // Sanitize prompt
         $this->prompt = trim(strip_tags($this->prompt));
-        if (strlen($this->prompt) > 1000) {
-            throw new \InvalidArgumentException('Prompt too long (max 1000 characters)');
+        if (strlen($this->prompt) > 5000) {
+            throw new \InvalidArgumentException('Prompt too long (max 5000 characters)');
         }
     }
 
@@ -125,13 +126,23 @@ class GenerateSingleImageJob implements ShouldQueue
                 'available_credits' => $user->credits_remaining,
             ]);
 
-            GenerationHistory::create([
-                'user_id' => $this->project->user_id,
-                'project_id' => $this->project->id,
-                'ai_model' => $aiService->getActiveServiceName(),
-                'status' => 'failed',
-                'error_message' => "Insufficient credits (need {$creditCost}, have {$user->credits_remaining})",
-            ]);
+            $errorMessage = "Insufficient credits (need {$creditCost}, have {$user->credits_remaining})";
+
+            if ($this->generationId && $generation = GenerationHistory::find($this->generationId)) {
+                $generation->update([
+                    'status' => 'failed',
+                    'error_message' => $errorMessage,
+                    'ai_model' => $aiService->getActiveServiceName(),
+                ]);
+            } else {
+                GenerationHistory::create([
+                    'user_id' => $this->project->user_id,
+                    'project_id' => $this->project->id,
+                    'ai_model' => $aiService->getActiveServiceName(),
+                    'status' => 'failed',
+                    'error_message' => $errorMessage,
+                ]);
+            }
 
             return;
         }
@@ -139,13 +150,34 @@ class GenerateSingleImageJob implements ShouldQueue
         // Deduct credits (1 or 4 depending on text accuracy)
         $user->useCredit($creditCost);
 
-        // Create generation history record
-        $generation = GenerationHistory::create([
-            'user_id' => $this->project->user_id,
-            'project_id' => $this->project->id,
-            'ai_model' => $aiService->getActiveServiceName(),
-            'status' => 'processing',
-        ]);
+        // Get or create generation history record
+        if ($this->generationId) {
+            $generation = GenerationHistory::find($this->generationId);
+            if ($generation) {
+                $generation->update([
+                    'status' => 'processing',
+                    'ai_model' => $aiService->getActiveServiceName(),
+                ]);
+            } else {
+                // Fallback if ID provided but not found
+                $generation = GenerationHistory::create([
+                    'user_id' => $this->project->user_id,
+                    'project_id' => $this->project->id,
+                    'ai_model' => $aiService->getActiveServiceName(),
+                    'status' => 'processing',
+                    'prompt' => $this->prompt,
+                ]);
+            }
+        } else {
+            // Legacy behavior: create new record
+            $generation = GenerationHistory::create([
+                'user_id' => $this->project->user_id,
+                'project_id' => $this->project->id,
+                'ai_model' => $aiService->getActiveServiceName(),
+                'status' => 'processing',
+                'prompt' => $this->prompt,
+            ]);
+        }
 
         $imageData = null;
         $fullPath = null;
@@ -194,26 +226,8 @@ class GenerateSingleImageJob implements ShouldQueue
                 throw new \Exception('Invalid image data format received from AI service');
             }
 
-            // Determine file extension
-            $extension = $this->getFileExtension($result['mime_type'] ?? 'image/png');
-            $filename = 'generated_' . time() . '_' . uniqid() . '.' . $extension;
-            $directory = 'projects/' . $this->project->id . '/images';
-            $thumbnailDirectory = $directory . '/thumbnails';
-
-            // Create directories if they don't exist
-            Storage::disk('public')->makeDirectory($directory);
-            Storage::disk('public')->makeDirectory($thumbnailDirectory);
-
-            $fullPath = $directory . '/' . $filename;
-
-            // Save full size image
-            $fileSize = Storage::disk('public')->put($fullPath, $imageData);
-            if (!$fileSize) {
-                throw new \Exception('Failed to save image to storage');
-            }
-
-            // Generate thumbnail using Intervention Image with memory optimization
-            $thumbnailPath = $this->generateThumbnail($imageData, $thumbnailDirectory, $filename);
+            // Save generated image and create thumbnail
+            [$fullPath, $thumbnailPath, $fileSize] = $this->saveGeneratedImage($imageData, $result['mime_type'] ?? 'image/png');
 
             // Create Image record
             $image = $this->project->images()->create([
@@ -276,6 +290,31 @@ class GenerateSingleImageJob implements ShouldQueue
 
             throw $e;
         }
+    }
+
+    /**
+     * Save generated image and create thumbnail
+     */
+    protected function saveGeneratedImage(string $imageData, string $mimeType): array
+    {
+        $extension = $this->getFileExtension($mimeType);
+        $filename = 'generated_' . time() . '_' . uniqid() . '.' . $extension;
+        $directory = 'projects/' . $this->project->id . '/images';
+        $thumbnailDirectory = $directory . '/thumbnails';
+
+        Storage::disk('public')->makeDirectory($directory);
+        Storage::disk('public')->makeDirectory($thumbnailDirectory);
+
+        $fullPath = $directory . '/' . $filename;
+
+        $fileSize = Storage::disk('public')->put($fullPath, $imageData);
+        if (!$fileSize) {
+            throw new \Exception('Failed to save image to storage');
+        }
+
+        $thumbnailPath = $this->generateThumbnail($imageData, $thumbnailDirectory, $filename);
+        
+        return [$fullPath, $thumbnailPath, $fileSize];
     }
 
     /**
@@ -407,6 +446,11 @@ class GenerateSingleImageJob implements ShouldQueue
             'attempts' => $this->attempts(),
             'batch_id' => $this->batchId ?? null,
         ]);
+
+        // Update generation history if ID is available
+        if ($this->generationId && $generation = GenerationHistory::find($this->generationId)) {
+             $generation->markAsFailed($this->getUserFriendlyError($exception));
+        }
 
         // Send email notification to project owner
         try {

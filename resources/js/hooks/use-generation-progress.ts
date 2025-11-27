@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 
 export interface GenerationProgress {
     project_id: number;
@@ -29,6 +29,13 @@ export function useGenerationProgress(
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [wasGenerating, setWasGenerating] = useState(false);
+    
+    // Use ref for callback to avoid adding it to dependencies
+    const onCompleteRef = useRef(onComplete);
+    
+    useEffect(() => {
+        onCompleteRef.current = onComplete;
+    }, [onComplete]);
 
     useEffect(() => {
         if (!projectId || !enabled) {
@@ -57,8 +64,8 @@ export function useGenerationProgress(
                     const isCurrentlyGenerating = !data.is_complete && data.processing > 0;
                     
                     // Check if generation just completed
-                    if (wasGenerating && data.is_complete && onComplete) {
-                        onComplete();
+                    if (wasGenerating && data.is_complete && onCompleteRef.current) {
+                        onCompleteRef.current();
                     }
                     
                     setProgress(data);
@@ -93,7 +100,7 @@ export function useGenerationProgress(
                 clearInterval(intervalId);
             }
         };
-    }, [projectId, enabled, wasGenerating, onComplete]);
+    }, [projectId, enabled]); // Removed wasGenerating and onComplete from deps to prevent interval restart
 
     return {
         progress,
