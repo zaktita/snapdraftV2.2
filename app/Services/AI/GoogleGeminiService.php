@@ -79,21 +79,33 @@ class GoogleGeminiService implements AIServiceInterface
 
         // 3. Fire the request
         $startTime = microtime(true);
+        
+        // For Imagen 3 (gemini-3-pro-preview), we might need to use the imagen-3.0-generate-001 endpoint structure
+        // But if it's a Gemini model, it should use generateContent.
+        // Let's try removing responseModalities for the preview model if it's causing issues, 
+        // or check if the model name is correct.
+        
+        $payload = [
+            'contents' => [
+                [
+                    'role' => 'user',
+                    'parts' => $parts
+                ]
+            ],
+            'generationConfig' => [
+                'responseModalities' => ['IMAGE'],
+            ]
+        ];
+
+        // If textAccurate is true, we are using the configured text accurate model (e.g. gemini-2.0-flash-exp)
+        // We ensure responseModalities is set to IMAGE to force image generation.
+        if ($textAccurate) {
+             $payload['generationConfig']['responseModalities'] = ['IMAGE'];
+        }
+
         $response = $this->http()->post(
             "{$this->baseUrl}/models/{$selectedModel}:generateContent?key={$this->apiKey}",
-            [
-                'contents' => [
-                    [
-                        'role' => 'user',
-                        'parts' => $parts
-                    ]
-                ],
-                'generationConfig' => [
-                    // CRITICAL: This tells the model "Don't chat with me, just give me pixels"
-                    'responseModalities' => ['IMAGE'],
-                    'temperature' => 1.0, 
-                ]
-            ]
+            $payload
         );
         $generationTime = (microtime(true) - $startTime) * 1000;
 
@@ -273,6 +285,13 @@ Negative Prompt: artifacts, blur, distortion, mismatched, ugly, text, watermark,
 
         // Check for NO_IMAGE finish reason
         if (isset($json['candidates'][0]['finishReason']) && $json['candidates'][0]['finishReason'] === 'NO_IMAGE') {
+            // Check if there is text content explaining why
+            $text = $json['candidates'][0]['content']['parts'][0]['text'] ?? '';
+            if ($text) {
+                Log::error('Gemini returned text instead of image', ['text' => $text]);
+                throw new RuntimeException("Model refused to generate image. Reason: " . $text);
+            }
+
             Log::error('Gemini refused to generate image', [
                 'finish_reason' => $json['candidates'][0]['finishReason'],
                 'response' => $json,

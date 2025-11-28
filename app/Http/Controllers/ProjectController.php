@@ -159,13 +159,12 @@ class ProjectController extends Controller
             ->exists();
 
         // Calculate progress for active/recent batch (last 5 mins)
-        // We calculate this even if nothing is pending, so we can show "Completed" state
-        $recentGenerations = $project->generationHistory()
-            ->where('created_at', '>=', now()->subMinutes(5))
-            ->get();
-        
         $progress = null;
-        if ($recentGenerations->isNotEmpty()) {
+        if ($hasPendingGenerations) {
+            $recentGenerations = $project->generationHistory()
+                ->where('created_at', '>=', now()->subMinutes(5))
+                ->get();
+            
             $progress = [
                 'total' => $recentGenerations->count(),
                 'completed' => $recentGenerations->where('status', 'completed')->count(),

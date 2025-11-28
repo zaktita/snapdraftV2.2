@@ -96,8 +96,12 @@ class CSVWizardController extends Controller
             ]),
         ]);
 
-        // Queue AI processing job (dispatches immediately)
-        \App\Jobs\GenerateBatchImagesJob::dispatch($project);
+        // Queue AI processing job (sync in local for immediate feedback)
+        if (app()->environment('local')) {
+            \App\Jobs\GenerateBatchImagesJob::dispatchSync($project);
+        } else {
+            \App\Jobs\GenerateBatchImagesJob::dispatch($project);
+        }
 
         // Redirect with flash data for optimistic UI
         return redirect()->route('projects.show', [

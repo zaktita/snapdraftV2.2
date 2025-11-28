@@ -8,6 +8,7 @@ use App\Http\Controllers\ImageEditController;
 use App\Http\Controllers\Wizards\CSVWizardController;
 use App\Http\Controllers\Wizards\ImagesWizardController;
 use App\Http\Controllers\Wizards\TextWizardController;
+use App\Http\Controllers\SimpleTextWizardController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 use Laravel\Fortify\Features;
@@ -21,6 +22,10 @@ Route::get('/', function () {
 })->name('home');
 
 Route::middleware(['auth', 'verified'])->group(function () {
+    // Simple Wizard (Direct Generation)
+    Route::get('simple-wizard', [SimpleTextWizardController::class, 'index'])->name('simple-wizard.index');
+    Route::post('simple-wizard/generate', [SimpleTextWizardController::class, 'generate'])->name('simple-wizard.generate');
+
     Route::get('dashboard', [DashboardController::class, 'index'])->name('dashboard');
 
     // Project Creation - Wizard Selection Page (must be before resource routes)

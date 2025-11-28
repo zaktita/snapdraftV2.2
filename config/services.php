@@ -56,7 +56,7 @@ return [
         // Align fallback name with service default; update .env if Google changes naming.
         'text_to_image_model' => env('GEMINI_TEXT_TO_IMAGE_MODEL', 'imagen-3.0-generate-001'),
         // Text-accurate model (4x credits). Prefer stable non-preview for reliability.
-        'text_accurate_model' => env('GEMINI_TEXT_ACCURATE_MODEL', 'gemini-3-pro-image-preview'),
+        'text_accurate_model' => env('GEMINI_TEXT_ACCURATE_MODEL', 'gemini-2.0-flash-exp'),
         'rate_limit' => env('GEMINI_RATE_LIMIT', 30), // Requests per minute
     ],
 

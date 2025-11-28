@@ -92,6 +92,17 @@ class User extends Authenticatable
     }
 
     /**
+     * Refund user credits.
+     * 
+     * @param int $amount Number of credits to refund
+     */
+    public function refundCredit(int $amount = 1): void
+    {
+        $this->increment('credits_remaining', $amount);
+        $this->decrement('total_generations');
+    }
+
+    /**
      * Reset monthly credits based on subscription tier.
      */
     public function resetMonthlyCredits(): void

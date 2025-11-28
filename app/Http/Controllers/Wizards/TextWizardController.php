@@ -78,7 +78,11 @@ class TextWizardController extends Controller
         $textAccurate = $validated['text_accurate'] ?? false;
         
         // Pass the generation ID so the job updates this record instead of creating a new one
-        \App\Jobs\GenerateSingleImageJob::dispatch($project, $prompt, $format, $textAccurate, $generation->id);
+        if (app()->environment('local')) {
+            \App\Jobs\GenerateSingleImageJob::dispatchSync($project, $prompt, $format, $textAccurate, $generation->id);
+        } else {
+            \App\Jobs\GenerateSingleImageJob::dispatch($project, $prompt, $format, $textAccurate, $generation->id);
+        }
 
         return redirect()->route('projects.show', $project->id)
             ->with('success', 'Project created! Your image is being generated...')
