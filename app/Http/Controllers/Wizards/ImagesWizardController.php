@@ -59,11 +59,14 @@ class ImagesWizardController extends Controller
         $format = $validated['format'] ?? 'square';
         $textAccurate = $validated['text_accurate'] ?? false;
 
+        // Determine AI model based on text accuracy flag
+        $aiModel = $textAccurate ? 'gemini-3-pro-image-preview' : 'gemini-2.5-flash-image';
+
         // Create generation history record (pending before job dispatch)
         $generation = $project->generationHistory()->create([
             'user_id' => Auth::id(),
             'prompt' => $prompt,
-            'ai_model' => 'gemini-2.5-flash-image',
+            'ai_model' => $aiModel,
             'status' => 'pending',
             'parameters' => [
                 'format' => $format,

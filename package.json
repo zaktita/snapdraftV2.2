@@ -8,6 +8,7 @@
         "dev": "vite",
         "format": "prettier --write resources/",
         "format:check": "prettier --check resources/",
+        "launch": "node launch.js",
         "lint": "eslint . --fix",
         "types": "tsc --noEmit"
 

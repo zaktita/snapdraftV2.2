@@ -59,15 +59,19 @@ class TextWizardController extends Controller
             }
         }
 
+        // Determine AI model based on text accuracy flag
+        $textAccurate = $validated['text_accurate'] ?? false;
+        $aiModel = $textAccurate ? 'gemini-3-pro-image-preview' : 'gemini-2.5-flash-image';
+
         // Create generation history record (pending before job dispatch)
         $generation = $project->generationHistory()->create([
             'user_id' => Auth::id(),
             'prompt' => $validated['idea_description'],
-            'ai_model' => 'gemini-2.5-flash-image',
+            'ai_model' => $aiModel,
             'status' => 'pending',
             'parameters' => [
                 'format' => $validated['format'],
-                'text_accurate' => $validated['text_accurate'] ?? false,
+                'text_accurate' => $textAccurate,
                 'wizard_type' => 'text',
             ],
         ]);
@@ -75,7 +79,6 @@ class TextWizardController extends Controller
         // Queue AI processing job with the description as the prompt
         $prompt = $validated['idea_description'];
         $format = $validated['format'];
-        $textAccurate = $validated['text_accurate'] ?? false;
         
         // Pass the generation ID so the job updates this record instead of creating a new one
         if (app()->environment('local')) {

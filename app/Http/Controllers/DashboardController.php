@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Project;
 use App\Models\GenerationHistory;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -24,19 +25,22 @@ class DashboardController extends Controller
         $recentProjects = Project::where('user_id', $user->id)
             ->withCount('images')
             ->with(['images' => function ($query) {
-                $query->orderBy('order')->orderBy('created_at')->limit(1);
+                $query->latest()->limit(1);
             }])
             ->latest()
             ->take(6)
             ->get()
             ->map(function ($project) {
+                $latestImage = $project->images->first();
                 return [
                     'id' => $project->id,
                     'title' => $project->title,
                     'description' => $project->description,
                     'is_favorite' => $project->is_favorite,
                     'images_count' => $project->images_count, // Use cached count from withCount
-                    'thumbnail' => $project->images->first()?->thumbnail_url,
+                    'thumbnail' => $latestImage && $latestImage->thumbnail_url 
+                        ? Storage::url($latestImage->thumbnail_url) 
+                        : null,
                     'created_at' => $project->created_at->diffForHumans(),
                 ];
             });
