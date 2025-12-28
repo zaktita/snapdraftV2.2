@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers;
 
+use App\Jobs\GenerateSingleImageJob;
+use App\Models\GenerationHistory;
 use App\Models\Image;
 use App\Models\Project;
 use Illuminate\Http\Request;
@@ -151,5 +153,65 @@ class ImageController extends Controller
         $image->update(['is_favorite' => !$image->is_favorite]);
 
         return back();
+    }
+
+    /**
+     * Regenerate a new image using the same prompt/format.
+     */
+    public function regenerate(string $projectId, string $imageId)
+    {
+        $project = Project::findOrFail($projectId);
+        $this->authorize('update', $project);
+
+        $image = $project->images()->whereKey($imageId)->firstOrFail();
+        $this->authorize('view', $image);
+
+        $prompt = trim((string) ($image->prompt ?? ''));
+        if ($prompt === '') {
+            $prompt = (string) GenerationHistory::query()
+                ->where('project_id', $project->id)
+                ->where('image_id', $image->id)
+                ->orderByDesc('id')
+                ->value('prompt');
+            $prompt = trim($prompt);
+        }
+
+        if ($prompt === '') {
+            return back()->with('error', 'Unable to regenerate: missing original prompt.');
+        }
+
+        $format = (string) data_get($image->metadata, 'format');
+        if ($format === '') {
+            $format = (string) ($project->format ?? '');
+        }
+        if ($format === '') {
+            $format = 'square';
+        }
+
+        $textAccurate = (bool) data_get($image->metadata, 'text_accurate', false);
+        $aiModel = $textAccurate ? 'gemini-3-pro-image-preview' : 'gemini-2.5-flash-image';
+
+        $generation = $project->generationHistory()->create([
+            'user_id' => Auth::id(),
+            'prompt' => $prompt,
+            'ai_model' => $aiModel,
+            'status' => 'pending',
+            'parameters' => [
+                'format' => $format,
+                'text_accurate' => $textAccurate,
+                'source_image_id' => $image->id,
+                'action' => 'regenerate',
+            ],
+        ]);
+
+        if (app()->environment('local')) {
+            GenerateSingleImageJob::dispatchSync($project, $prompt, $format, $textAccurate, $generation->id);
+        } else {
+            GenerateSingleImageJob::dispatch($project, $prompt, $format, $textAccurate, $generation->id);
+        }
+
+        return back()
+            ->with('success', 'Regenerating image...')
+            ->with('generating', true);
     }
 }

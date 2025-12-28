@@ -67,6 +67,11 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('projects/{id}/generate', [ProjectController::class, 'generateMore'])
         ->middleware(['throttle.user:10,1', 'has.credits']) // 10 requests per minute + credits check
         ->name('projects.generate-more');
+
+    // CSV Upload for existing project (Generate More)
+    Route::post('projects/{projectId}/csv', [CSVWizardController::class, 'storeForExistingProject'])
+        ->middleware(['throttle.user:10,1', 'has.credits'])
+        ->name('projects.csv.store');
     
     Route::get('projects/{id}/generation-progress', [ProjectController::class, 'generationProgress'])
         ->name('projects.generation-progress');
@@ -75,6 +80,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::prefix('projects/{projectId}/images')->group(function () {
         Route::put('{imageId}', [ImageController::class, 'update'])->name('images.update');
         Route::delete('{imageId}', [ImageController::class, 'destroy'])->name('images.destroy');
+        Route::post('{imageId}/regenerate', [ImageController::class, 'regenerate'])
+            ->middleware(['throttle.user:10,1', 'has.credits'])
+            ->name('images.regenerate');
         Route::post('bulk-delete', [ImageController::class, 'bulkDestroy'])->name('images.bulk-destroy');
         Route::post('bulk-download', [ImageController::class, 'bulkDownload'])->name('images.bulk-download');
         Route::post('update-order', [ImageController::class, 'updateOrder'])->name('images.update-order');
@@ -132,6 +140,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
     // AI-powered prompt-based image generation/editing
     Route::post('/api/generate-from-prompt', [ImageEditController::class, 'generateFromPrompt'])
         ->name('api.generate-from-prompt');
+
+    // AI Edit (image + prompt, no mask)
+    Route::post('/api/ai-edit-image', [ImageEditController::class, 'aiEditImage'])
+        ->name('api.ai-edit-image');
 
     // Erase (inpaint masked area and provide composite)
     Route::post('/api/erase-image', [ImageEditController::class, 'erase'])

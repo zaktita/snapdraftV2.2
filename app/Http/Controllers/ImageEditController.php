@@ -926,6 +926,44 @@ class ImageEditController extends Controller
         }
     }
 
+    /**
+     * AI Edit: Apply a prompt to an image (no mask).
+     * Returns a generated image as a data URL.
+     */
+    public function aiEditImage(Request $request)
+    {
+        $validated = $request->validate([
+            'image' => 'required|string',
+            'prompt' => 'required|string',
+        ]);
+
+        try {
+            $prompt = $validated['prompt'];
+            Log::info('[ai-edit-image] Starting', ['prompt' => substr($prompt, 0, 200)]);
+
+            $imageBase64 = self::extractBase64FromDataUrl($validated['image']);
+            if (!$imageBase64) {
+                return response()->json(['message' => 'Invalid image data'], 422);
+            }
+
+            $resultBase64 = $this->geminiService->editBase64($imageBase64, $prompt, null);
+            $dataUrl = 'data:image/png;base64,' . $resultBase64;
+
+            Log::info('[ai-edit-image] Success');
+
+            return response()->json([
+                'generatedImage' => $dataUrl,
+                'prompt' => $prompt,
+            ]);
+        } catch (\Throwable $e) {
+            Log::error('[ai-edit-image] Error: ' . $e->getMessage());
+            return response()->json([
+                'message' => 'AI edit failed',
+                'error' => $e->getMessage(),
+            ], 500);
+        }
+    }
+
     private static function decodeDataUrl(string $dataUrl): ?string
     {
         if (!str_starts_with($dataUrl, 'data:')) {

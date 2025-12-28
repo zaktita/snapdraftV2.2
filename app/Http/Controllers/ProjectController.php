@@ -178,6 +178,8 @@ class ProjectController extends Controller
                 'id' => $project->id,
                 'title' => $project->title,
                 'description' => $project->description,
+                'wizard_type' => $project->settings['wizard_type'] ?? null,
+                'brand_reference_count' => $project->brandReferences()->count(),
                 'created_at' => $project->created_at->toISOString(),
                 'updated_at' => $project->updated_at->toISOString(),
                 'images_count' => $project->images_count,

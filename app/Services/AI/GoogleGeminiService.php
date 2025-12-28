@@ -225,8 +225,9 @@ class GoogleGeminiService implements AIServiceInterface
         );
 
         $result = $this->parseResponse($response);
-        
-        return $result['image_base64'];
+
+        // Back-compat: some callers expect image_base64, others image_data
+        return $result['image_data'] ?? $result['image_base64'];
     }
 
     /**
@@ -276,11 +277,13 @@ Negative Prompt: artifacts, blur, distortion, mismatched, ugly, text, watermark,
         }
 
         $json = $response->json();
-        
+
+        // Avoid logging raw responses (they can contain multi-MB base64 images)
         Log::info('Gemini API Response Structure', [
             'has_candidates' => isset($json['candidates']),
             'candidate_count' => isset($json['candidates']) ? count($json['candidates']) : 0,
-            'raw_response' => json_encode($json, JSON_PRETTY_PRINT),
+            'finish_reason' => $json['candidates'][0]['finishReason'] ?? null,
+            'has_content_parts' => isset($json['candidates'][0]['content']['parts']),
         ]);
 
         // Check for NO_IMAGE finish reason
@@ -304,8 +307,10 @@ Negative Prompt: artifacts, blur, distortion, mismatched, ugly, text, watermark,
 
         // Check if we got an image back
         if (isset($candidate['inlineData']['data'])) {
+            $data = $candidate['inlineData']['data'];
             return [
-                'image_data' => $candidate['inlineData']['data'],  // Changed from image_base64 to image_data
+                'image_data' => $data,
+                'image_base64' => $data,
                 'mime_type' => $candidate['inlineData']['mimeType'] ?? 'image/png',
             ];
         }
@@ -314,8 +319,10 @@ Negative Prompt: artifacts, blur, distortion, mismatched, ugly, text, watermark,
         if (isset($json['candidates'][0]['content']['parts'])) {
             foreach ($json['candidates'][0]['content']['parts'] as $part) {
                 if (isset($part['inlineData']['data'])) {
+                    $data = $part['inlineData']['data'];
                     return [
-                        'image_data' => $part['inlineData']['data'],  // Changed from image_base64 to image_data
+                        'image_data' => $data,
+                        'image_base64' => $data,
                         'mime_type' => $part['inlineData']['mimeType'] ?? 'image/png',
                     ];
                 }

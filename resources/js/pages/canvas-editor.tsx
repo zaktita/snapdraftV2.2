@@ -22,7 +22,6 @@ import {
     Scissors,
     Type,
     Undo2,
-    Upload,
     Wand2,
     ZoomIn,
 } from 'lucide-react';
@@ -63,6 +62,14 @@ interface BrushLine {
     brushOpacity: number;
     tool: string;
     objectId?: number | null;
+}
+
+interface EraseSelectionRect {
+    objectId: number;
+    startX: number;
+    startY: number;
+    endX: number;
+    endY: number;
 }
 
 // API request body types
@@ -156,6 +163,10 @@ export default function CanvasEditor(props: CanvasEditorProps) {
     const [cropRect, setCropRect] = useState<{x: number; y: number; w: number; h: number} | null>(null);
     const [cropDragHandle, setCropDragHandle] = useState<string | null>(null); // 'move', 'nw', 'ne', 'sw', 'se', 'n', 's', 'e', 'w'
     const [cropDragStart, setCropDragStart] = useState<{x: number; y: number; rectX: number; rectY: number; rectW: number; rectH: number} | null>(null);
+    const [cropIntent, setCropIntent] = useState<'crop' | 'expand'>('crop');
+
+    // Erase tool selection rectangle (in object/image coordinates)
+    const [eraseSelection, setEraseSelection] = useState<EraseSelectionRect | null>(null);
 
     // Modal state
     const [promptModal, setPromptModal] = useState<{
@@ -545,6 +556,7 @@ export default function CanvasEditor(props: CanvasEditorProps) {
         isSpacePressed,
         isDragging,
         isGenerating,
+        eraseSelection,
     ]);
 
     // Debug important state changes
@@ -693,6 +705,16 @@ export default function CanvasEditor(props: CanvasEditorProps) {
             }
         });
 
+        // Draw erase selection rectangle
+        if (currentTool === 'erase' && eraseSelection) {
+            const obj = canvasObjects.find(
+                (o) => o.id === eraseSelection.objectId,
+            );
+            if (obj) {
+                drawEraseSelection(obj, eraseSelection);
+            }
+        }
+
         // Draw selection highlight
         const sel = draggedObject || selectedObject;
         if (sel) {
@@ -713,6 +735,151 @@ export default function CanvasEditor(props: CanvasEditorProps) {
             if (hoveredObject === selectedObject) {
                 drawBrushCursor();
             }
+        }
+    };
+
+    const drawEraseSelection = (obj: CanvasObject, rect: EraseSelectionRect) => {
+        if (!ctx) return;
+
+        const minX = Math.min(rect.startX, rect.endX);
+        const minY = Math.min(rect.startY, rect.endY);
+        const maxX = Math.max(rect.startX, rect.endX);
+        const maxY = Math.max(rect.startY, rect.endY);
+
+        const screenX = panX + (obj.x + minX) * scale;
+        const screenY = panY + (obj.y + minY) * scale;
+        const screenW = (maxX - minX) * scale;
+        const screenH = (maxY - minY) * scale;
+
+        ctx.save();
+        ctx.strokeStyle = '#2196F3';
+        ctx.lineWidth = 2;
+        ctx.setLineDash([6, 4]);
+        ctx.strokeRect(screenX, screenY, screenW, screenH);
+        ctx.restore();
+    };
+
+    const createRectMaskCanvas = (obj: CanvasObject, rect: EraseSelectionRect) => {
+        const maskCanvas = document.createElement('canvas');
+        maskCanvas.width = obj.image.width;
+        maskCanvas.height = obj.image.height;
+        const maskCtx = maskCanvas.getContext('2d');
+        if (!maskCtx) return null;
+
+        const minX = Math.max(0, Math.min(rect.startX, rect.endX));
+        const minY = Math.max(0, Math.min(rect.startY, rect.endY));
+        const maxX = Math.min(obj.image.width, Math.max(rect.startX, rect.endX));
+        const maxY = Math.min(obj.image.height, Math.max(rect.startY, rect.endY));
+
+        // Black background, white selection region
+        maskCtx.fillStyle = 'black';
+        maskCtx.fillRect(0, 0, maskCanvas.width, maskCanvas.height);
+        maskCtx.fillStyle = 'white';
+        maskCtx.fillRect(minX, minY, Math.max(1, maxX - minX), Math.max(1, maxY - minY));
+
+        return maskCanvas;
+    };
+
+    const runEraseWithSelection = async (rect: EraseSelectionRect) => {
+        const sourceObject = canvasObjects.find((o) => o.id === rect.objectId);
+        if (!sourceObject) return;
+
+        setIsGenerating(true);
+        debug.log('[Erase] Starting erase with selection', rect);
+
+        try {
+            const maskCanvas = createRectMaskCanvas(sourceObject, rect);
+            if (!maskCanvas) throw new Error('Failed to create mask');
+
+            let originalImage = '';
+            let maskImage = '';
+            try {
+                originalImage = imageToDataUrl(sourceObject.image);
+            } catch (e) {
+                console.error(
+                    '[Erase] toDataURL failed for original image, likely CORS taint',
+                    e,
+                );
+                showAlert(
+                    'Image Security Error',
+                    'Cannot read the original image due to browser security (CORS). Try uploading a local image or ensure the image URL allows cross-origin access.',
+                    'error',
+                );
+                return;
+            }
+
+            try {
+                maskImage = maskCanvas.toDataURL('image/png');
+            } catch (e) {
+                console.error('[Erase] toDataURL failed for mask image', e);
+                showAlert('Mask Error', 'Failed to serialize the mask image.', 'error');
+                return;
+            }
+
+            const response = await fetch('/api/erase-image', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN':
+                        document
+                            .querySelector('meta[name="csrf-token"]')
+                            ?.getAttribute('content') || '',
+                },
+                body: JSON.stringify({
+                    image: originalImage,
+                    mask: maskImage,
+                    prompt: 'erase the selected area',
+                }),
+            });
+
+            if (!response.ok) {
+                let details = response.statusText;
+                try {
+                    const text = await response.text();
+                    try {
+                        const json = JSON.parse(text);
+                        details = json?.error || json?.message || text;
+                    } catch {
+                        details = text || details;
+                    }
+                } catch {
+                    // ignore
+                }
+                throw new Error(`API error (${response.status}): ${String(details).slice(0, 400)}`);
+            }
+
+            const result = await response.json();
+            debug.log('[Erase] API result', result);
+
+            if (result.generatedImage) {
+                const newImage = new window.Image();
+                newImage.onload = () => {
+                    const generatedObj = {
+                        id: generateObjectId(),
+                        image: newImage,
+                        x:
+                            sourceObject.x +
+                            sourceObject.image.width +
+                            CANVAS_DEFAULTS.ERASE_GAP,
+                        y: sourceObject.y,
+                        label: `${sourceObject.label || 'Image'} (Edited)`,
+                        isMainImage: false,
+                    };
+                    setCanvasObjects((prev) => [...prev, generatedObj]);
+                    setSelectedObject(generatedObj);
+                };
+                newImage.src = result.generatedImage;
+            }
+        } catch (error) {
+            console.error('Erase error:', error);
+            showAlert(
+                'Error',
+                error instanceof Error ? error.message : 'Failed to erase area',
+                'error',
+            );
+        } finally {
+            setIsGenerating(false);
+            debug.log('[Erase] Finished');
         }
     };
 
@@ -983,6 +1150,21 @@ export default function CanvasEditor(props: CanvasEditorProps) {
             });
             setSelectedObject(clickedObject);
 
+            if (currentTool === 'erase') {
+                if (isGenerating) return;
+                const imagePos = screenToObjectCoordinates(x, y, clickedObject);
+                const clampedX = Math.max(0, Math.min(clickedObject.image.width, imagePos.x));
+                const clampedY = Math.max(0, Math.min(clickedObject.image.height, imagePos.y));
+                setEraseSelection({
+                    objectId: clickedObject.id,
+                    startX: clampedX,
+                    startY: clampedY,
+                    endX: clampedX,
+                    endY: clampedY,
+                });
+                return;
+            }
+
             if (currentTool === 'retouch' && clickedObject === selectedObject) {
                 const imagePos = screenToObjectCoordinates(x, y, clickedObject);
                 if (isPointInObject(imagePos.x, imagePos.y, clickedObject)) {
@@ -1005,6 +1187,7 @@ export default function CanvasEditor(props: CanvasEditorProps) {
             debug.log('[Canvas] Clicked empty area');
             setSelectedObject(null);
             setDraggedObject(null);
+            setEraseSelection(null);
         }
     };
 
@@ -1016,6 +1199,24 @@ export default function CanvasEditor(props: CanvasEditorProps) {
 
         // Update cursor position for custom cursor
         setCursorPosition({ x, y });
+
+        if (currentTool === 'erase' && eraseSelection) {
+            const obj = canvasObjects.find((o) => o.id === eraseSelection.objectId);
+            if (!obj) return;
+            const imagePos = screenToObjectCoordinates(x, y, obj);
+            const clampedX = Math.max(0, Math.min(obj.image.width, imagePos.x));
+            const clampedY = Math.max(0, Math.min(obj.image.height, imagePos.y));
+            setEraseSelection((prev) =>
+                prev
+                    ? {
+                          ...prev,
+                          endX: clampedX,
+                          endY: clampedY,
+                      }
+                    : prev,
+            );
+            return;
+        }
 
         // Crop mode dragging
         if (cropMode && cropDragHandle && cropDragStart && cropRect) {
@@ -1106,7 +1307,7 @@ export default function CanvasEditor(props: CanvasEditorProps) {
         }
     };
 
-    const handleMouseUp = () => {
+    const handleMouseUp = async () => {
         // Clear crop drag state
         if (cropDragHandle) {
             setCropDragHandle(null);
@@ -1119,6 +1320,19 @@ export default function CanvasEditor(props: CanvasEditorProps) {
         }
         if (draggedObject) {
             setDraggedObject(null);
+        }
+
+        if (currentTool === 'erase' && eraseSelection && !isGenerating) {
+            const rect = eraseSelection;
+            setEraseSelection(null);
+
+            const minX = Math.min(rect.startX, rect.endX);
+            const minY = Math.min(rect.startY, rect.endY);
+            const maxX = Math.max(rect.startX, rect.endX);
+            const maxY = Math.max(rect.startY, rect.endY);
+            if (maxX - minX >= 2 && maxY - minY >= 2) {
+                await runEraseWithSelection(rect);
+            }
         }
     };
 
@@ -1531,7 +1745,19 @@ export default function CanvasEditor(props: CanvasEditorProps) {
             });
 
             if (!response.ok) {
-                throw new Error(`API error: ${response.statusText}`);
+                let details = response.statusText;
+                try {
+                    const text = await response.text();
+                    try {
+                        const json = JSON.parse(text);
+                        details = json?.error || json?.message || text;
+                    } catch {
+                        details = text || details;
+                    }
+                } catch {
+                    // ignore
+                }
+                throw new Error(`API error (${response.status}): ${String(details).slice(0, 400)}`);
             }
 
             const result = await response.json();
@@ -1574,6 +1800,119 @@ export default function CanvasEditor(props: CanvasEditorProps) {
         } finally {
             setIsGenerating(false);
             debug.log('[Erase] Finished');
+        }
+    };
+
+    const handleAiEdit = async () => {
+        if (!selectedObject) {
+            showAlert('No Selection', 'Please select an image first.', 'warning');
+            debug.log('[AI Edit] No selection');
+            return;
+        }
+
+        const userPrompt = await showPrompt(
+            'AI Edit',
+            'Describe how you want to edit the selected image:',
+            'E.g. make it look like a watercolor illustration',
+            '',
+        );
+
+        if (!userPrompt) {
+            debug.log('[AI Edit] Prompt cancelled');
+            return;
+        }
+
+        setIsGenerating(true);
+        debug.log('[AI Edit] Starting', { prompt: userPrompt });
+
+        try {
+            let originalImage = '';
+            try {
+                originalImage = imageToDataUrl(selectedObject.image);
+            } catch (e) {
+                console.error(
+                    '[AI Edit] toDataURL failed for original image, likely CORS taint',
+                    e,
+                );
+                showAlert(
+                    'Image Security Error',
+                    'Cannot read the original image due to browser security (CORS). Try uploading a local image or ensure the image URL allows cross-origin access.',
+                    'error',
+                );
+                return;
+            }
+
+            const response = await fetch('/api/ai-edit-image', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN':
+                        document
+                            .querySelector('meta[name="csrf-token"]')
+                            ?.getAttribute('content') || '',
+                },
+                body: JSON.stringify({
+                    image: originalImage,
+                    prompt: userPrompt,
+                }),
+            });
+
+            if (!response.ok) {
+                let details = response.statusText;
+                try {
+                    const text = await response.text();
+                    try {
+                        const json = JSON.parse(text);
+                        details = json?.error || json?.message || text;
+                    } catch {
+                        details = text || details;
+                    }
+                } catch {
+                    // ignore
+                }
+                throw new Error(
+                    `API error (${response.status}): ${String(details).slice(0, 400)}`,
+                );
+            }
+
+            const result = await response.json();
+            debug.log('[AI Edit] API result', result);
+
+            if (result.generatedImage) {
+                const newImage = new window.Image();
+                newImage.onload = () => {
+                    const sourceObject = selectedObject;
+                    if (!sourceObject) return;
+
+                    const generatedObj = {
+                        id: generateObjectId(),
+                        image: newImage,
+                        x:
+                            sourceObject.x +
+                            sourceObject.image.width +
+                            CANVAS_DEFAULTS.ERASE_GAP,
+                        y: sourceObject.y,
+                        label: `${sourceObject.label || 'Image'} (AI Edit)`,
+                        isMainImage: false,
+                    };
+
+                    setCanvasObjects((prev) => [...prev, generatedObj]);
+                    setSelectedObject(generatedObj);
+                };
+                newImage.src = result.generatedImage;
+            } else {
+                throw new Error('No generated image in API response');
+            }
+        } catch (error) {
+            console.error('[AI Edit] Error:', error);
+            showAlert(
+                'Error',
+                error instanceof Error ? error.message : 'AI edit failed',
+                'error',
+            );
+        } finally {
+            setIsGenerating(false);
+            debug.log('[AI Edit] Finished');
         }
     };
 
@@ -1946,6 +2285,7 @@ export default function CanvasEditor(props: CanvasEditorProps) {
             h: target.image.height,
         };
         setCropRect(initialRect);
+        setCropIntent('crop');
         setCropMode(true);
     };
 
@@ -2011,6 +2351,125 @@ export default function CanvasEditor(props: CanvasEditorProps) {
         }
     };
 
+    const handleConfirmExpand = async () => {
+        if (!cropRect || isGenerating) return;
+        const target = selectedObject || canvasObjects.find(o => o.isMainImage) || null;
+        if (!target) return;
+
+        const newW = Math.max(1, Math.round(cropRect.w));
+        const newH = Math.max(1, Math.round(cropRect.h));
+
+        // Place the original image inside the new canvas at the same relative position
+        // (cropRect is in canvas coords; target is positioned at target.x/y)
+        const offsetX = Math.round(target.x - cropRect.x);
+        const offsetY = Math.round(target.y - cropRect.y);
+
+        setCropMode(false);
+        setCropRect(null);
+        setGeneratingType('expand');
+        setIsGenerating(true);
+
+        try {
+            // Build a black-filled expanded canvas image
+            const expandedCanvas = document.createElement('canvas');
+            expandedCanvas.width = newW;
+            expandedCanvas.height = newH;
+            const expandedCtx = expandedCanvas.getContext('2d');
+            if (!expandedCtx) throw new Error('Failed to create canvas context');
+
+            expandedCtx.fillStyle = 'black';
+            expandedCtx.fillRect(0, 0, newW, newH);
+            expandedCtx.drawImage(target.image, offsetX, offsetY);
+
+            let expandedDataUrl = '';
+            try {
+                expandedDataUrl = expandedCanvas.toDataURL('image/png');
+            } catch (e) {
+                console.error('[Expand] toDataURL failed, likely CORS taint', e);
+                showAlert(
+                    'Image Security Error',
+                    'Cannot read the original image due to browser security (CORS). Try uploading a local image or ensure the image URL allows cross-origin access.',
+                    'error',
+                    'expand',
+                );
+                return;
+            }
+
+            const prompt =
+                'Fill in (outpaint) all pure black areas seamlessly to expand the image. Keep the existing non-black content unchanged. Match the original style, lighting, perspective, and textures.';
+
+            const response = await fetch('/api/ai-edit-image', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN':
+                        document
+                            .querySelector('meta[name="csrf-token"]')
+                            ?.getAttribute('content') || '',
+                },
+                body: JSON.stringify({
+                    image: expandedDataUrl,
+                    prompt,
+                }),
+            });
+
+            if (!response.ok) {
+                let details = response.statusText;
+                try {
+                    const text = await response.text();
+                    try {
+                        const json = JSON.parse(text);
+                        details = json?.error || json?.message || text;
+                    } catch {
+                        details = text || details;
+                    }
+                } catch {
+                    // ignore
+                }
+                throw new Error(
+                    `API error (${response.status}): ${String(details).slice(0, 400)}`,
+                );
+            }
+
+            const result = await response.json();
+            debug.log('[Expand] API result', result);
+
+            if (!result.generatedImage) {
+                throw new Error('No generated image in API response');
+            }
+
+            const expandedImg = new Image();
+            expandedImg.crossOrigin = 'anonymous';
+            expandedImg.onload = () => {
+                const newObject: CanvasObject = {
+                    id: generateObjectId(),
+                    image: expandedImg,
+                    x: target.x + target.image.width + CANVAS_DEFAULTS.ERASE_GAP,
+                    y: target.y,
+                    label: 'Expanded Image',
+                    isMainImage: false,
+                };
+                setCanvasObjects((prev) => [...prev, newObject]);
+                setSelectedObject(newObject);
+                showAlert('Success', 'Image expanded successfully!', 'info', 'expand');
+            };
+            expandedImg.onerror = () => {
+                showAlert('Error', 'Failed to load expanded image', 'error', 'expand');
+            };
+            expandedImg.src = result.generatedImage;
+        } catch (error) {
+            showAlert(
+                'Error',
+                error instanceof Error ? error.message : 'Failed to expand image',
+                'error',
+                'expand',
+            );
+        } finally {
+            setIsGenerating(false);
+            setGeneratingType(null);
+        }
+    };
+
     const handleCancelCrop = () => {
         setCropMode(false);
         setCropRect(null);
@@ -2018,89 +2477,24 @@ export default function CanvasEditor(props: CanvasEditorProps) {
         setCropDragStart(null);
     };
 
-    // Enhancement: Expand Image
+    // Expand Image (crop-like mode: user enlarges the rectangle; black padding gets filled by AI)
     const handleExpandImage = async () => {
         if (isGenerating) return;
-        
-        if (!selectedObject) {
+        const target = selectedObject || canvasObjects.find(o => o.isMainImage) || null;
+        if (!target) {
             showAlert('No Selection', 'Please select an image first.', 'warning', 'expand');
             return;
         }
 
-        setGeneratingType('expand');
-        setIsGenerating(true);
-        setUndoStack((prev) => {
-            const newStack = [...prev, lines];
-            return newStack.length > CANVAS_DEFAULTS.UNDO_LIMIT ? newStack.slice(1) : newStack;
-        });
-
-        try {
-            const direction = await showPrompt(
-                'Expand Image',
-                'Choose expansion direction (all, top, bottom, left, right):',
-                'Direction',
-                'all'
-            );
-
-            if (!direction) {
-                setIsGenerating(false);
-                setGeneratingType(null);
-                return;
-            }
-
-            const validDirections = ['all', 'top', 'bottom', 'left', 'right'];
-            if (!validDirections.includes(direction.toLowerCase())) {
-                showAlert('Invalid Direction', 'Please enter one of: all, top, bottom, left, right', 'warning', 'expand');
-                setIsGenerating(false);
-                setGeneratingType(null);
-                return;
-            }
-
-            debug.log('[Expand Image] Starting expansion...', { direction });
-
-            const imageDataUrl = imageToDataUrl(selectedObject.image);
-
-            const result = await callApi('/api/expand-image', {
-                image: imageDataUrl,
-                direction: direction.toLowerCase(),
-                expansionRatio: 1.5,
-            });
-
-            if (result.expandedImage) {
-                const expandedImg = new Image();
-                expandedImg.crossOrigin = 'anonymous';
-                expandedImg.onload = () => {
-                    // Add as new object beside the original instead of replacing
-                    const newObject: CanvasObject = {
-                        id: generateObjectId(),
-                        image: expandedImg,
-                        x: selectedObject.x + selectedObject.image.width + CANVAS_DEFAULTS.OBJECT_SPACING,
-                        y: selectedObject.y,
-                        label: 'Expanded Image',
-                        isMainImage: false,
-                    };
-                    setCanvasObjects((prev) => [...prev, newObject]);
-                    setSelectedObject(newObject);
-                    showAlert('Success', 'Image expanded successfully!', 'info', 'expand');
-                    
-                    // Clear loading states after image loads
-                    setIsGenerating(false);
-                    setGeneratingType(null);
-                };
-                expandedImg.onerror = () => {
-                    showAlert('Error', 'Failed to load expanded image', 'error', 'expand');
-                    setIsGenerating(false);
-                    setGeneratingType(null);
-                };
-                expandedImg.src = result.expandedImage;
-            } else {
-                throw new Error('No expanded image in API result');
-            }
-        } catch (error) {
-            showAlert('Error', error instanceof Error ? error.message : 'Failed to expand image', 'error', 'expand');
-            setIsGenerating(false);
-            setGeneratingType(null);
-        }
+        const initialRect = {
+            x: target.x,
+            y: target.y,
+            w: target.image.width,
+            h: target.image.height,
+        };
+        setCropRect(initialRect);
+        setCropIntent('expand');
+        setCropMode(true);
     };
 
     // Enhancement: Upscale Image
@@ -2308,11 +2702,17 @@ export default function CanvasEditor(props: CanvasEditorProps) {
         if (currentTool === 'retouch' && selectedObject) {
             return 'none'; // Hide cursor, we'll draw custom one
         }
+        if (currentTool === 'erase' && selectedObject) {
+            return 'crosshair';
+        }
         return 'default';
     };
 
     const selectTool = (toolName: string) => {
         setCurrentTool(toolName);
+        if (toolName !== 'erase') {
+            setEraseSelection(null);
+        }
     };
 
     return (
@@ -2739,24 +3139,6 @@ export default function CanvasEditor(props: CanvasEditorProps) {
                                         collapsed={sidebarCollapsed}
                                         shortcut="R"
                                     />
-                                    <ToolButton
-                                        icon={<Eraser size={18} />}
-                                        label="Erase"
-                                        active={currentTool === 'erase'}
-                                        onClick={() => selectTool('erase')}
-                                        collapsed={sidebarCollapsed}
-                                        shortcut="E"
-                                    />
-                                    <ToolButton
-                                        icon={<Upload size={18} />}
-                                        label="Upload"
-                                        active={currentTool === 'upload'}
-                                        onClick={() =>
-                                            fileInputRef.current?.click()
-                                        }
-                                        collapsed={sidebarCollapsed}
-                                        shortcut="U"
-                                    />
                                 </div>
                             </div>
 
@@ -3143,7 +3525,7 @@ export default function CanvasEditor(props: CanvasEditorProps) {
                                         Cancel
                                     </button>
                                     <button
-                                        onClick={handleConfirmCrop}
+                                        onClick={cropIntent === 'expand' ? handleConfirmExpand : handleConfirmCrop}
                                         disabled={isGenerating}
                                         style={{
                                             padding: '10px 24px',
@@ -3158,7 +3540,7 @@ export default function CanvasEditor(props: CanvasEditorProps) {
                                             transition: 'all 0.15s ease',
                                         }}
                                     >
-                                        Confirm Crop
+                                        {cropIntent === 'expand' ? 'Confirm Expand' : 'Confirm Crop'}
                                     </button>
                                 </div>
                             )}
@@ -3255,6 +3637,15 @@ export default function CanvasEditor(props: CanvasEditorProps) {
                                                     )
                                                 )
                                             }
+                                        />
+                                        <FloatingActionButton
+                                            icon={<Wand2 size={16} />}
+                                            label="AI Edit"
+                                            onClick={() => {
+                                                debug.log('[UI] Floating AI Edit clicked');
+                                                handleAiEdit();
+                                            }}
+                                            disabled={isGenerating || !selectedObject}
                                         />
                                         <FloatingActionButton
                                             icon={<Type size={16} />}

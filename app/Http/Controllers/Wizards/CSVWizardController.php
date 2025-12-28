@@ -113,6 +113,53 @@ class CSVWizardController extends Controller
     }
 
     /**
+     * Upload/replace CSV for an existing project and trigger generation.
+     * Reference images are assumed to already exist for the project.
+     */
+    public function storeForExistingProject(Request $request, string $projectId)
+    {
+        $project = Project::findOrFail($projectId);
+        $this->authorize('update', $project);
+
+        $validated = $request->validate([
+            'csv_file' => 'required|file|mimes:csv,txt|max:10240', // Max 10MB
+            'text_accurate' => 'nullable|boolean', // Text accuracy toggle
+        ]);
+
+        // Store CSV file
+        $csvPath = $request->file('csv_file')->storeAs(
+            'projects/' . $project->id . '/csv',
+            'data.csv',
+            'public'
+        );
+
+        // Parse CSV and store data in settings
+        $csvData = $this->parseCSV($request->file('csv_file')->getRealPath());
+        $project->update([
+            'settings' => array_merge($project->settings ?? [], [
+                'wizard_type' => 'csv',
+                'csv_path' => $csvPath,
+                'csv_rows' => count($csvData),
+                'csv_data' => $csvData,
+                'text_accurate' => $validated['text_accurate'] ?? ($project->settings['text_accurate'] ?? false),
+            ]),
+        ]);
+
+        // Queue AI processing job (sync in local for immediate feedback)
+        if (app()->environment('local')) {
+            \App\Jobs\GenerateBatchImagesJob::dispatchSync($project);
+        } else {
+            \App\Jobs\GenerateBatchImagesJob::dispatch($project);
+        }
+
+        return redirect()->route('projects.show', [
+            'project' => $project->id,
+            'expectedImages' => count($csvData),
+        ])->with('success', 'Generation started! Images will appear as they complete.')
+          ->with('generating', true);
+    }
+
+    /**
      * Parse CSV file and return structured data.
      * Sanitizes all cell content to prevent XSS attacks.
      */
@@ -121,15 +168,38 @@ class CSVWizardController extends Controller
         $data = [];
         $header = null;
         $maxCellLength = 1000; // Maximum characters per cell
+        $headerCount = 0;
 
         if (($handle = fopen($filePath, 'r')) !== false) {
             while (($row = fgetcsv($handle, 1000, ',')) !== false) {
                 if (!$header) {
                     // Sanitize header names
-                    $header = array_map(function ($value) {
-                        return trim(strip_tags($value));
-                    }, $row);
+                    $header = array_map(function ($value, int $index) {
+                        $value = trim(strip_tags((string) $value));
+
+                        // Strip UTF-8 BOM from first header cell if present
+                        if ($index === 0) {
+                            $value = preg_replace('/^\xEF\xBB\xBF/', '', $value) ?? $value;
+                        }
+
+                        // Ensure every column has a non-empty key
+                        return $value !== '' ? $value : 'column_' . ($index + 1);
+                    }, $row, array_keys($row));
+
+                    $headerCount = count($header);
                 } else {
+                    if ($headerCount === 0) {
+                        continue;
+                    }
+
+                    // Normalize row length to header length to avoid array_combine() ValueError
+                    $rowCount = count($row);
+                    if ($rowCount < $headerCount) {
+                        $row = array_pad($row, $headerCount, '');
+                    } elseif ($rowCount > $headerCount) {
+                        $row = array_slice($row, 0, $headerCount);
+                    }
+
                     // Combine header with row data
                     $rowData = array_combine($header, $row);
 
