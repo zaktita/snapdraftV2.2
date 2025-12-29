@@ -54,7 +54,7 @@ class GenerateBatchImagesJob implements ShouldQueue
                 }
 
                 $prompt = $this->buildPrompt($row);
-                $format = $row['format'] ?? 'square';
+                $format = trim($row['format'] ?? '') ?: '1:1';
 
                 // Determine AI model based on text accuracy flag
                 $aiModel = $textAccurate ? 'gemini-3-pro-image-preview' : 'gemini-2.5-flash-image';

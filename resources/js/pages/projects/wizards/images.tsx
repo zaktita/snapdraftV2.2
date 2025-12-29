@@ -3,6 +3,21 @@ import { ArrowLeft, ArrowRight, Upload, X, Zap, AlertCircle } from 'lucide-react
 import { useState, useRef, DragEvent, ChangeEvent, useEffect } from 'react';
 import images from '@/routes/projects/wizards/images';
 
+const formatOptions = [
+    { value: '1:1', label: 'Square (1:1)' },
+    { value: '4:5', label: 'Portrait (4:5)' },
+    { value: '3:4', label: 'Portrait (3:4)' },
+    { value: '2:3', label: 'Portrait (2:3)' },
+    { value: '9:16', label: 'Portrait / Story (9:16)' },
+    { value: '3:2', label: 'Landscape (3:2)' },
+    { value: '4:3', label: 'Landscape (4:3)' },
+    { value: '5:4', label: 'Landscape (5:4)' },
+    { value: '2:1', label: 'Wide (2:1)' },
+    { value: '16:9', label: 'Landscape (16:9)' },
+    { value: '21:9', label: 'Cinematic (21:9)' },
+    { value: '4:1', label: 'Banner (4:1)' },
+];
+
 export default function ImagesWizard() {
     const page = usePage<{ error?: string }>();
     const [currentStep, setCurrentStep] = useState(1);
@@ -10,6 +25,7 @@ export default function ImagesWizard() {
     const [styleImages, setStyleImages] = useState<string[]>([]);
     const [styleImageFiles, setStyleImageFiles] = useState<File[]>([]);
     const [contentDescription, setContentDescription] = useState('');
+    const [selectedFormat, setSelectedFormat] = useState('1:1');
     const [dragOver, setDragOver] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [showError, setShowError] = useState(false);
@@ -89,6 +105,7 @@ export default function ImagesWizard() {
         const fd = new FormData();
         fd.append('project_name', projectName.trim());
         fd.append('content_description', contentDescription.trim());
+        fd.append('format', selectedFormat || '1:1');
         fd.append('text_accurate', textAccurate ? '1' : '0');
         // format optional; default handled server-side; leave out or send 'square'
         // fd.append('format', 'square');
@@ -119,7 +136,7 @@ export default function ImagesWizard() {
     const canProceed = () => {
         if (currentStep === 1) return projectName.trim().length > 0;
         if (currentStep === 2) return styleImages.length >= 5;
-        if (currentStep === 3) return contentDescription.trim().length > 0;
+        if (currentStep === 3) return contentDescription.trim().length > 0 && selectedFormat.length > 0;
         return false;
     };
 
@@ -505,6 +522,40 @@ export default function ImagesWizard() {
                                     <p style={{ fontSize: '13px', color: 'var(--color-muted-foreground)', marginTop: '6px' }}>
                                         Be specific about the type of content, purpose, and any key elements to include
                                     </p>
+                                </div>
+
+                                <div style={{ marginBottom: '20px' }}>
+                                    <label style={{ fontSize: '14px', fontWeight: 500, color: 'var(--color-foreground)', display: 'block', marginBottom: '8px' }}>
+                                        Output Aspect Ratio *
+                                    </label>
+                                    <div style={{ position: 'relative' }}>
+                                        <select
+                                            value={selectedFormat}
+                                            onChange={(e) => setSelectedFormat(e.target.value)}
+                                            style={{
+                                                width: '100%',
+                                                padding: '12px 16px',
+                                                fontSize: '14px',
+                                                border: '1px solid var(--color-border)',
+                                                borderRadius: '8px',
+                                                outline: 'none',
+                                                transition: 'all 0.2s ease-out',
+                                                appearance: 'none',
+                                                background: 'var(--color-card)',
+                                                cursor: 'pointer',
+                                                paddingRight: '16px',
+                                                color: 'var(--color-foreground)'
+                                            }}
+                                            onFocus={(e) => e.target.style.borderColor = 'var(--color-primary)'}
+                                            onBlur={(e) => e.target.style.borderColor = 'var(--color-border)'}
+                                        >
+                                            {formatOptions.map((option) => (
+                                                <option key={option.value} value={option.value}>
+                                                    {option.label}
+                                                </option>
+                                            ))}
+                                        </select>
+                                    </div>
                                 </div>
 
                                 {/* Text Accuracy Toggle */}

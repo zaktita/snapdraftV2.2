@@ -3,6 +3,21 @@ import { ArrowLeft, ArrowRight, FileText, Grid, Image as ImageIcon, Upload, X, C
 import { useState, useRef, DragEvent, ChangeEvent, useEffect } from 'react';
 import csv from '@/routes/projects/wizards/csv';
 
+const aspectRatioOptions = [
+    { value: '1:1', label: '1:1 Square' },
+    { value: '4:5', label: '4:5 Portrait' },
+    { value: '3:4', label: '3:4 Portrait' },
+    { value: '2:3', label: '2:3 Portrait' },
+    { value: '9:16', label: '9:16 Portrait/Story' },
+    { value: '3:2', label: '3:2 Landscape' },
+    { value: '4:3', label: '4:3 Landscape' },
+    { value: '5:4', label: '5:4 Landscape' },
+    { value: '2:1', label: '2:1 Wide' },
+    { value: '16:9', label: '16:9 Landscape' },
+    { value: '21:9', label: '21:9 Cinematic' },
+    { value: '4:1', label: '4:1 Banner' },
+];
+
 interface CSVRow {
     [key: string]: string;
 }
@@ -95,6 +110,8 @@ export default function CSVWizard() {
                 mappings[header] = 'Product Title';
             } else if (lower.includes('description') || lower.includes('prompt')) {
                 mappings[header] = 'Image Prompt';
+            } else if (lower.includes('format')) {
+                mappings[header] = 'Format';
             } else if (lower.includes('id')) {
                 mappings[header] = 'Product ID';
             } else {
@@ -178,7 +195,7 @@ export default function CSVWizard() {
     const addRow = () => {
         const newRow: CSVRow = {};
         editableHeaders.forEach(header => {
-            newRow[header] = '';
+            newRow[header] = header.toLowerCase() === 'format' ? '1:1' : '';
         });
         setEditableData([...editableData, newRow]);
     };
@@ -976,6 +993,7 @@ export default function CSVWizard() {
                                                                     >
                                                                         <option value="Product Title">Product Title</option>
                                                                         <option value="Image Prompt">Image Prompt</option>
+                                                                        <option value="Format">Format</option>
                                                                         <option value="Product ID">Product ID</option>
                                                                         <option value="Style Reference URL">Style Reference URL</option>
                                                                         <option value="Ignore this column">Ignore this column</option>
@@ -999,26 +1017,52 @@ export default function CSVWizard() {
                                                                     style={{ width: '17px', height: '17px', cursor: 'pointer', accentColor: 'var(--color-primary)' }}
                                                                 />
                                                             </td>
-                                                            {headers.map(header => (
-                                                                <td key={header} style={{ padding: '14px 16px', borderBottom: '1px solid var(--color-border)' }}>
-                                                                    <input
-                                                                        type="text"
-                                                                        value={row[header] || ''}
-                                                                        onChange={(e) => updateCellValue(rowIndex, header, e.target.value)}
-                                                                        style={{
-                                                                            width: '100%',
-                                                                            fontSize: '14px',
-                                                                            padding: '8px 12px',
-                                                                            border: '1px solid var(--color-border)',
-                                                                            borderRadius: '6px',
-                                                                            background: 'var(--color-card)',
-                                                                            color: 'var(--color-foreground)'
-                                                                        }}
-                                                                        onFocus={(e) => e.target.style.borderColor = 'var(--color-primary)'}
-                                                                        onBlur={(e) => e.target.style.borderColor = 'var(--color-border)'}
-                                                                    />
-                                                                </td>
-                                                            ))}
+                                                            {headers.map(header => {
+                                                                const isFormat = header.toLowerCase() === 'format';
+                                                                return (
+                                                                    <td key={header} style={{ padding: '14px 16px', borderBottom: '1px solid var(--color-border)' }}>
+                                                                        {isFormat ? (
+                                                                            <select
+                                                                                value={row[header] || '1:1'}
+                                                                                onChange={(e) => updateCellValue(rowIndex, header, e.target.value)}
+                                                                                style={{
+                                                                                    width: '100%',
+                                                                                    fontSize: '14px',
+                                                                                    padding: '10px 12px',
+                                                                                    border: '1px solid var(--color-border)',
+                                                                                    borderRadius: '6px',
+                                                                                    background: 'var(--color-card)',
+                                                                                    color: 'var(--color-foreground)',
+                                                                                    cursor: 'pointer'
+                                                                                }}
+                                                                                onFocus={(e) => e.target.style.borderColor = 'var(--color-primary)'}
+                                                                                onBlur={(e) => e.target.style.borderColor = 'var(--color-border)'}
+                                                                            >
+                                                                                {aspectRatioOptions.map((opt) => (
+                                                                                    <option key={opt.value} value={opt.value}>{opt.label}</option>
+                                                                                ))}
+                                                                            </select>
+                                                                        ) : (
+                                                                            <input
+                                                                                type="text"
+                                                                                value={row[header] || ''}
+                                                                                onChange={(e) => updateCellValue(rowIndex, header, e.target.value)}
+                                                                                style={{
+                                                                                    width: '100%',
+                                                                                    fontSize: '14px',
+                                                                                    padding: '8px 12px',
+                                                                                    border: '1px solid var(--color-border)',
+                                                                                    borderRadius: '6px',
+                                                                                    background: 'var(--color-card)',
+                                                                                    color: 'var(--color-foreground)'
+                                                                                }}
+                                                                                onFocus={(e) => e.target.style.borderColor = 'var(--color-primary)'}
+                                                                                onBlur={(e) => e.target.style.borderColor = 'var(--color-border)'}
+                                                                            />
+                                                                        )}
+                                                                    </td>
+                                                                );
+                                                            })}
                                                             <td style={{ padding: '14px 16px', textAlign: 'center', borderBottom: '1px solid var(--color-border)' }}>
                                                                 <button
                                                                     onClick={() => {

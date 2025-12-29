@@ -831,91 +831,38 @@ class ImageEditController extends Controller
     }
 
     /**
-     * Erase masked area: inpaints the white regions of the mask and returns
-     * both the generated image and a composite placing it 20px to the right
+     * Erase/inpaint areas marked with green highlights in the image.
+     * The image should contain green (rgb 0,255,0) highlights where areas should be erased.
+     * Returns both the generated image and a composite placing it 20px to the right
      * of the original image.
      */
     public function erase(Request $request)
     {
         $validated = $request->validate([
             'image' => 'required|string',
-            'mask' => 'required|string',
-            'prompt' => 'nullable|string',
         ]);
 
         try {
-            $prompt = $validated['prompt'] ?? 'Erase the white masked region and fill it seamlessly with matching background.';
-            Log::info('[erase] Starting', ['prompt' => $prompt]);
+            Log::info('[erase] Starting with green-highlighted image');
 
-            // Extract base64 strings from data URLs
+            // Extract base64 string from data URL
             $imageBase64 = self::extractBase64FromDataUrl($validated['image']);
-            $maskBase64 = self::extractBase64FromDataUrl($validated['mask']);
-            if (!$imageBase64 || !$maskBase64) {
-                return response()->json(['message' => 'Invalid image or mask data'], 422);
+            if (!$imageBase64) {
+                return response()->json(['message' => 'Invalid image data'], 422);
             }
 
             Log::info('[erase] Payload pre-flight', [
                 'image_len' => strlen($imageBase64),
-                'mask_len' => strlen($maskBase64),
                 'image_head' => substr($imageBase64,0,60),
-                'mask_head' => substr($maskBase64,0,60),
             ]);
 
-            // Call inpaint to generate erased version
-            $generatedBase64 = $this->geminiService->inpaint($imageBase64, $maskBase64, $prompt);
-
-            // Build composite placing generated image 20px to the right of original
-            $originalBinary = base64_decode($imageBase64);
-            $generatedBinary = base64_decode($generatedBase64);
-            if ($originalBinary === false || $generatedBinary === false) {
-                throw new \Exception('Failed to decode image data for composition');
-            }
-
-            $originalImg = imagecreatefromstring($originalBinary);
-            $generatedImg = imagecreatefromstring($generatedBinary);
-            if (!$originalImg || !$generatedImg) {
-                throw new \Exception('Failed to create image resources');
-            }
-
-            $origW = imagesx($originalImg); $origH = imagesy($originalImg);
-            $genW = imagesx($generatedImg); $genH = imagesy($generatedImg);
-            $gap = 20;
-            $compW = $origW + $gap + $genW;
-            $compH = max($origH, $genH);
-
-            $composite = imagecreatetruecolor($compW, $compH);
-            // Transparent background
-            imagealphablending($composite, false);
-            imagesavealpha($composite, true);
-            $trans = imagecolorallocatealpha($composite, 0, 0, 0, 127);
-            imagefilledrectangle($composite, 0, 0, $compW, $compH, $trans);
-
-            // Copy original and generated
-            imagecopy($composite, $originalImg, 0, 0, 0, 0, $origW, $origH);
-            imagecopy($composite, $generatedImg, $origW + $gap, 0, 0, 0, $genW, $genH);
-
-            ob_start();
-            imagepng($composite, null, 9);
-            $compositeData = ob_get_clean();
-            $compositeBase64 = base64_encode($compositeData);
-
-            // Cleanup
-            imagedestroy($originalImg);
-            imagedestroy($generatedImg);
-            imagedestroy($composite);
+            // Call Gemini service to erase green-highlighted areas
+            $generatedBase64 = $this->geminiService->eraseGreenHighlights($imageBase64);
 
             Log::info('[erase] Success');
 
             return response()->json([
-                'originalImage' => $validated['image'],
                 'generatedImage' => 'data:image/png;base64,' . $generatedBase64,
-                'compositeImage' => 'data:image/png;base64,' . $compositeBase64,
-                'gap' => $gap,
-                'originalWidth' => $origW,
-                'generatedWidth' => $genW,
-                'compositeWidth' => $compW,
-                'height' => $compH,
-                'prompt' => $prompt,
             ]);
         } catch (\Throwable $e) {
             Log::error('[erase] Error: ' . $e->getMessage());

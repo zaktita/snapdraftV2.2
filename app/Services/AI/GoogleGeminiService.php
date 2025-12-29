@@ -13,6 +13,7 @@ class GoogleGeminiService implements AIServiceInterface
     protected ?string $apiKey;
     protected string $model = 'gemini-2.5-flash-image';
     protected string $textAccurateModel = 'gemini-3-pro-image-preview';
+    protected ?string $currentFormat = null;
 
     public function __construct()
     {
@@ -39,7 +40,27 @@ class GoogleGeminiService implements AIServiceInterface
         string $format = 'square',
         bool $textAccurate = false
     ): array {
-        return $this->generate($prompt, array_merge($referencePaths, $productImagePaths), $textAccurate);
+        // Prepend aspect ratio instruction at the beginning for highest priority
+        $aspectRatioInstruction = $this->getAspectRatioInstruction($format);
+        $enhancedPrompt = $aspectRatioInstruction . "\n\n---\n\n" . $prompt;
+        
+        // Pass format through for context in logging
+        $this->currentFormat = $format;
+        
+        return $this->generate($enhancedPrompt, array_merge($referencePaths, $productImagePaths), $textAccurate, $format);
+    }
+
+    /**
+     * Get aspect ratio instruction based on format
+     */
+    private function getAspectRatioInstruction(string $format): string
+    {
+        $ratio = $this->normalizeAspectRatio($format);
+        [$w, $h] = array_map('intval', explode(':', $ratio));
+        $orientation = $w === $h ? 'square' : ($w > $h ? 'landscape' : 'portrait');
+        $multiplier = $h > 0 ? round($w / $h, 2) : $ratio;
+
+        return "[ASPECT RATIO CONSTRAINT - NON-NEGOTIABLE] Output MUST be {$ratio} aspect ratio ({$orientation}). Width:Height = {$ratio} (≈ {$multiplier}:1 when width>=height). Zero tolerance for deviation. NOT any other ratio.";
     }
 
     /**
@@ -47,11 +68,13 @@ class GoogleGeminiService implements AIServiceInterface
      * No separate analysis step needed.
      */
     public function generate(
-        string $prompt, 
+        string $prompt,
         array $referencePaths = [],
-        bool $textAccurate = false
+        bool $textAccurate = false,
+        string $format = 'square'
     ): array {
         $this->ensureConfigured();
+        $this->currentFormat = $format;
 
         // Select model based on text accuracy requirement
         $selectedModel = $textAccurate ? $this->textAccurateModel : $this->model;
@@ -94,6 +117,10 @@ class GoogleGeminiService implements AIServiceInterface
             ],
             'generationConfig' => [
                 'responseModalities' => ['IMAGE'],
+                'imageConfig' => [
+                    'aspectRatio' => $this->getAspectRatioForAPI($this->currentFormat),
+
+                ]                
             ]
         ];
 
@@ -121,6 +148,28 @@ class GoogleGeminiService implements AIServiceInterface
         ];
 
         return $result;
+    }
+
+    /**
+     * Get API-compatible aspect ratio for Gemini's imageConfig
+     */
+    private function getAspectRatioForAPI(?string $format): string
+    {
+        return $this->normalizeAspectRatio($format ?? '');
+    }
+
+    /**
+     * Normalize various format labels to an aspect ratio string.
+     */
+    private function normalizeAspectRatio(string $format): string
+    {
+        return match(strtolower($format)) {
+            'square', '1:1', 'instagram-post' => '1:1',
+            'portrait', '9:16', 'instagram-story' => '9:16',
+            'landscape', '16:9', 'facebook-post', 'facebook-ad', 'linkedin-post', 'twitter-post', 'youtube-thumbnail' => '16:9',
+            'linkedin-banner' => '4:1',
+            default => preg_match('/^\d+:\d+$/', $format) ? $format : '1:1',
+        };
     }
 
     /**
@@ -179,8 +228,7 @@ class GoogleGeminiService implements AIServiceInterface
 
         return $result;
     }
-
-    /**
+/**
      * Edit an image using base64 data (for Canvas Editor)
      * Supports inpainting with mask
      */
@@ -211,6 +259,48 @@ class GoogleGeminiService implements AIServiceInterface
         Log::info('Gemini Base64 Edit', [
             'has_mask' => !is_null($maskBase64),
             'prompt' => substr($prompt, 0, 100),
+        ]);
+
+        $response = $this->http()->post(
+            "{$this->baseUrl}/models/{$this->model}:generateContent?key={$this->apiKey}",
+            [
+                'contents' => [['role' => 'user', 'parts' => $parts]],
+                'generationConfig' => [
+                    'responseModalities' => ['IMAGE'],
+                    'temperature' => 0.4,
+                ]
+            ]
+        );
+
+        $result = $this->parseResponse($response);
+
+        // Back-compat: some callers expect image_base64, others image_data
+        return $result['image_data'] ?? $result['image_base64'];
+    }
+
+    /**
+     * Erase green-highlighted areas from an image.
+     * The image should contain green (rgb 0,255,0) highlights where areas should be removed.
+     * Returns the edited image with those areas naturally filled in.
+     */
+    public function eraseGreenHighlights(string $imageBase64): string
+    {
+        $this->ensureConfigured();
+
+        $prompt = "Remove all green-highlighted areas from this image and fill them naturally with appropriate content that matches the surrounding context. The green highlights (bright green color RGB 0,255,0) indicate areas that should be erased and seamlessly replaced with background that fits the image style, perspective, colors, and lighting. Do not leave any green color or artifacts in the final result.";
+
+        $parts = [
+            ['text' => $prompt],
+            [
+                'inlineData' => [
+                    'mimeType' => 'image/png',
+                    'data' => $imageBase64
+                ]
+            ]
+        ];
+
+        Log::info('Gemini Erase Green Highlights', [
+            'image_length' => strlen($imageBase64),
         ]);
 
         $response = $this->http()->post(
@@ -422,3 +512,8 @@ Negative Prompt: artifacts, blur, distortion, mismatched, ugly, text, watermark,
         return $this->generateWithReferences($prompt, [], [], $format, false);
     }
 }
+
+
+
+
+

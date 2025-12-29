@@ -759,25 +759,26 @@ export default function CanvasEditor(props: CanvasEditorProps) {
         ctx.restore();
     };
 
-    const createRectMaskCanvas = (obj: CanvasObject, rect: EraseSelectionRect) => {
-        const maskCanvas = document.createElement('canvas');
-        maskCanvas.width = obj.image.width;
-        maskCanvas.height = obj.image.height;
-        const maskCtx = maskCanvas.getContext('2d');
-        if (!maskCtx) return null;
+    const createRectGreenHighlightedImage = (obj: CanvasObject, rect: EraseSelectionRect) => {
+        const compositeCanvas = document.createElement('canvas');
+        compositeCanvas.width = obj.image.width;
+        compositeCanvas.height = obj.image.height;
+        const compositeCtx = compositeCanvas.getContext('2d');
+        if (!compositeCtx) return null;
+
+        // Draw the original image first
+        compositeCtx.drawImage(obj.image, 0, 0);
 
         const minX = Math.max(0, Math.min(rect.startX, rect.endX));
         const minY = Math.max(0, Math.min(rect.startY, rect.endY));
         const maxX = Math.min(obj.image.width, Math.max(rect.startX, rect.endX));
         const maxY = Math.min(obj.image.height, Math.max(rect.startY, rect.endY));
 
-        // Black background, white selection region
-        maskCtx.fillStyle = 'black';
-        maskCtx.fillRect(0, 0, maskCanvas.width, maskCanvas.height);
-        maskCtx.fillStyle = 'white';
-        maskCtx.fillRect(minX, minY, Math.max(1, maxX - minX), Math.max(1, maxY - minY));
+        // Draw green rectangle over the selection area
+        compositeCtx.fillStyle = 'rgb(0, 255, 0)'; // Bright green
+        compositeCtx.fillRect(minX, minY, Math.max(1, maxX - minX), Math.max(1, maxY - minY));
 
-        return maskCanvas;
+        return compositeCanvas;
     };
 
     const runEraseWithSelection = async (rect: EraseSelectionRect) => {
@@ -788,31 +789,22 @@ export default function CanvasEditor(props: CanvasEditorProps) {
         debug.log('[Erase] Starting erase with selection', rect);
 
         try {
-            const maskCanvas = createRectMaskCanvas(sourceObject, rect);
-            if (!maskCanvas) throw new Error('Failed to create mask');
+            const compositeCanvas = createRectGreenHighlightedImage(sourceObject, rect);
+            if (!compositeCanvas) throw new Error('Failed to create composite image');
 
-            let originalImage = '';
-            let maskImage = '';
+            let compositeImage = '';
             try {
-                originalImage = imageToDataUrl(sourceObject.image);
+                compositeImage = compositeCanvas.toDataURL('image/png');
             } catch (e) {
                 console.error(
-                    '[Erase] toDataURL failed for original image, likely CORS taint',
+                    '[Erase] toDataURL failed for composite image, likely CORS taint',
                     e,
                 );
                 showAlert(
                     'Image Security Error',
-                    'Cannot read the original image due to browser security (CORS). Try uploading a local image or ensure the image URL allows cross-origin access.',
+                    'Cannot read the image due to browser security (CORS). Try uploading a local image or ensure the image URL allows cross-origin access.',
                     'error',
                 );
-                return;
-            }
-
-            try {
-                maskImage = maskCanvas.toDataURL('image/png');
-            } catch (e) {
-                console.error('[Erase] toDataURL failed for mask image', e);
-                showAlert('Mask Error', 'Failed to serialize the mask image.', 'error');
                 return;
             }
 
@@ -826,9 +818,7 @@ export default function CanvasEditor(props: CanvasEditorProps) {
                             ?.getAttribute('content') || '',
                 },
                 body: JSON.stringify({
-                    image: originalImage,
-                    mask: maskImage,
-                    prompt: 'erase the selected area',
+                    image: compositeImage,
                 }),
             });
 
@@ -1506,7 +1496,51 @@ export default function CanvasEditor(props: CanvasEditorProps) {
         }
     };
 
+    // Create a composite image with green highlights where the user brushed
+    const createGreenHighlightedImage = (
+        target: CanvasObject | null,
+    ): HTMLCanvasElement | null => {
+        if (!target) return null;
+        const compositeCanvas = document.createElement('canvas');
+        compositeCanvas.width = target.image.width;
+        compositeCanvas.height = target.image.height;
+        const compositeCtx = compositeCanvas.getContext('2d');
+        if (!compositeCtx) return null;
+
+        // Draw the original image first
+        compositeCtx.drawImage(target.image, 0, 0);
+
+        // Draw green highlights over the brushed areas
+        compositeCtx.strokeStyle = 'rgb(0, 255, 0)'; // Bright green for AI to easily detect
+        compositeCtx.lineCap = 'round';
+        compositeCtx.lineJoin = 'round';
+
+        const relevant = lines.filter((l) => l.objectId === target.id);
+        relevant.forEach((line) => {
+            if (line.points.length > 1) {
+                compositeCtx.lineWidth = line.brushSize;
+                compositeCtx.globalAlpha = 1; // Full opacity green
+                compositeCtx.beginPath();
+                compositeCtx.moveTo(line.points[0], line.points[1]);
+                for (let i = 2; i < line.points.length; i += 2) {
+                    compositeCtx.lineTo(line.points[i], line.points[i + 1]);
+                }
+                compositeCtx.stroke();
+            }
+        });
+
+        // Reset alpha
+        compositeCtx.globalAlpha = 1;
+        debug.log('[Green Highlight] Created composite image', {
+            width: compositeCanvas.width,
+            height: compositeCanvas.height,
+            strokes: relevant.length,
+        });
+        return compositeCanvas;
+    };
+
     // Create a mask canvas (white where brushed, black elsewhere) for the selected object
+    // Used by Replace Text and AI Generate functions
     const createMaskCanvas = (
         target: CanvasObject | null,
     ): HTMLCanvasElement | null => {
@@ -1687,47 +1721,33 @@ export default function CanvasEditor(props: CanvasEditorProps) {
         });
 
         try {
-            // Create mask
-            const maskCanvas = createMaskCanvas(selectedObject);
-            if (!maskCanvas) throw new Error('Failed to create mask');
-            const stats = computeMaskStats(maskCanvas);
-            debug.log('[Erase] Mask stats', stats);
+            // Create composite image with green highlights
+            const compositeCanvas = createGreenHighlightedImage(selectedObject);
+            if (!compositeCanvas) throw new Error('Failed to create composite image');
 
-            // Convert images to base64
-            let originalImage = '';
-            let maskImage = '';
+            // Convert composite image to base64
+            let compositeImage = '';
             try {
-                originalImage = imageToDataUrl(selectedObject.image);
+                compositeImage = compositeCanvas.toDataURL('image/png');
             } catch (e) {
                 console.error(
-                    '[AI Generate] toDataURL failed for original image, likely CORS taint',
+                    '[Erase] toDataURL failed for composite image, likely CORS taint',
                     e,
                 );
                 showAlert(
                     'Image Security Error',
-                    'Cannot read the original image due to browser security (CORS). Try uploading a local image or ensure the image URL allows cross-origin access.',
-                    'error',
-                );
-                setIsGenerating(false);
-                return;
-            }
-            try {
-                maskImage = maskCanvas.toDataURL('image/png');
-            } catch (e) {
-                console.error(
-                    '[AI Generate] toDataURL failed for mask image',
-                    e,
-                );
-                showAlert(
-                    'Mask Error',
-                    'Failed to serialize the mask image.',
+                    'Cannot read the image due to browser security (CORS). Try uploading a local image or ensure the image URL allows cross-origin access.',
                     'error',
                 );
                 setIsGenerating(false);
                 return;
             }
 
-            // Make API call
+            debug.log('[Erase] Composite image created', {
+                length: compositeImage.length,
+            });
+
+            // Make API call with only the composite image
             const response = await fetch('/api/erase-image', {
                 method: 'POST',
                 headers: {
@@ -1738,9 +1758,7 @@ export default function CanvasEditor(props: CanvasEditorProps) {
                             ?.getAttribute('content') || '',
                 },
                 body: JSON.stringify({
-                    image: originalImage,
-                    mask: maskImage,
-                    prompt: 'erase the selected areas',
+                    image: compositeImage,
                 }),
             });
 

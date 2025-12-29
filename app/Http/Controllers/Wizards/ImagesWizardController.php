@@ -27,7 +27,7 @@ class ImagesWizardController extends Controller
             'reference_images' => 'required|array|min:5|max:10',
             'reference_images.*' => 'required|image|mimes:jpeg,jpg,png,webp|max:10240',
             'content_description' => 'required|string|max:5000',
-            'format' => 'nullable|string|in:square,portrait,landscape',
+            'format' => 'nullable|string|in:1:1,2:3,3:2,3:4,4:3,4:5,5:4,2:1,16:9,21:9,9:16,4:1,square,portrait,landscape,instagram-post,instagram-story,facebook-post,facebook-ad,linkedin-post,linkedin-banner,twitter-post,youtube-thumbnail',
             'text_accurate' => 'nullable|boolean',
         ]);
 
@@ -37,7 +37,7 @@ class ImagesWizardController extends Controller
             'description' => $validated['content_description'],
             'settings' => [
                 'wizard_type' => 'images',
-                'format' => $validated['format'] ?? 'square',
+                'format' => $validated['format'] ?? '1:1',
                 'text_accurate' => $validated['text_accurate'] ?? false,
             ],
         ]);
@@ -56,7 +56,7 @@ class ImagesWizardController extends Controller
 
         // Queue AI processing job with the description as the prompt
         $prompt = $validated['content_description'];
-        $format = $validated['format'] ?? 'square';
+        $format = $validated['format'] ?? '1:1';
         $textAccurate = $validated['text_accurate'] ?? false;
 
         // Determine AI model based on text accuracy flag

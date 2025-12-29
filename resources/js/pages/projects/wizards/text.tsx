@@ -4,14 +4,18 @@ import { useState, useRef, ChangeEvent, useEffect } from 'react';
 import text from '@/routes/projects/wizards/text';
 
 const formatOptions = [
-    { value: 'instagram-post', label: 'Instagram Post (1080x1080)' },
-    { value: 'instagram-story', label: 'Instagram Story (1080x1920)' },
-    { value: 'facebook-post', label: 'Facebook Post (1200x630)' },
-    { value: 'facebook-ad', label: 'Facebook Ad (1200x628)' },
-    { value: 'linkedin-post', label: 'LinkedIn Post (1200x627)' },
-    { value: 'linkedin-banner', label: 'LinkedIn Banner (1584x396)' },
-    { value: 'twitter-post', label: 'Twitter Post (1200x675)' },
-    { value: 'youtube-thumbnail', label: 'YouTube Thumbnail (1280x720)' },
+    { value: '1:1', label: 'Square (1:1)' },
+    { value: '4:5', label: 'Portrait (4:5)' },
+    { value: '3:4', label: 'Portrait (3:4)' },
+    { value: '2:3', label: 'Portrait (2:3)' },
+    { value: '9:16', label: 'Portrait / Story (9:16)' },
+    { value: '3:2', label: 'Landscape (3:2)' },
+    { value: '4:3', label: 'Landscape (4:3)' },
+    { value: '5:4', label: 'Landscape (5:4)' },
+    { value: '2:1', label: 'Wide (2:1)' },
+    { value: '16:9', label: 'Landscape (16:9)' },
+    { value: '21:9', label: 'Cinematic (21:9)' },
+    { value: '4:1', label: 'Banner (4:1)' },
 ];
 
 export default function TextWizard() {
@@ -19,7 +23,7 @@ export default function TextWizard() {
     const [currentStep, setCurrentStep] = useState(1);
     const [projectName, setProjectName] = useState('');
     const [ideaDescription, setIdeaDescription] = useState('');
-    const [selectedFormat, setSelectedFormat] = useState('');
+    const [selectedFormat, setSelectedFormat] = useState('1:1');
     const [styleImages, setStyleImages] = useState<string[]>([]);
     const [styleImageFiles, setStyleImageFiles] = useState<File[]>([]);
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -58,21 +62,8 @@ export default function TextWizard() {
     };
 
     // Navigation
-    const mapFormat = (value: string): 'square' | 'portrait' | 'landscape' => {
-        switch (value) {
-            case 'instagram-post':
-                return 'square';
-            case 'instagram-story':
-                return 'portrait';
-            case 'facebook-post':
-            case 'facebook-ad':
-            case 'linkedin-post':
-            case 'linkedin-banner':
-            case 'twitter-post':
-            case 'youtube-thumbnail':
-            default:
-                return 'landscape';
-        }
+    const mapFormat = (value: string): string => {
+        return value || '1:1';
     };
 
     const nextStep = () => {
@@ -114,7 +105,7 @@ export default function TextWizard() {
 
     return (
         <>
-            <Head title="Images Wizard" />
+            <Head title="Images Wizard (Aspect Ratio Build)" />
             
                         {/* Loading Overlay During Submission */}
                         {isSubmitting && (
@@ -265,7 +256,7 @@ export default function TextWizard() {
                             margin: 0
                         }}>
                             {currentStep === 1 && 'Give your project a descriptive name to help organize your work.'}
-                            {currentStep === 2 && 'Tell us what you want to create and select the output format.'}
+                            {currentStep === 2 && 'Tell us what you want to create.'}
                             {currentStep === 3 && 'Upload reference images to guide the visual style (optional).'}
                         </p>
                     </div>
@@ -379,7 +370,7 @@ export default function TextWizard() {
 
                                 <div style={{ marginBottom: '8px' }}>
                                     <label style={{ fontSize: '14px', fontWeight: 500, color: 'var(--color-foreground)', display: 'block', marginBottom: '8px' }}>
-                                        Output Format *
+                                        Output Aspect Ratio *
                                     </label>
                                     <div style={{ position: 'relative' }}>
                                         <select 
@@ -402,7 +393,7 @@ export default function TextWizard() {
                                             onFocus={(e) => e.target.style.borderColor = 'var(--color-primary)'}
                                             onBlur={(e) => e.target.style.borderColor = 'var(--color-border)'}
                                         >
-                                            <option value="">Select a format...</option>
+                                            <option value="">Select an aspect ratio...</option>
                                             {formatOptions.map((option) => (
                                                 <option key={option.value} value={option.value}>
                                                     {option.label}

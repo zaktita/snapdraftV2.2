@@ -36,7 +36,12 @@ class GenerateSingleImageJob implements ShouldQueue
     /**
      * Allowed image formats
      */
-    private const ALLOWED_FORMATS = ['square', 'portrait', 'landscape'];
+    private const ALLOWED_FORMATS = [
+        '1:1', '2:3', '3:2', '3:4', '4:3', '4:5', '5:4', '2:1', '16:9', '21:9', '9:16', '4:1',
+        'square', 'portrait', 'landscape',
+        'instagram-post', 'instagram-story', 'facebook-post', 'facebook-ad',
+        'linkedin-post', 'linkedin-banner', 'twitter-post', 'youtube-thumbnail'
+    ];
 
     /**
      * Create a new job instance.

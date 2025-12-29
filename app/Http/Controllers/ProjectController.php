@@ -25,7 +25,7 @@ class ProjectController extends Controller
      */
     public function index(Request $request): Response
     {
-        $query = Auth::user()->projects();
+        $query = Auth::user()->projects()->withCount('images');
 
         // Apply search
         if ($request->has('search') && $request->search) {
@@ -70,7 +70,7 @@ class ProjectController extends Controller
                 $query->orderBy('title', 'desc');
                 break;
             case 'images-desc':
-                $query->orderBy('images_count', 'desc');
+                $query->withCount('images')->orderBy('images_count', 'desc');
                 break;
             default:
                 // Default: favorites first, then most recent

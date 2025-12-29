@@ -25,7 +25,7 @@ class TextWizardController extends Controller
         $validated = $request->validate([
             'project_name' => 'required|string|max:255',
             'idea_description' => 'required|string|max:5000',
-            'format' => 'required|string|in:square,portrait,landscape',
+            'format' => 'required|string|in:1:1,2:3,3:2,3:4,4:3,4:5,5:4,2:1,16:9,21:9,9:16,4:1,square,portrait,landscape,instagram-post,instagram-story,facebook-post,facebook-ad,linkedin-post,linkedin-banner,twitter-post,youtube-thumbnail',
             'reference_images' => 'nullable|array|max:5',
             'reference_images.*' => 'nullable|image|mimes:jpeg,jpg,png,webp|max:10240',
             'text_accurate' => 'nullable|boolean',

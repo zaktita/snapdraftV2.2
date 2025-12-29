@@ -5,6 +5,7 @@ use App\Http\Controllers\ImageController;
 use App\Http\Controllers\CanvasController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\ImageEditController;
+use App\Http\Controllers\SearchController;
 use App\Http\Controllers\Wizards\CSVWizardController;
 use App\Http\Controllers\Wizards\ImagesWizardController;
 use App\Http\Controllers\Wizards\TextWizardController;
@@ -89,10 +90,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::post('{imageId}/toggle-favorite', [ImageController::class, 'toggleFavorite'])->name('images.toggle-favorite');
     });
 
-    // Search & Updates (Placeholder routes)
-    Route::get('search', function () {
-        return Inertia::render('search');
-    })->name('search');
+    // Search & Updates
+    Route::get('search', [SearchController::class, 'index'])->name('search');
+    Route::post('search', [SearchController::class, 'search'])->name('search.query');
 
     Route::get('updates', function () {
         return Inertia::render('updates');
