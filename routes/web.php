@@ -9,6 +9,7 @@ use App\Http\Controllers\SearchController;
 use App\Http\Controllers\Wizards\CSVWizardController;
 use App\Http\Controllers\Wizards\ImagesWizardController;
 use App\Http\Controllers\Wizards\TextWizardController;
+use App\Http\Controllers\Wizards\BrandAnalysisWizardController;
 use App\Http\Controllers\SimpleTextWizardController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
@@ -58,6 +59,18 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('projects/wizards/text', [TextWizardController::class, 'store'])
         ->middleware('has.credits')
         ->name('projects.wizards.text.store');
+
+    // Brand Analysis Wizard (lab/testing)
+    Route::get('projects/wizards/brand-analysis', [BrandAnalysisWizardController::class, 'index'])
+        ->name('projects.wizards.brand-analysis');
+
+    Route::post('projects/wizards/brand-analysis', [BrandAnalysisWizardController::class, 'store'])
+        ->middleware('has.credits')
+        ->name('projects.wizards.brand-analysis.store');
+
+    Route::post('projects/wizards/brand-analysis/generate', [BrandAnalysisWizardController::class, 'generate'])
+        ->middleware('has.credits')
+        ->name('projects.wizards.brand-analysis.generate');
 
     // Projects Resource Routes (except create, which we handle above)
     Route::resource('projects', ProjectController::class)->except(['create']);
