@@ -82,48 +82,52 @@ export default function Home() {
 
   const pricing = [
     {
-      name: 'Free',
-      price: '$0',
+      name: 'Starter',
+      subtitle: 'The Decoy',
+      price: '$29',
       description: 'Perfect for trying out SnapDraft',
       features: [
-        '50 credits/month',
-        'Up to 10 images per batch',
+        '200 credits/month',
+        '~50 high-precision posts',
+        '1 active project',
+        'Free Brand DNA / Setup (Unlimited)',
+        '30 rows per CSV batch',
         'Basic canvas editor',
-        'Standard quality',
-        'Community support',
       ],
-      cta: 'Start free',
+      cta: 'Start Starter',
       variant: 'outline' as const,
     },
     {
-      name: 'Pro',
-      price: '$29',
+      name: 'Growth',
+      subtitle: 'The Anchor',
+      price: '$59',
       description: 'For professionals and small teams',
       features: [
-        '500 credits/month',
-        'Unlimited batch size',
-        'Advanced canvas editor',
-        'High quality + Fast generation',
-        'Priority support',
-        'Custom brand presets',
+        '650 credits/month (3.2x more)',
+        '~160 high-precision posts',
+        '10 active projects',
+        'Free Brand DNA / Setup (Unlimited)',
+        'Unlimited CSV batching',
+        'Full canvas editor + Versioning',
       ],
-      cta: 'Start Pro trial',
+      cta: 'Start Growth',
       variant: 'default' as const,
       popular: true,
     },
     {
-      name: 'Enterprise',
-      price: 'Custom',
+      name: 'Agency',
+      subtitle: 'The Pro',
+      price: '$149',
       description: 'For agencies and large teams',
       features: [
-        'Unlimited credits',
-        'White-label option',
-        'API access',
-        'Dedicated account manager',
-        'SLA guarantee',
-        'Custom AI training',
+        '1,800 credits/month (9x more)',
+        '~450 high-precision posts',
+        'Unlimited active projects',
+        'Free Brand DNA / Setup (Unlimited)',
+        'Priority queue CSV batching',
+        'Full canvas editor + Teams',
       ],
-      cta: 'Contact sales',
+      cta: 'Start Agency',
       variant: 'outline' as const,
     },
   ];
@@ -342,10 +346,13 @@ export default function Home() {
                   </div>
                 )}
                 <CardHeader className="pb-8">
-                  <CardTitle className="text-2xl">{plan.name}</CardTitle>
+                  <div className="flex items-baseline gap-2">
+                    <CardTitle className="text-2xl">{plan.name}</CardTitle>
+                    <span className="text-sm text-muted-foreground">({plan.subtitle})</span>
+                  </div>
                   <div className="mt-4 flex items-baseline gap-1">
                     <span className="text-4xl font-bold tracking-tight">{plan.price}</span>
-                    {plan.price !== 'Custom' && <span className="text-muted-foreground">/month</span>}
+                    <span className="text-muted-foreground">/month</span>
                   </div>
                   <CardDescription className="text-sm mt-2">{plan.description}</CardDescription>
                 </CardHeader>

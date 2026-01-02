@@ -5,11 +5,13 @@ import AppLayout from '@/layouts/app-layout';
 import { H1, Subtext } from '@/components/ds/typography';
 import { Head, router } from '@inertiajs/react';
 import { Check, Sparkles, Zap, Crown } from 'lucide-react';
+import { useState } from 'react';
 import { type User } from '@/types';
 
 interface Plan {
     id: string;
     name: string;
+    subtitle?: string;
     price: number;
     credits: number;
     features: string[];
@@ -27,18 +29,20 @@ interface PlansPageProps {
 }
 
 export default function PlansPage({ plans, auth }: PlansPageProps) {
+    const [billingPeriod, setBillingPeriod] = useState<'monthly' | 'annually'>('monthly');
+    
     const handleUpgrade = (tier: string) => {
         router.post('/subscription/upgrade', { tier });
     };
 
     const getPlanIcon = (planId: string) => {
         switch (planId) {
-            case 'pro':
-                return <Zap className="h-8 w-8" />;
-            case 'enterprise':
-                return <Crown className="h-8 w-8" />;
+            case 'growth':
+                return <Zap className="h-6 w-6" />;
+            case 'agency':
+                return <Crown className="h-6 w-6" />;
             default:
-                return <Sparkles className="h-8 w-8" />;
+                return <Sparkles className="h-6 w-6" />;
         }
     };
 
@@ -46,120 +50,273 @@ export default function PlansPage({ plans, auth }: PlansPageProps) {
         <AppLayout>
             <Head title="Subscription Plans" />
 
-            <div className="min-h-screen bg-background p-8">
+            <div className="min-h-screen bg-[#0a0b0f] p-8">
                 <div className="mx-auto max-w-7xl">
                     {/* Header */}
-                    <div className="text-center mb-12">
-                        <H1 className="mb-2">Choose your plan</H1>
-                        <Subtext>Start creating brand‑consistent visuals with AI</Subtext>
-                        {auth.user.subscription_tier && (
-                            <div className="mt-4">
-                                <Badge className="text-sm px-4 py-2">
-                                    Current Plan: {auth.user.subscription_tier.charAt(0).toUpperCase() + auth.user.subscription_tier.slice(1)}
-                                </Badge>
-                                <p className="text-sm text-muted-foreground mt-2">
-                                    {auth.user.credits_remaining} credits remaining
-                                </p>
-                            </div>
-                        )}
+                    <div className="text-center mb-8">
+                        <Badge className="mb-4 bg-orange-500/10 text-orange-500 border-orange-500/20 hover:bg-orange-500/20">
+                            Pricing
+                        </Badge>
+                        <h1 className="text-4xl md:text-5xl font-bold text-white mb-4">
+                            Choose the Perfect<br />Plan for Your Business
+                        </h1>
+                        <p className="text-gray-400 text-lg">
+                            Whether you're just starting or scaling up, SnapDraft has a plan that fits your need.
+                        </p>
                     </div>
 
+                    {/* Billing Toggle */}
+                    <div className="flex justify-center items-center gap-4 mb-12">
+                        <button
+                            onClick={() => setBillingPeriod('monthly')}
+                            className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all ${
+                                billingPeriod === 'monthly'
+                                    ? 'bg-orange-500 text-white'
+                                    : 'bg-transparent text-gray-400 hover:text-white'
+                            }`}
+                        >
+                            <span className={`w-2 h-2 rounded-full ${
+                                billingPeriod === 'monthly' ? 'bg-white' : 'bg-gray-600'
+                            }`} />
+                            Monthly
+                        </button>
+                        <button
+                            onClick={() => setBillingPeriod('annually')}
+                            className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all ${
+                                billingPeriod === 'annually'
+                                    ? 'bg-orange-500 text-white'
+                                    : 'bg-transparent text-gray-400 hover:text-white'
+                            }`}
+                        >
+                            Annually
+                        </button>
+                        <Badge className="bg-orange-500/10 text-orange-500 border-orange-500/20">
+                            Save 20%
+                        </Badge>
+                    </div>
+
+                    {/* Current Plan Status */}
+                    {auth.user.subscription_tier && (
+                        <div className="text-center mb-8">
+                            <Badge className="text-sm px-4 py-2 bg-orange-500/10 text-orange-500 border-orange-500/20">
+                                Current Plan: {auth.user.subscription_tier.charAt(0).toUpperCase() + auth.user.subscription_tier.slice(1)}
+                            </Badge>
+                            <p className="text-sm text-gray-400 mt-2">
+                                {auth.user.credits_remaining} credits remaining
+                            </p>
+                        </div>
+                    )}
+
                     {/* Plans Grid */}
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-12">
-                        {plans.map((plan) => (
-                            <div
-                                key={plan.id}
-                                className={`relative rounded-lg bg-muted/40 p-8 ${
-                                    plan.popular ? 'ring-2 ring-foreground/10' : ''
-                                }`}
-                            >
-                                {plan.popular && (
-                                    <Badge className="absolute -top-3 left-1/2 -translate-x-1/2">
-                                        Most Popular
-                                    </Badge>
-                                )}
-
-                                {auth.user.subscription_tier === plan.id && (
-                                    <Badge className="absolute -top-3 left-1/2 -translate-x-1/2">
-                                        Current Plan
-                                    </Badge>
-                                )}
-
-                                <div className="text-center mb-6">
-                                    <div className="inline-flex items-center justify-center w-16 h-16 bg-muted/60 rounded-full mb-4">
-                                        {getPlanIcon(plan.id)}
-                                    </div>
-                                    <h3 className="text-2xl font-semibold mb-2">
-                                        {plan.name}
-                                    </h3>
-                                    <div className="flex items-baseline justify-center gap-1">
-                                        <span className="text-4xl font-semibold">
-                                            ${plan.price}
-                                        </span>
-                                        {plan.price > 0 && (
-                                            <span className="text-muted-foreground">/month</span>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
+                        {plans.map((plan) => {
+                            const isPopular = plan.popular;
+                            const isCurrent = auth.user.subscription_tier === plan.id;
+                            
+                            // Calculate prices: stored price is yearly, monthly is 20% higher
+                            const yearlyPrice = plan.price;
+                            const monthlyPrice = Math.round(plan.price * 1.2);
+                            const displayPrice = billingPeriod === 'monthly' ? monthlyPrice : yearlyPrice;
+                            
+                            // Map plan IDs to target audiences
+                            const targetAudience = {
+                                'starter': 'For Freelancers',
+                                'growth': 'For Small Teams',
+                                'agency': 'For Agencies'
+                            }[plan.id];
+                            
+                            return (
+                                <div
+                                    key={plan.id}
+                                    className={`relative rounded-2xl p-8 backdrop-blur-sm transition-all hover:scale-[1.02] ${
+                                        isPopular
+                                            ? 'bg-orange-500/10 border border-orange-500/30'
+                                            : 'bg-[#1a1d29]/80 border border-gray-800'
+                                    }`}
+                                >
+                                    {/* Plan Header */}
+                                    <div className="mb-6">
+                                        <h3 className="text-2xl font-bold text-white mb-1">
+                                            {plan.name}
+                                        </h3>
+                                        {targetAudience && (
+                                            <p className="text-sm text-gray-400">{targetAudience}</p>
                                         )}
                                     </div>
-                                </div>
 
-                                <div className="mb-8">
-                                    <div className="text-center mb-6">
-                                        <p className="text-3xl font-semibold">
-                                            {plan.credits === 999999 ? 'Unlimited' : plan.credits}
-                                        </p>
-                                        <p className="text-sm text-muted-foreground">
-                                            {plan.credits === 999999 ? 'generations' : 'credits/month'}
+                                    {/* Price */}
+                                    <div className="mb-6">
+                                        <div className="flex items-baseline gap-2">
+                                            <span className="text-5xl font-bold text-white">
+                                                ${displayPrice}
+                                            </span>
+                                            <span className="text-gray-400">per month</span>
+                                        </div>
+                                        {billingPeriod === 'annually' && (
+                                            <p className="text-sm text-orange-400 mt-1">
+                                                Save ${(monthlyPrice - yearlyPrice) * 12}/year
+                                            </p>
+                                        )}
+                                        <p className="text-sm text-gray-500 mt-2">
+                                            {plan.credits.toLocaleString()} credits/month
                                         </p>
                                     </div>
 
+                                    {/* CTA Button */}
+                                    <Button
+                                        className={`w-full mb-8 ${
+                                            isPopular
+                                                ? 'bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white'
+                                                : isCurrent
+                                                ? 'bg-gray-800 text-gray-400'
+                                                : 'bg-white hover:bg-gray-100 text-black'
+                                        }`}
+                                        disabled={isCurrent}
+                                        onClick={() => handleUpgrade(plan.id)}
+                                    >
+                                        {isCurrent ? 'Current Plan' : 'Upgrade'}
+                                    </Button>
+
+                                    {/* Plan Includes Label */}
+                                    <div className="mb-4">
+                                        <p className="text-sm font-semibold text-white">
+                                            {isPopular ? 'All Free plan features, plus' : plan.id === 'starter' ? 'Free Plan Includes' : 'All Pro features, plus'}
+                                        </p>
+                                    </div>
+
+                                    {/* Features List */}
                                     <ul className="space-y-3">
                                         {plan.features.map((feature, index) => (
-                                            <li key={index} className="flex items-start gap-2">
-                                                <Check className="h-5 w-5 flex-shrink-0 mt-0.5" />
-                                                <span className="text-sm text-muted-foreground">{feature}</span>
+                                            <li key={index} className="flex items-start gap-3">
+                                                <div className="mt-0.5">
+                                                    <Check className={`h-5 w-5 ${
+                                                        isPopular ? 'text-orange-400' : 'text-gray-400'
+                                                    }`} />
+                                                </div>
+                                                <span className="text-sm text-gray-300">{feature}</span>
                                             </li>
                                         ))}
                                     </ul>
                                 </div>
+                            );
+                        })}
+                    </div>
 
+                    {/* Credit Packs */}
+                    <div className="mb-12">
+                        <div className="text-center mb-8">
+                            <h2 className="text-3xl font-bold text-white mb-2">Need More Credits?</h2>
+                            <p className="text-gray-400">Purchase additional credits anytime</p>
+                        </div>
+                        
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl mx-auto">
+                            {/* Credit Pack 1 */}
+                            <div className="relative rounded-2xl p-8 bg-[#1a1d29]/80 border border-gray-800 backdrop-blur-sm transition-all hover:scale-[1.02]">
+                                <div className="mb-6">
+                                    <h3 className="text-2xl font-bold text-white mb-1">500 Credits</h3>
+                                    <p className="text-sm text-gray-400">One-time purchase</p>
+                                </div>
+                                
+                                <div className="mb-6">
+                                    <div className="flex items-baseline gap-2">
+                                        <span className="text-5xl font-bold text-white">$49</span>
+                                    </div>
+                                    <p className="text-sm text-gray-500 mt-2">~125 high-precision posts</p>
+                                </div>
+                                
                                 <Button
-                                    className="w-full"
-                                    variant={auth.user.subscription_tier === plan.id ? "secondary" : "default"}
-                                    disabled={auth.user.subscription_tier === plan.id}
-                                    onClick={() => handleUpgrade(plan.id)}
+                                    className="w-full mb-6 bg-white hover:bg-gray-100 text-black"
+                                    onClick={() => router.post('/credits/purchase', { amount: 500 })}
                                 >
-                                    {auth.user.subscription_tier === plan.id
-                                        ? 'Current Plan'
-                                        : plan.price === 0
-                                        ? 'Downgrade to Free'
-                                        : 'Upgrade Now'}
+                                    Buy Credits
                                 </Button>
+                                
+                                <ul className="space-y-3">
+                                    <li className="flex items-start gap-3">
+                                        <Check className="h-5 w-5 text-gray-400 mt-0.5" />
+                                        <span className="text-sm text-gray-300">Never expires</span>
+                                    </li>
+                                    <li className="flex items-start gap-3">
+                                        <Check className="h-5 w-5 text-gray-400 mt-0.5" />
+                                        <span className="text-sm text-gray-300">Works with any plan</span>
+                                    </li>
+                                    <li className="flex items-start gap-3">
+                                        <Check className="h-5 w-5 text-gray-400 mt-0.5" />
+                                        <span className="text-sm text-gray-300">Instant delivery</span>
+                                    </li>
+                                </ul>
                             </div>
-                        ))}
+                            
+                            {/* Credit Pack 2 */}
+                            <div className="relative rounded-2xl p-8 bg-[#1a1d29]/80 border border-gray-800 backdrop-blur-sm transition-all hover:scale-[1.02]">
+                                <Badge className="absolute -top-3 left-1/2 -translate-x-1/2 bg-orange-500 text-white border-0">
+                                    Best Value
+                                </Badge>
+                                
+                                <div className="mb-6">
+                                    <h3 className="text-2xl font-bold text-white mb-1">1,200 Credits</h3>
+                                    <p className="text-sm text-gray-400">One-time purchase</p>
+                                </div>
+                                
+                                <div className="mb-6">
+                                    <div className="flex items-baseline gap-2">
+                                        <span className="text-5xl font-bold text-white">$99</span>
+                                    </div>
+                                    <p className="text-sm text-orange-400 mt-1">Save $19 vs 500 pack</p>
+                                    <p className="text-sm text-gray-500 mt-1">~300 high-precision posts</p>
+                                </div>
+                                
+                                <Button
+                                    className="w-full mb-6 bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white"
+                                    onClick={() => router.post('/credits/purchase', { amount: 1200 })}
+                                >
+                                    Buy Credits
+                                </Button>
+                                
+                                <ul className="space-y-3">
+                                    <li className="flex items-start gap-3">
+                                        <Check className="h-5 w-5 text-orange-400 mt-0.5" />
+                                        <span className="text-sm text-gray-300">Never expires</span>
+                                    </li>
+                                    <li className="flex items-start gap-3">
+                                        <Check className="h-5 w-5 text-orange-400 mt-0.5" />
+                                        <span className="text-sm text-gray-300">Works with any plan</span>
+                                    </li>
+                                    <li className="flex items-start gap-3">
+                                        <Check className="h-5 w-5 text-orange-400 mt-0.5" />
+                                        <span className="text-sm text-gray-300">Instant delivery</span>
+                                    </li>
+                                    <li className="flex items-start gap-3">
+                                        <Check className="h-5 w-5 text-orange-400 mt-0.5" />
+                                        <span className="text-sm text-gray-300">16% discount included</span>
+                                    </li>
+                                </ul>
+                            </div>
+                        </div>
                     </div>
 
                     {/* FAQ Section */}
-                    <div className="rounded-lg bg-muted/40 p-8">
-                        <h3 className="text-2xl font-semibold text-center mb-8">
+                    <div className="rounded-2xl bg-[#1a1d29]/80 border border-gray-800 p-8">
+                        <h3 className="text-2xl font-bold text-white text-center mb-8">
                             Frequently Asked Questions
                         </h3>
 
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                             <div>
-                                <h4 className="font-semibold mb-2">
+                                <h4 className="font-semibold text-white mb-2">
                                     What happens if I run out of credits?
                                 </h4>
-                                <p className="text-muted-foreground text-sm">
+                                <p className="text-gray-400 text-sm">
                                     You can purchase additional credits or upgrade to a higher tier.
                                     Your credits reset monthly based on your subscription tier.
                                 </p>
                             </div>
 
                             <div>
-                                <h4 className="font-semibold mb-2">
+                                <h4 className="font-semibold text-white mb-2">
                                     Can I change plans anytime?
                                 </h4>
-                                <p className="text-muted-foreground text-sm">
+                                <p className="text-gray-400 text-sm">
                                     Yes! You can upgrade or downgrade at any time. When upgrading,
                                     changes take effect immediately. When downgrading, changes apply
                                     at the end of your billing period.
@@ -167,20 +324,20 @@ export default function PlansPage({ plans, auth }: PlansPageProps) {
                             </div>
 
                             <div>
-                                <h4 className="font-semibold mb-2">
+                                <h4 className="font-semibold text-white mb-2">
                                     Do unused credits roll over?
                                 </h4>
-                                <p className="text-muted-foreground text-sm">
+                                <p className="text-gray-400 text-sm">
                                     No, credits reset monthly and do not roll over. Make sure to use
                                     your credits before the end of your billing cycle.
                                 </p>
                             </div>
 
                             <div>
-                                <h4 className="font-semibold mb-2">
+                                <h4 className="font-semibold text-white mb-2">
                                     What payment methods do you accept?
                                 </h4>
-                                <p className="text-muted-foreground text-sm">
+                                <p className="text-gray-400 text-sm">
                                     We accept all major credit cards through our secure payment processor, Paddle.
                                 </p>
                             </div>
@@ -189,10 +346,10 @@ export default function PlansPage({ plans, auth }: PlansPageProps) {
 
                     {/* CTA */}
                     <div className="text-center mt-12">
-                        <p className="text-muted-foreground mb-4">
+                        <p className="text-gray-400 mb-4">
                             Need help choosing the right plan?
                         </p>
-                        <Button variant="outline" size="lg">
+                        <Button variant="outline" size="lg" className="border-gray-700 text-white hover:bg-gray-800">
                             Contact Sales
                         </Button>
                     </div>

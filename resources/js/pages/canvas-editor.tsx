@@ -2,10 +2,12 @@ import {
     AlertModal,
     ConfirmModal,
     PromptModal,
+    UpscaleModal,
 } from '@/components/canvas-modals';
 import { Skeleton } from '@/components/ui/skeleton';
 import { debug } from '@/lib/debug';
 import { Head, router } from '@inertiajs/react';
+import { fal } from '@fal-ai/client';
 import {
     ArrowLeft,
     ChevronLeft,
@@ -156,6 +158,7 @@ export default function CanvasEditor(props: CanvasEditorProps) {
     const [generatingType, setGeneratingType] = useState<string | null>(null);
     const [actionHistory, setActionHistory] = useState<Array<{type: string; message: string; time: number}>>([]);
     const [cursorPosition, setCursorPosition] = useState({ x: 0, y: 0 });
+    const [upscaleModal, setUpscaleModal] = useState({ isOpen: false, selectedFactor: 2 });
     const internalClipboardRef = useRef<HTMLImageElement | null>(null);
     
     // Crop rectangle state (in canvas coordinates)
@@ -2515,7 +2518,7 @@ export default function CanvasEditor(props: CanvasEditorProps) {
         setCropMode(true);
     };
 
-    // Enhancement: Upscale Image
+    // Enhancement: Upscale Image using FAL AI
     const handleUpscaleImage = async () => {
         if (isGenerating) return;
         
@@ -2524,79 +2527,184 @@ export default function CanvasEditor(props: CanvasEditorProps) {
             return;
         }
 
+        setUpscaleModal({ isOpen: true, selectedFactor: 2 });
+    };
+
+    const handleConfirmUpscale = async (factor: number) => {
+        if (!selectedObject) {
+            showAlert('No Selection', 'Please select an image first.', 'warning');
+            return;
+        }
+
+        const creditCost = factor === 2 ? 1 : 2;
+
+        setUpscaleModal({ isOpen: false, selectedFactor: factor });
         setGeneratingType('upscale');
         setIsGenerating(true);
-        setUndoStack((prev) => {
-            const newStack = [...prev, lines];
-            return newStack.length > CANVAS_DEFAULTS.UNDO_LIMIT ? newStack.slice(1) : newStack;
-        });
+        debug.log('[Upscale] Starting FAL AI upscale', { factor, creditCost });
 
         try {
-            const scaleInput = await showPrompt(
-                'Upscale Image',
-                'Enter scale factor (1.5 to 4.0, e.g., 2 for 2x):',
-                'Scale',
-                '2'
-            );
-
-            if (!scaleInput) {
+            let originalImage = '';
+            try {
+                originalImage = imageToDataUrl(selectedObject.image);
+            } catch (e) {
+                console.error('[Upscale] toDataURL failed', e);
+                showAlert('Image Security Error', 'Cannot read image (CORS issue). Try uploading a local image.', 'error', 'upscale');
                 setIsGenerating(false);
                 setGeneratingType(null);
                 return;
             }
 
-            const scaleFactor = parseFloat(scaleInput);
-            if (isNaN(scaleFactor) || scaleFactor < 1.5 || scaleFactor > 4.0) {
-                showAlert('Invalid Scale', 'Please enter a number between 1.5 and 4.0', 'warning', 'upscale');
-                setIsGenerating(false);
-                setGeneratingType(null);
-                return;
-            }
+            const falApiKey = import.meta.env.VITE_FAL_API_KEY || '';
+            if (!falApiKey) throw new Error('FAL API key not configured');
+            
+            fal.config({ credentials: falApiKey });
+            console.log('[FAL AI] FAL client configured with API key');
 
-            debug.log('[Upscale Image] Starting upscaling...', { scale: scaleFactor });
-
-            const imageDataUrl = imageToDataUrl(selectedObject.image);
-
-            const result = await callApi('/api/upscale-image', {
-                image: imageDataUrl,
-                scale: scaleFactor,
+            debug.log('[Upscale] Submitting to FAL AI', { factor });
+            console.log('[FAL AI] Submitting image to FAL AI for upscaling', { factor, model: 'fal-ai/seedvr/upscale/image' });
+            
+            const submitResponse = await fal.queue.submit('fal-ai/seedvr/upscale/image', {
+                input: { image_url: originalImage, upscale_factor: factor },
             });
+            console.log('[FAL AI] Submit response:', submitResponse);
+            
+            const { request_id } = submitResponse;
 
-            if (result.upscaledImage) {
-                const upscaledImg = new Image();
-                upscaledImg.crossOrigin = 'anonymous';
-                upscaledImg.onload = () => {
-                    // Add as new object beside the original instead of replacing
-                    const newObject: CanvasObject = {
-                        id: generateObjectId(),
-                        image: upscaledImg,
-                        x: selectedObject.x + selectedObject.image.width + CANVAS_DEFAULTS.OBJECT_SPACING,
-                        y: selectedObject.y,
-                        label: 'Upscaled Image',
-                        isMainImage: false,
-                    };
-                    setCanvasObjects((prev) => [...prev, newObject]);
-                    setSelectedObject(newObject);
-                    showAlert('Success', `Image upscaled from ${result.originalWidth}x${result.originalHeight} to ${result.newWidth}x${result.newHeight}!`, 'info', 'upscale');
+            debug.log('[Upscale] Request submitted', { request_id });
+            console.log('[FAL AI] Request ID:', request_id);
+
+            let result = null;
+            let attempts = 0;
+            while (attempts < 120) {
+                const status = await fal.queue.status('fal-ai/seedvr/upscale/image', { requestId: request_id });
+                console.log('[FAL AI] Status response:', status);
+                debug.log('[Upscale] Status check', { attempts, statusObj: status });
+                
+                if ((status as any).status === 'COMPLETED') {
+                    console.log('[FAL AI] Request completed! Fetching full response from:', (status as any).response_url);
                     
-                    // Clear loading states after image loads
-                    setIsGenerating(false);
-                    setGeneratingType(null);
-                };
-                upscaledImg.onerror = () => {
-                    showAlert('Error', 'Failed to load upscaled image', 'error', 'upscale');
-                    setIsGenerating(false);
-                    setGeneratingType(null);
-                };
-                upscaledImg.src = result.upscaledImage;
-            } else {
-                throw new Error('No upscaled image in API result');
+                    // Fetch the actual output from the response URL
+                    const responseUrl = (status as any).response_url;
+                    const fullResponse = await fetch(responseUrl);
+                    const responseData = await fullResponse.json();
+                    console.log('[FAL AI] Full response data:', responseData);
+                    
+                    result = responseData;
+                    debug.log('[Upscale] Processing completed', { result });
+                    break;
+                }
+                if (attempts % 10 === 0) {
+                    console.log('[FAL AI] Still processing...', { attempts, status: (status as any).status });
+                    debug.log('[Upscale] Processing...', { attempts, status: (status as any).status });
+                }
+                await new Promise(r => setTimeout(r, 1000));
+                attempts++;
             }
+            
+            if (!result) {
+                console.log('[FAL AI] ERROR: Result is null after timeout');
+                debug.log('[Upscale] Result is null after timeout');
+                throw new Error('Upscale timed out after 2 minutes');
+            }
+
+            console.log('[FAL AI] Full result object:', result);
+            debug.log('[Upscale] Result object:', result);
+
+            debug.log('[Upscale] Credits deducted successfully');
+
+            // Extract image from result - handle different response formats
+            let imageUrl: string | null = null;
+            
+            console.log('[FAL AI] Attempting to extract image URL from result...');
+            console.log('[FAL AI] Result type:', typeof result);
+            console.log('[FAL AI] Result keys:', result && typeof result === 'object' ? Object.keys(result) : 'N/A');
+            
+            if (result && typeof result === 'object') {
+                // FAL AI returns { image: { url: "..." }, seed: ... }
+                imageUrl = (result as any).image?.url || 
+                          (result as any).image || 
+                          (result as any).url || 
+                          (result as any).output_url ||
+                          (result as any).upscaled_image;
+                
+                console.log('[FAL AI] Extracted from object properties:', {
+                    'image.url': (result as any).image?.url,
+                    'image': (result as any).image,
+                    'url': (result as any).url,
+                    'output_url': (result as any).output_url,
+                    'upscaled_image': (result as any).upscaled_image,
+                    finalImageUrl: imageUrl
+                });
+            } else if (typeof result === 'string') {
+                // Result might be the URL directly
+                imageUrl = result;
+                console.log('[FAL AI] Result is a string URL:', imageUrl);
+            }
+
+            if (!imageUrl) {
+                console.error('[FAL AI] ERROR: Could not extract image URL', { result, resultType: typeof result });
+                debug.log('[Upscale] Could not extract image URL from result', { result, resultType: typeof result });
+                throw new Error('No image URL in FAL AI response. Result: ' + JSON.stringify(result).substring(0, 200));
+            }
+
+            console.log('[FAL AI] Successfully extracted image URL:', imageUrl.substring(0, 100) + '...');
+            debug.log('[Upscale] Extracted image URL', { urlStart: imageUrl.substring(0, 50) });
+
+            const newImage = new window.Image();
+            newImage.crossOrigin = 'anonymous';
+            
+            let imageLoadTimeout: NodeJS.Timeout;
+            
+            newImage.onload = () => {
+                clearTimeout(imageLoadTimeout);
+                debug.log('[Upscale] Image loaded successfully');
+                
+                const upscaledObj = {
+                    id: generateObjectId(),
+                    image: newImage,
+                    x: selectedObject.x + selectedObject.image.width + 20,
+                    y: selectedObject.y,
+                    label: `${selectedObject.label || 'Image'} (Upscaled ${factor}x)`,
+                    isMainImage: false,
+                };
+                setCanvasObjects(prev => [...prev, upscaledObj]);
+                setSelectedObject(upscaledObj);
+
+                showAlert('Success', `Upscaled ${factor}x! ${creditCost} ${creditCost === 1 ? 'credit' : 'credits'} deducted.`, 'info', 'upscale');
+                setIsGenerating(false);
+                setGeneratingType(null);
+            };
+            
+            newImage.onerror = () => {
+                clearTimeout(imageLoadTimeout);
+                debug.log('[Upscale] Image load error');
+                showAlert('Error', 'Failed to load upscaled image', 'error', 'upscale');
+                setIsGenerating(false);
+                setGeneratingType(null);
+            };
+
+            // Set timeout for image loading (10 seconds)
+            imageLoadTimeout = setTimeout(() => {
+                debug.log('[Upscale] Image load timeout');
+                showAlert('Error', 'Image loading timed out', 'error', 'upscale');
+                setIsGenerating(false);
+                setGeneratingType(null);
+            }, 10000);
+
+            debug.log('[Upscale] Setting image source', { imageUrl: imageUrl.substring(0, 50) + '...' });
+            newImage.src = imageUrl;
         } catch (error) {
-            showAlert('Error', error instanceof Error ? error.message : 'Failed to upscale image', 'error', 'upscale');
+            const errorMessage = error instanceof Error ? error.message : 'Upscale failed';
+            debug.log('[Upscale] Error:', errorMessage);
+            showAlert('Error', errorMessage, 'error', 'upscale');
             setIsGenerating(false);
             setGeneratingType(null);
         }
+    };
+
+    const handleConfirmUpscaleModal = () => {
+        handleConfirmUpscale(upscaleModal.selectedFactor);
     };
 
     // Enhancement: Remove Background
@@ -3794,6 +3902,15 @@ export default function CanvasEditor(props: CanvasEditorProps) {
                 isDanger={confirmModal.isDanger}
             />
             
+            <UpscaleModal
+                isOpen={upscaleModal.isOpen}
+                selectedFactor={upscaleModal.selectedFactor}
+                onClose={() => setUpscaleModal({ isOpen: false, selectedFactor: 2 })}
+                onSelectFactor={(factor) => setUpscaleModal({ isOpen: true, selectedFactor: factor })}
+                onConfirm={handleConfirmUpscaleModal}
+                isLoading={isGenerating && generatingType === 'upscale'}
+            />
+
             {/* Toast notifications for action history */}
             {actionHistory.length > 0 && (
                 <div

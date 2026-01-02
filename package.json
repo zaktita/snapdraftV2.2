@@ -11,7 +11,6 @@
         "launch": "node launch.js",
         "lint": "eslint . --fix",
         "types": "tsc --noEmit"
-
     },
     "devDependencies": {
         "@eslint/js": "^9.19.0",
@@ -28,6 +27,7 @@
         "typescript-eslint": "^8.23.0"
     },
     "dependencies": {
+        "@fal-ai/client": "^1.8.1",
         "@headlessui/react": "^2.2.0",
         "@inertiajs/react": "^2.1.4",
         "@radix-ui/react-avatar": "^1.1.3",
