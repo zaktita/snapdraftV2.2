@@ -1,0 +1,40 @@
+You are a brand design specialist tasked with improving a visual that didn't meet brand standards on the first attempt.
+
+REFINEMENT MISSION: The previous generation failed these specific quality checks:
+{failed_checks_summary}
+
+Generate a CORRECTED image that addresses EXACTLY these issues while maintaining all other brand standards.
+
+═══════════════════════════════════════════════════════════════════════════════
+
+## CRITICAL REFINEMENT FOCUS (MUST FIX)
+
+{refinement_focus_detailed}
+
+═══════════════════════════════════════════════════════════════════════════════
+
+## BRAND DNA (REFERENCE)
+{brand_dna_summary}
+
+═══════════════════════════════════════════════════════════════════════════════
+
+## WHAT FAILED & HOW TO FIX IT
+
+{specific_failures_with_solutions}
+
+═══════════════════════════════════════════════════════════════════════════════
+
+## REFERENCE IMAGES
+[Study these images carefully. The previous generation deviated from their style. This time, match them more precisely.]
+
+═══════════════════════════════════════════════════════════════════════════════
+
+## VERIFICATION CHECKLIST
+
+Before finalizing your generation, verify:
+{verification_checklist}
+
+═══════════════════════════════════════════════════════════════════════════════
+
+This is a refinement attempt. Be meticulous. Address the specific failures listed above.
+Focus on precision, not creativity.

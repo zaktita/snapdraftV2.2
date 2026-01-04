@@ -88,26 +88,31 @@ class BrandReferenceAnalyzer
         $dna = $analysis['brand_dna'] ?? [];
 
         $lines = [];
-        $lines[] = 'Create a brand-true visual based on this caption: ' . trim($caption);
+
+        // High-priority goal
+        $lines[] = 'You are a brand-locked visual designer. Generate ONE image that is 100% on-brand for this caption: ' . trim($caption);
+        $lines[] = 'STRICT: Match the visual identity of the reference images exactly. Do not deviate from palette, typography, layout, or mood.';
 
         $colors = $this->listToLine($dna['visual_identity']['color_system']['primary_palette'] ?? []);
         $accents = $this->listToLine($dna['visual_identity']['color_system']['secondary_accents'] ?? []);
         $colorRules = $this->listToLine($dna['visual_identity']['color_system']['rules'] ?? []);
         if ($colors || $accents || $colorRules) {
-            $lines[] = 'Color system: primary ' . ($colors ?: 'brand palette') . '; accents ' . ($accents ?: 'minimal');
+            $lines[] = 'COLOR SYSTEM (STRICT): primary ' . ($colors ?: 'brand palette only') . '; accents ' . ($accents ?: 'minimal/none');
             if ($colorRules) {
                 $lines[] = 'Color rules: ' . $colorRules;
             }
+            $lines[] = 'Do not introduce new colors. Keep palette fidelity to references.';
         }
 
         $typography = $this->listToLine($dna['visual_identity']['typography']['headline'] ?? []);
         $body = $this->listToLine($dna['visual_identity']['typography']['body'] ?? []);
         $behavior = $this->listToLine($dna['visual_identity']['typography']['behavior'] ?? []);
         if ($typography || $body || $behavior) {
-            $lines[] = 'Typography: headlines ' . ($typography ?: 'brand headline style') . '; body ' . ($body ?: 'clean body style');
+            $lines[] = 'TYPOGRAPHY (STRICT): headlines ' . ($typography ?: 'brand headline style') . '; body ' . ($body ?: 'clean body style');
             if ($behavior) {
                 $lines[] = 'Type behavior: ' . $behavior;
             }
+            $lines[] = 'Maintain clear hierarchy: headlines dominant, body supportive. Do not swap font roles.';
         }
 
         $imagery = $this->listToLine($dna['imagery']['human_style'] ?? []);
@@ -116,7 +121,7 @@ class BrandReferenceAnalyzer
         $composition = $this->listToLine($dna['imagery']['composition_rules'] ?? []);
         $depth = $this->listToLine($dna['imagery']['depth_strategy'] ?? []);
         if ($imagery || $wardrobe || $emotion || $composition || $depth) {
-            $lines[] = 'Imagery: ' . ($imagery ?: 'brand subjects') . '; wardrobe ' . ($wardrobe ?: 'brand wardrobe');
+            $lines[] = 'IMAGERY: ' . ($imagery ?: 'brand subjects') . '; wardrobe ' . ($wardrobe ?: 'brand wardrobe');
             if ($emotion) {
                 $lines[] = 'Mood: ' . $emotion;
             }
@@ -132,7 +137,7 @@ class BrandReferenceAnalyzer
         $icons = $this->listToLine($dna['graphic_language']['icons_symbols'] ?? []);
         $iconStyle = $this->listToLine($dna['graphic_language']['icon_style'] ?? []);
         if ($ui || $icons || $iconStyle) {
-            $lines[] = 'Graphic language: ' . implode(' | ', array_filter([$ui, $icons, $iconStyle]));
+            $lines[] = 'GRAPHIC LANGUAGE: ' . implode(' | ', array_filter([$ui, $icons, $iconStyle]));
         }
 
         $layout = $this->listToLine($dna['layout_system']['structure'] ?? []);
@@ -140,24 +145,26 @@ class BrandReferenceAnalyzer
         $balance = $this->listToLine($dna['layout_system']['balance_logic'] ?? []);
         $flow = $this->listToLine($dna['layout_system']['reading_flow'] ?? []);
         if ($layout || $negativeSpace || $balance || $flow) {
-            $lines[] = 'Layout: ' . implode(' | ', array_filter([$layout, $negativeSpace, $balance, $flow]));
+            $lines[] = 'LAYOUT & SPACING: ' . implode(' | ', array_filter([$layout, $negativeSpace, $balance, $flow]));
+            $lines[] = 'Preserve whitespace and negative space as in references. Avoid overcrowding.';
         }
 
         $tone = $this->listToLine($dna['copywriting']['tone'] ?? []);
         $languagePatterns = $this->listToLine($dna['copywriting']['language_patterns'] ?? []);
         $formula = $this->listToLine($dna['copywriting']['formula'] ?? []);
         if ($tone || $languagePatterns || $formula) {
-            $lines[] = 'Copy tone: ' . implode(' | ', array_filter([$tone, $languagePatterns, $formula]));
+            $lines[] = 'COPY TONE: ' . implode(' | ', array_filter([$tone, $languagePatterns, $formula]));
         }
 
         $signature = $this->listToLine($dna['signature_elements'] ?? []);
         if ($signature) {
-            $lines[] = 'Signature elements to keep: ' . $signature;
+            $lines[] = 'SIGNATURE ELEMENTS (REQUIRED): ' . $signature;
+            $lines[] = 'Do not omit signature elements; they must be clearly visible.';
         }
 
         $checklist = $this->listToLine($dna['replication_checklist'] ?? []);
         if ($checklist) {
-            $lines[] = 'Replication checklist: ' . $checklist;
+            $lines[] = 'REPLICATION CHECKLIST: ' . $checklist;
         }
 
         $positioning = $dna['brand_positioning']['one_line_summary'] ?? null;
@@ -165,7 +172,9 @@ class BrandReferenceAnalyzer
             $lines[] = 'Brand promise: ' . $positioning;
         }
 
-        $lines[] = 'Output: one polished, photorealistic image, on-brand lighting, clean edges, no watermarks, no extra text unless requested.';
+        // Guardrails
+        $lines[] = 'DO NOT: invent new colors; change fonts; add watermarks; add extra bodies of text; use 3D/illustration if references are photo; alter composition away from references.';
+        $lines[] = 'Keep text minimal and spelled correctly. Maintain on-brand lighting and finish. Deliver one polished, photorealistic image.';
 
         return implode("\n", array_filter($lines));
     }
@@ -190,7 +199,12 @@ class BrandReferenceAnalyzer
      */
         protected function buildInstruction(): string
         {
-                return <<<'PROMPT'
+                // Use the enhanced analysis prompt (more detailed/quantified extraction)
+                $promptPath = app_path('Prompts/brand-analysis-enhanced.txt');
+
+                if (!file_exists($promptPath)) {
+                        // Fallback to the legacy inline prompt if the file is missing
+                        return <<<'PROMPT'
 You are a brand visual analyst. Analyze ALL provided images together. Return STRICT JSON ONLY in this exact shape:
 {
     "brand_dna": {
@@ -256,6 +270,9 @@ Rules:
 - Keep strings concise; prefer bullet-like phrases over sentences.
 - Do not omit keys; use [] or "" if truly unknown.
 PROMPT;
+                }
+
+                return file_get_contents($promptPath);
         }
 
     /**

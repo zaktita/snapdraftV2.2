@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Wizards;
 
 use App\Http\Controllers\Controller;
 use App\Services\AI\BrandReferenceAnalyzer;
+use App\Services\AI\FalBrandAnalyzer;
 use App\Services\AI\GoogleGeminiService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
@@ -14,6 +15,7 @@ class BrandAnalysisWizardController extends Controller
 {
     public function __construct(
         protected BrandReferenceAnalyzer $analyzer,
+        protected FalBrandAnalyzer $gpt52Analyzer,
         protected GoogleGeminiService $generator
     ) {
     }
@@ -35,12 +37,14 @@ class BrandAnalysisWizardController extends Controller
      */
     public function store(Request $request)
     {
+        set_time_limit(300);
+
         Gate::authorize('create', \App\Models\Project::class);
 
         $validated = $request->validate([
             'reference_images' => 'required|array|min:1|max:10',
             'reference_images.*' => 'required|image|mimes:jpeg,jpg,png,webp|max:10240',
-            'caption' => 'required|string|max:400',
+            'caption' => 'required|string',
             'format' => 'nullable|string|in:square,portrait,landscape',
         ]);
 
@@ -62,51 +66,82 @@ class BrandAnalysisWizardController extends Controller
             return back()->withErrors(['reference_images' => 'Could not read uploaded images']);
         }
 
-        // Step 1: Analyze brand DNA
-        $analysis = $this->analyzer->analyze($paths);
+        // Step 1: Analyze brand DNA with both models
+        $geminiAnalysis = $this->analyzer->analyze($paths);
+        
+        try {
+            $gpt52Analysis = $this->gpt52Analyzer->analyze($paths);
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error('GPT-5.2 analysis failed', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+            // Fallback: use Gemini analysis for GPT-5.2 slot
+            $gpt52Analysis = $geminiAnalysis;
+        }
 
-        // Annotate analysis images with file info
-        if (isset($analysis['images']) && is_array($analysis['images'])) {
-            foreach ($analysis['images'] as &$imageMeta) {
-                $index = $imageMeta['index'] ?? null;
-                if ($index !== null && isset($storedReferences[$index])) {
-                    $imageMeta['path'] = $storedReferences[$index]['path'];
-                    $imageMeta['url'] = $storedReferences[$index]['url'];
-                    $imageMeta['name'] = $storedReferences[$index]['name'];
+        // Annotate both analyses with file info
+        foreach ([$geminiAnalysis, $gpt52Analysis] as &$analysis) {
+            if (isset($analysis['images']) && is_array($analysis['images'])) {
+                foreach ($analysis['images'] as &$imageMeta) {
+                    $index = $imageMeta['index'] ?? null;
+                    if ($index !== null && isset($storedReferences[$index])) {
+                        $imageMeta['path'] = $storedReferences[$index]['path'];
+                        $imageMeta['url'] = $storedReferences[$index]['url'];
+                        $imageMeta['name'] = $storedReferences[$index]['name'];
+                    }
                 }
+                unset($imageMeta);
             }
-            unset($imageMeta);
+        }
+        unset($analysis);
+
+        // Step 2: Auto-select best references from BOTH analyses
+        $geminiSelectedPaths = $this->selectBestReferences($geminiAnalysis, $storedReferences);
+        if (empty($geminiSelectedPaths)) {
+            $geminiSelectedPaths = array_values(array_map(fn ($ref) => $ref['path'], $storedReferences));
         }
 
-        // Step 2: Auto-select best references (quality="good" + role="style_ref")
-        $selectedPaths = $this->selectBestReferences($analysis, $storedReferences);
-
-        if (empty($selectedPaths)) {
-            // Fallback: use all references if none marked as good style_ref
-            $selectedPaths = array_values(array_map(fn ($ref) => $ref['path'], $storedReferences));
+        $falSelectedPaths = $this->selectBestReferences($gpt52Analysis, $storedReferences);
+        if (empty($falSelectedPaths)) {
+            $falSelectedPaths = array_values(array_map(fn ($ref) => $ref['path'], $storedReferences));
         }
 
-        // Step 3: Build generation prompt from DNA + caption
-        $prompt = $this->analyzer->buildGenerationPrompt($analysis, $validated['caption']);
+        // Step 3: Build generation prompts from BOTH analyses
+        $geminiPrompt = $this->analyzer->buildGenerationPrompt($geminiAnalysis, $validated['caption']);
+        $falPrompt = $this->gpt52Analyzer->buildGenerationPrompt($gpt52Analysis, $validated['caption']);
 
-        // Step 4: Generate image
+        // Step 4: Generate images with BOTH prompts using Gemini Flash Image
         $format = $validated['format'] ?? 'square';
-        $generation = $this->generator->generateWithReferences(
-            $prompt,
-            array_slice($selectedPaths, 0, 5),
+        
+        $geminiGeneration = $this->generator->generateWithReferences(
+            $geminiPrompt,
+            array_slice($geminiSelectedPaths, 0, 5),
+            [],
+            $format,
+            false
+        );
+
+        $falGeneration = $this->generator->generateWithReferences(
+            $falPrompt,
+            array_slice($falSelectedPaths, 0, 5),
             [],
             $format,
             false
         );
 
         return Inertia::render('projects/wizards/brand-analysis', [
-            'result' => $analysis,
-            'generated_prompt' => $prompt,
-            'generated_image' => $generation,
+            'result' => $geminiAnalysis,
+            'fal_result' => $gpt52Analysis,
+            'gemini_prompt' => $geminiPrompt,
+            'fal_prompt' => $falPrompt,
+            'gemini_selected_paths' => $geminiSelectedPaths,
+            'fal_selected_paths' => $falSelectedPaths,
+            'gemini_generation' => $geminiGeneration,
+            'fal_generation' => $falGeneration,
             'count' => count($paths),
             'timestamp' => now()->toIso8601String(),
             'references' => array_values($storedReferences),
-            'selected_reference_paths' => $selectedPaths,
             'caption' => $validated['caption'],
             'format' => $format,
         ]);
@@ -117,10 +152,12 @@ class BrandAnalysisWizardController extends Controller
      */
     public function generate(Request $request)
     {
+        set_time_limit(300);
+
         Gate::authorize('create', \App\Models\Project::class);
 
         $validated = $request->validate([
-            'caption' => 'required|string|max:400',
+            'caption' => 'required|string',
             'analysis_json' => 'required|string',
             'reference_paths' => 'required|array|min:1|max:5',
             'reference_paths.*' => 'required|string',

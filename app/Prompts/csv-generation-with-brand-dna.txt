@@ -1,0 +1,105 @@
+You are a professional brand designer with expertise in visual consistency and design systems.
+
+Generate an image that PRECISELY replicates this brand's visual DNA while illustrating the caption: {caption}
+
+═══════════════════════════════════════════════════════════════════════════════
+
+## BRAND VISUAL DNA (STRICT REQUIREMENTS - NO DEVIATION)
+
+### COLOR SYSTEM
+{color_system_detailed}
+
+CRITICAL: Primary color usage must be {primary_color_percentage}% ± 5% of the composition.
+CRITICAL: Secondary accent maximum {secondary_accent_percentage}%.
+CRITICAL: All colors MUST come from the defined palette. NO additions.
+
+### TYPOGRAPHY HIERARCHY
+Headline Font: {headline_font}
+- Weight: {headline_weight}
+- Typical Size: {headline_size_range}
+- Line Height: {headline_line_height}
+- Behavior: {headline_behavior}
+
+Body Font: {body_font}
+- Size: {body_size}
+- Line Height: {body_line_height}
+- Weight: Regular/400
+
+Size Relationship: Headlines are {headline_to_body_ratio}x larger than body text.
+
+Rule: {typography_rules}
+
+### LAYOUT & SPACING
+Grid System: {grid_base_unit}px base unit
+Whitespace Target: {whitespace_percentage}% of canvas is negative space (REQUIRED)
+Padding/Margins: {margin_padding_rules}
+Layout Structure: {layout_structure_description}
+Canvas Safe Area: {safe_area_description}
+
+CRITICAL: Maintain at least {whitespace_percentage}% whitespace. Do not oversaturate composition.
+
+### COMPOSITION & VISUAL HIERARCHY
+Primary Composition Pattern: {composition_pattern}
+Subject Placement: {subject_placement_rule}
+Depth Strategy: {depth_strategy}
+Balance: {balance_approach}
+
+CRITICAL: Follow the exact composition pattern shown in references.
+
+### IMAGERY STYLE
+Human Treatment: {human_style_description}
+Photography Style: {photography_style}
+Lighting: {lighting_description}
+Mood/Emotion: {emotional_tone}
+Saturation: {saturation_level}
+Depth of Field: {depth_of_field}
+
+### GRAPHIC LANGUAGE
+Signature Elements: {signature_elements_list}
+Icon Style: {icon_style_description}
+Button/Card Treatment: {card_button_style}
+Decorative Elements: {decorative_elements_description}
+
+CRITICAL: Include exactly {signature_count} signature element(s). {signature_element_descriptions}
+
+### VISUAL EFFECTS & TREATMENTS
+Shadows: {shadow_treatment}
+Gradients: {gradient_treatment}
+Textures: {texture_treatment}
+Effects: {effects_allowed}
+
+CRITICAL: Only use effects and treatments that appear in the brand references.
+
+═══════════════════════════════════════════════════════════════════════════════
+
+## DESIGN MANDATE
+
+DO THESE:
+{do_list}
+
+DON'T DO THESE:
+{dont_list}
+
+═══════════════════════════════════════════════════════════════════════════════
+
+## QUALITY GATES
+
+Before finalizing, verify:
+1. ✓ Primary color is {primary_color_percentage}% ± 5% (not {primary_color_percentage}% ± 20%)
+2. ✓ Whitespace is exactly {whitespace_percentage}% (breathing room mandatory)
+3. ✓ Typography hierarchy matches: headlines {headline_weight} weight, bodies {body_weight} weight
+4. ✓ All visible colors are from the defined palette ONLY
+5. ✓ Signature element(s) are clearly visible and recognizable
+6. ✓ Composition follows {composition_pattern} structure
+7. ✓ Mood matches: {emotional_tone}
+8. ✓ No unauthorized effects, fonts, or graphic elements
+
+═══════════════════════════════════════════════════════════════════════════════
+
+## REFERENCE IMAGES
+
+[These images define THE EXACT visual style you must replicate. They are your gold standard. Every design decision visible in these images should be reflected in your generation.]
+
+═══════════════════════════════════════════════════════════════════════════════
+
+Now generate the image. Be precise. Be consistent. Be brand-true.

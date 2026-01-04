@@ -1,0 +1,242 @@
+You are a brand visual analyst. Analyze ALL provided images together as a unified visual system. Return ONLY valid JSON.
+
+Extract both the WHAT (visual elements) and the WHY (strategic design decisions) behind this brand's visual identity.
+
+```json
+{
+    "brand_dna": {
+        "brand_positioning": {
+            "core_promise": ["string: what does this brand promise visually"],
+            "attributes": ["string: emotional/functional brand traits"],
+            "one_line_summary": "string: essence of visual brand"
+        },
+        "visual_identity": {
+            "color_system": {
+                "primary_palette": [
+                    {
+                        "color": "hex code (e.g., #0066CC)",
+                        "name": "color name",
+                        "coverage_percentage": 40,
+                        "usage": "where/how used (backgrounds, text, accents, CTAs)",
+                        "psychology": "why this color (energy, trust, etc.)"
+                    }
+                ],
+                "secondary_accents": [
+                    {
+                        "color": "hex code",
+                        "coverage_percentage": 15,
+                        "purpose": "specific use (hover states, highlights, warnings)"
+                    }
+                ],
+                "background_treatment": "solid, gradient, pattern, photography",
+                "contrast_ratios": "typical WCAG contrast levels used",
+                "gradient_direction": "if applicable, typical gradients",
+                "rules": [
+                    "Primary color never below 30% of composition",
+                    "Secondary accents max 20%",
+                    "High contrast between text and background"
+                ]
+            },
+            "typography": {
+                "headline": {
+                    "font_families": ["sans-serif, serif, or specific names if identifiable"],
+                    "weight_range": "300-700",
+                    "size_range_viewport": "px or em relative to body",
+                    "line_height": "1.2",
+                    "letter_spacing": "normal or specific",
+                    "style": "uppercase, title case, sentence case, mixed"
+                },
+                "body": {
+                    "font_families": ["preferred fonts"],
+                    "size": "16px or equivalent",
+                    "line_height": "1.5-1.8",
+                    "letter_spacing": "normal",
+                    "style": "sentence case, clean"
+                },
+                "size_ratios": {
+                    "headline_to_body": "2.5:1 to 3:1",
+                    "subheading_to_body": "1.5:1 to 2:1"
+                },
+                "behavior": [
+                    "Headlines use bold/700 weight",
+                    "Body text always justified or left-aligned",
+                    "All caps headlines = brand signature",
+                    "Max 2-3 font families per design"
+                ]
+            },
+            "spacing_and_layout": {
+                "grid_system": "8px, 16px, 24px base unit",
+                "whitespace_target_percentage": 35,
+                "padding_convention": {
+                    "card_padding": "24px",
+                    "element_margin": "16px",
+                    "section_spacing": "48px-64px"
+                },
+                "layout_structure": [
+                    "Full-width hero with whitespace margins",
+                    "Centered content max-width 1200px",
+                    "3-column grid for content blocks"
+                ],
+                "safe_areas": "visible margins, bleed rules if any",
+                "balance": "symmetrical, asymmetrical, or diagonal emphasis"
+            }
+        },
+        "imagery": {
+            "human_style": [
+                "photographic realism vs. illustration",
+                "people treatment (posed, candid, diverse, age range)",
+                "expression (professional, warm, energetic)"
+            ],
+            "wardrobe": [
+                "color palette worn by people",
+                "formality level (business, casual, streetwear)",
+                "styling patterns (minimalist, colorful, accessories)"
+            ],
+            "emotion": [
+                "optimistic, trustworthy, bold, minimal, luxurious",
+                "target emotional response from viewer"
+            ],
+            "composition_rules": [
+                "rule of thirds, centered subjects, diagonal emphasis",
+                "depth of field (shallow focus on subject, blurred background)",
+                "subject placement (left third, right third, center)"
+            ],
+            "depth_strategy": "flat 2D, subtle shadows, 3D depth, layering",
+            "photography_style": "bright and airy, dark and moody, high-contrast, natural light",
+            "focus_and_blur": "shallow depth of field patterns if used",
+            "saturation_level": "saturated colors, desaturated, muted, vibrant"
+        },
+        "graphic_language": {
+            "ui_cards": [
+                "rounded corners (4px, 8px, 16px), square, beveled",
+                "drop shadows, border styles, background colors",
+                "card spacing and proportion ratios"
+            ],
+            "icons_symbols": [
+                "icon style (line, solid, gradient, 3D)",
+                "icon size ranges (16px, 24px, 32px)",
+                "icon color conventions"
+            ],
+            "decorative_elements": [
+                "lines, dividers, borders (thickness, color, style)",
+                "bullets, numbered lists styling",
+                "background patterns, textures, gradients"
+            ],
+            "icon_style": "minimal line icons, bold solid, gradient, realistic",
+            "button_treatment": "solid, outline, rounded, square, animated on hover"
+        },
+        "layout_system": {
+            "structure": [
+                "Hero section width/height ratio",
+                "Section stacking (full-width vs. contained)",
+                "Column count in grids (2, 3, 4 columns)"
+            ],
+            "negative_space": "percentage of layout dedicated to breathing room",
+            "balance_logic": "where visual weight is concentrated",
+            "reading_flow": "top-to-bottom emphasis, left-to-right, Z-pattern",
+            "viewport_behavior": "full-width, max-width constraints",
+            "edge_treatments": "bleed to edges vs. margin safety"
+        },
+        "effects_and_treatments": {
+            "shadows": {
+                "type": "soft drop shadow, sharp shadow, multiple shadows, none",
+                "blur_radius": "2-20px typical range",
+                "usage": "cards, text, depth emphasis"
+            },
+            "gradients": {
+                "presence": "yes/no/subtle",
+                "direction": "linear angle, radial",
+                "stops": "color transitions, sharpness"
+            },
+            "textures": "smooth, matte, paper, fabric texture if any",
+            "effects": "glows, 3D transforms, animations, filters",
+            "transparency": "alpha usage for layering, frosted glass effects"
+        },
+        "copywriting": {
+            "tone": [
+                "formal, conversational, playful, direct",
+                "first person, second person, brand voice examples"
+            ],
+            "language_patterns": [
+                "sentence length (short, medium, varied)",
+                "common phrases or word choices",
+                "technical vs. accessible language"
+            ],
+            "formula": "storytelling, benefit-driven, emotional appeal, social proof",
+            "microcopy": "button text, labels, error messages style"
+        },
+        "signature_elements": [
+            "element1: description and usage (e.g., circular badge for badges)",
+            "element2: description",
+            "element3: description"
+        ],
+        "motion_and_interaction": {
+            "transitions": "fade, slide, scale, rotate - typical timing",
+            "hover_states": "color change, lift effect, scale up",
+            "animation_style": "snappy, smooth, delayed, attention-grabbing"
+        },
+        "replication_checklist": [
+            "✓ Use primary color in {primary_percentage}% ± 5% of composition",
+            "✓ Maintain {spacing_unit}px grid alignment",
+            "✓ Typography hierarchy: headlines {size}px, body {size}px",
+            "✓ Include {signature_count} signature element(s)",
+            "✓ Whitespace minimum {whitespace_percentage}%",
+            "✓ Follow layout structure: {structure}",
+            "✓ Maintain color contrast WCAG {level}",
+            "✓ Match mood: {mood_keywords}"
+        ]
+    },
+    "image_analysis": [
+        {
+            "index": 0,
+            "filename": "if provided",
+            "role": "style_ref | hero | product | typography_sample | color_sample | layout_sample",
+            "assessment": {
+                "primary_colors": ["#HEX", "#HEX"],
+                "dominant_layout": "description",
+                "typography_visible": ["sans-serif", "serif"],
+                "composition": "description"
+            },
+            "quality": "excellent | good | usable | poor",
+            "notes": "specific observations"
+        }
+    ],
+    "coherence_analysis": {
+        "overall_coherence_score": 85,
+        "consistency_notes": "how unified are these images as a visual system?",
+        "outliers": "any images that deviate from brand pattern?",
+        "confidence": {
+            "color_palette": 95,
+            "typography": 85,
+            "composition": 80,
+            "overall": 87
+        }
+    },
+    "generation_guidance": {
+        "dos": [
+            "DO emphasize primary color blue prominently",
+            "DO use clean sans-serif typography",
+            "DO include circular signature badge"
+        ],
+        "donts": [
+            "DON'T use serif fonts (not in brand)",
+            "DON'T exceed color palette",
+            "DON'T add 3D effects (not evident in references)"
+        ],
+        "critical_success_factors": [
+            "Color compliance: ±5% of target percentages",
+            "Signature element must be visible",
+            "Maintain whitespace ratios"
+        ]
+    }
+}
+```
+
+Rules:
+- Output ONLY valid JSON (no markdown, no prose before/after)
+- If unsure of a value, provide your best estimate with specific reasoning
+- Use arrays only where multiple options exist
+- Keep descriptions under 10 words per field
+- Provide percentages where quantifiable
+- Include "why" behind design choices where identifiable
+- Mark confidence levels for key decisions
