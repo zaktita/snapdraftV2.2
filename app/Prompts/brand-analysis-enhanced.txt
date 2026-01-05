@@ -1,9 +1,27 @@
-You are a brand visual analyst. Analyze ALL provided images together as a unified visual system. Return ONLY valid JSON.
+You are an expert brand visual analyst. Analyze ALL provided images together as a unified visual system.
 
-Extract both the WHAT (visual elements) and the WHY (strategic design decisions) behind this brand's visual identity.
+Your tasks:
+1. Detect distinct STYLE CLUSTERS (group images by visual similarity)
+2. Extract exhaustive ELEMENT PRESENCE per image (text, visual, layout, meta elements)
+3. Classify LAYOUT PATTERNS and complexity
+4. Extract detailed BRAND DNA (colors, typography, spacing, mood)
+
+Return ONLY valid JSON in this exact structure:
 
 ```json
 {
+    "style_clusters": [
+        {
+            "cluster_id": 1,
+            "name": "string (e.g., 'Modern Minimal Blue', 'Warm Gradient Orange')",
+            "image_indices": [0, 2, 5],
+            "coherence_score": 95,
+            "dominant_colors": ["#HEX", "#HEX"],
+            "typography_style": "string",
+            "mood": "string",
+            "layout_pattern": "string"
+        }
+    ],
     "brand_dna": {
         "brand_positioning": {
             "core_promise": ["string: what does this brand promise visually"],
@@ -190,7 +208,105 @@ Extract both the WHAT (visual elements) and the WHY (strategic design decisions)
         {
             "index": 0,
             "filename": "if provided",
+            "cluster_id": 1,
             "role": "style_ref | hero | product | typography_sample | color_sample | layout_sample",
+            "layout_complexity": "simple | moderate | complex",
+            "elements_detected": {
+                "text_elements": {
+                    "headline": true,
+                    "subheadline": true,
+                    "body_text": true,
+                    "tagline": false,
+                    "quote": false,
+                    "testimonial": false,
+                    "caption": false,
+                    "fine_print": false
+                },
+                "temporal_elements": {
+                    "date": false,
+                    "time": false,
+                    "duration": false,
+                    "deadline": false,
+                    "schedule": false,
+                    "calendar": false
+                },
+                "location_elements": {
+                    "venue_name": false,
+                    "address": false,
+                    "city": false,
+                    "map": false,
+                    "directions": false
+                },
+                "people_elements": {
+                    "headshot": false,
+                    "group_photo": false,
+                    "speaker_name": false,
+                    "speaker_title": false,
+                    "speaker_company": false,
+                    "person_count": 0
+                },
+                "ecommerce_elements": {
+                    "product_image": false,
+                    "price": false,
+                    "sale_price": false,
+                    "discount_badge": false,
+                    "rating_stars": false,
+                    "review_count": false,
+                    "product_specs": false,
+                    "size_selector": false,
+                    "color_swatches": false,
+                    "inventory_status": false,
+                    "shipping_info": false
+                },
+                "marketing_elements": {
+                    "cta_button": false,
+                    "cta_text": "",
+                    "social_proof": false,
+                    "statistic": false,
+                    "percentage": false,
+                    "badge": false,
+                    "award": false,
+                    "certification": false,
+                    "trust_seal": false
+                },
+                "branding_elements": {
+                    "logo": false,
+                    "logo_position": "",
+                    "tagline": false,
+                    "brand_color_blocks": false,
+                    "watermark": false,
+                    "qr_code": false,
+                    "social_handles": false,
+                    "website_url": false
+                },
+                "creative_artistic_elements": {
+                    "illustration": false,
+                    "abstract_shapes": false,
+                    "pattern": false,
+                    "texture": false,
+                    "artistic_filter": false,
+                    "hand_drawn_elements": false,
+                    "brush_strokes": false,
+                    "collage": false
+                },
+                "data_visualization": {
+                    "chart": false,
+                    "graph": false,
+                    "infographic": false,
+                    "timeline": false,
+                    "progress_bar": false,
+                    "icon_grid": false
+                },
+                "interactive_ui": {
+                    "form_fields": false,
+                    "dropdown": false,
+                    "checkbox": false,
+                    "radio_button": false,
+                    "slider": false,
+                    "tabs": false,
+                    "accordion": false
+                }
+            },
             "assessment": {
                 "primary_colors": ["#HEX", "#HEX"],
                 "dominant_layout": "description",

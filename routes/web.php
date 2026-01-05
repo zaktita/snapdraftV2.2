@@ -11,6 +11,7 @@ use App\Http\Controllers\Wizards\ImagesWizardController;
 use App\Http\Controllers\Wizards\TextWizardController;
 use App\Http\Controllers\Wizards\BrandAnalysisWizardController;
 use App\Http\Controllers\SimpleTextWizardController;
+use App\Http\Controllers\BrandAnalysisTestController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 use Laravel\Fortify\Features;
@@ -173,6 +174,11 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::post('/downgrade', [\App\Http\Controllers\SubscriptionController::class, 'downgrade'])->name('downgrade');
         Route::post('/purchase-credits', [\App\Http\Controllers\SubscriptionController::class, 'purchaseCredits'])->name('purchase-credits');
     });
+
+    // Brand Analysis Test UI
+    Route::get('test/brand-analysis', [BrandAnalysisTestController::class, 'index'])->name('test.brand-analysis.index');
+    Route::post('test/brand-analysis', [BrandAnalysisTestController::class, 'store'])->name('test.brand-analysis.store');
+    Route::post('test/brand-analysis/caption', [BrandAnalysisTestController::class, 'testCaption'])->name('test.brand-analysis.caption');
 });
 
 // Stripe Webhook (outside auth middleware)

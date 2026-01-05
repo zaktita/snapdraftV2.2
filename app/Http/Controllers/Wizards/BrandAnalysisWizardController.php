@@ -6,6 +6,8 @@ use App\Http\Controllers\Controller;
 use App\Services\AI\BrandReferenceAnalyzer;
 use App\Services\AI\FalBrandAnalyzer;
 use App\Services\AI\GoogleGeminiService;
+use App\Services\CaptionAnalyzer;
+use App\Services\IntelligentReferenceSelector;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Storage;
@@ -16,7 +18,9 @@ class BrandAnalysisWizardController extends Controller
     public function __construct(
         protected BrandReferenceAnalyzer $analyzer,
         protected FalBrandAnalyzer $gpt52Analyzer,
-        protected GoogleGeminiService $generator
+        protected GoogleGeminiService $generator,
+        protected CaptionAnalyzer $captionAnalyzer,
+        protected IntelligentReferenceSelector $referenceSelector
     ) {
     }
 
@@ -45,7 +49,10 @@ class BrandAnalysisWizardController extends Controller
             'reference_images' => 'required|array|min:1|max:10',
             'reference_images.*' => 'required|image|mimes:jpeg,jpg,png,webp|max:10240',
             'caption' => 'required|string',
+            'title' => 'nullable|string|max:255',
+            'description' => 'nullable|string|max:1000',
             'format' => 'nullable|string|in:square,portrait,landscape',
+            'force_continue' => 'nullable|boolean',
         ]);
 
         $storedReferences = [];
@@ -57,7 +64,7 @@ class BrandAnalysisWizardController extends Controller
 
             $storedReferences[$index] = [
                 'path' => $storedPath,
-                'url' => Storage::disk('public')->url($storedPath),
+                'url' => 'http://127.0.0.1:8000/storage/' . $storedPath,
                 'name' => $file->getClientOriginalName(),
             ];
         }
@@ -66,7 +73,15 @@ class BrandAnalysisWizardController extends Controller
             return back()->withErrors(['reference_images' => 'Could not read uploaded images']);
         }
 
-        // Step 1: Analyze brand DNA with both models
+        // Step 1: Analyze caption requirements
+        $captionAnalysis = $this->captionAnalyzer->analyze(
+            $validated['caption'],
+            $validated['title'] ?? null,
+            $validated['description'] ?? null,
+            $validated['format'] ?? null
+        );
+
+        // Step 2: Analyze brand DNA with both models
         $geminiAnalysis = $this->analyzer->analyze($paths);
         
         try {
@@ -82,8 +97,11 @@ class BrandAnalysisWizardController extends Controller
 
         // Annotate both analyses with file info
         foreach ([$geminiAnalysis, $gpt52Analysis] as &$analysis) {
-            if (isset($analysis['images']) && is_array($analysis['images'])) {
-                foreach ($analysis['images'] as &$imageMeta) {
+            // Support both old 'images' and new 'image_analysis' keys
+            $imageKey = isset($analysis['image_analysis']) ? 'image_analysis' : 'images';
+            
+            if (isset($analysis[$imageKey]) && is_array($analysis[$imageKey])) {
+                foreach ($analysis[$imageKey] as &$imageMeta) {
                     $index = $imageMeta['index'] ?? null;
                     if ($index !== null && isset($storedReferences[$index])) {
                         $imageMeta['path'] = $storedReferences[$index]['path'];
@@ -96,22 +114,36 @@ class BrandAnalysisWizardController extends Controller
         }
         unset($analysis);
 
-        // Step 2: Auto-select best references from BOTH analyses
-        $geminiSelectedPaths = $this->selectBestReferences($geminiAnalysis, $storedReferences);
+        // Step 3: Intelligent reference selection
+        $geminiSelection = $this->referenceSelector->selectBestReferences($geminiAnalysis, $captionAnalysis, 5);
+        $falSelection = $this->referenceSelector->selectBestReferences($gpt52Analysis, $captionAnalysis, 5);
+
+        // Check for mismatches (unless user forced continue)
+        if (!($validated['force_continue'] ?? false)) {
+            if ($geminiSelection['mismatch_warning'] || $falSelection['mismatch_warning']) {
+                return back()->withInput()->with([
+                    'mismatch_warning' => true,
+                    'mismatch_details' => $geminiSelection['mismatch_details'] . ' ' . $falSelection['mismatch_details'],
+                    'caption_analysis' => $captionAnalysis,
+                ]);
+            }
+        }
+
+        $geminiSelectedPaths = array_map(fn($img) => $img['path'], $geminiSelection['selected']);
         if (empty($geminiSelectedPaths)) {
             $geminiSelectedPaths = array_values(array_map(fn ($ref) => $ref['path'], $storedReferences));
         }
 
-        $falSelectedPaths = $this->selectBestReferences($gpt52Analysis, $storedReferences);
+        $falSelectedPaths = array_map(fn($img) => $img['path'], $falSelection['selected']);
         if (empty($falSelectedPaths)) {
             $falSelectedPaths = array_values(array_map(fn ($ref) => $ref['path'], $storedReferences));
         }
 
-        // Step 3: Build generation prompts from BOTH analyses
+        // Step 4: Build generation prompts from BOTH analyses
         $geminiPrompt = $this->analyzer->buildGenerationPrompt($geminiAnalysis, $validated['caption']);
         $falPrompt = $this->gpt52Analyzer->buildGenerationPrompt($gpt52Analysis, $validated['caption']);
 
-        // Step 4: Generate images with BOTH prompts using Gemini Flash Image
+        // Step 5: Generate images with BOTH prompts using Gemini Flash Image
         $format = $validated['format'] ?? 'square';
         
         $geminiGeneration = $this->generator->generateWithReferences(
@@ -133,6 +165,9 @@ class BrandAnalysisWizardController extends Controller
         return Inertia::render('projects/wizards/brand-analysis', [
             'result' => $geminiAnalysis,
             'fal_result' => $gpt52Analysis,
+            'caption_analysis' => $captionAnalysis,
+            'gemini_selection' => $geminiSelection,
+            'fal_selection' => $falSelection,
             'gemini_prompt' => $geminiPrompt,
             'fal_prompt' => $falPrompt,
             'gemini_selected_paths' => $geminiSelectedPaths,
@@ -158,10 +193,13 @@ class BrandAnalysisWizardController extends Controller
 
         $validated = $request->validate([
             'caption' => 'required|string',
+            'title' => 'nullable|string|max:255',
+            'description' => 'nullable|string|max:1000',
             'analysis_json' => 'required|string',
             'reference_paths' => 'required|array|min:1|max:5',
             'reference_paths.*' => 'required|string',
             'format' => 'nullable|string|in:square,portrait,landscape',
+            'force_continue' => 'nullable|boolean',
         ]);
 
         $analysis = json_decode($validated['analysis_json'], true);
@@ -169,7 +207,30 @@ class BrandAnalysisWizardController extends Controller
             return back()->withErrors(['analysis_json' => 'Could not read brand analysis JSON'])->withInput();
         }
 
-        $referencePaths = collect($validated['reference_paths'] ?? [])
+        // Analyze caption requirements (cached)
+        $captionAnalysis = $this->captionAnalyzer->analyze(
+            $validated['caption'],
+            $validated['title'] ?? null,
+            $validated['description'] ?? null,
+            $validated['format'] ?? null
+        );
+
+        // Re-select best references based on new caption
+        $selection = $this->referenceSelector->selectBestReferences($analysis, $captionAnalysis, 5);
+
+        // Check for mismatches (unless user forced continue)
+        if (!($validated['force_continue'] ?? false) && $selection['mismatch_warning']) {
+            return back()->withInput()->with([
+                'mismatch_warning' => true,
+                'mismatch_details' => $selection['mismatch_details'],
+                'caption_analysis' => $captionAnalysis,
+            ]);
+        }
+
+        $selectedPaths = array_map(fn($img) => $img['path'], $selection['selected']);
+
+        // Fallback: use validated reference paths if intelligent selection fails
+        $referencePaths = !empty($selectedPaths) ? $selectedPaths : collect($validated['reference_paths'] ?? [])
             ->filter(function ($path) {
                 return Storage::disk('public')->exists($path) || file_exists($path);
             })
@@ -195,13 +256,15 @@ class BrandAnalysisWizardController extends Controller
         $references = collect($referencePaths)->map(function ($path) {
             return [
                 'path' => $path,
-                'url' => Storage::disk('public')->url($path),
+                'url' => 'http://127.0.0.1:8000/storage/' . $path,
                 'name' => basename($path),
             ];
         })->all();
 
         return Inertia::render('projects/wizards/brand-analysis', [
             'result' => $analysis,
+            'caption_analysis' => $captionAnalysis,
+            'selection' => $selection,
             'generated_prompt' => $prompt,
             'generated_image' => $generation,
             'count' => count($referencePaths),
