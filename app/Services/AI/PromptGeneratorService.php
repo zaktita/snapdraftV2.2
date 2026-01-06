@@ -47,11 +47,11 @@ class PromptGeneratorService
         array $analysis,
         string $caption,
         ?string $title = null,
-        ?string $description = null
+        ?string $description = null,
+        ?array $selectedReferenceIndices = null
     ): array {
         if (!$this->apiKey) {
             throw new RuntimeException('OpenRouter API key not configured');
-                    ?array $selectedReferenceIndices = null
         }
 
         $clusters = $analysis['style_clusters'] ?? [];
@@ -71,10 +71,9 @@ class PromptGeneratorService
             $requestList[] = [
                 'model' => $model,
                 'start_time' => $startTime,
-                'request' => $this->buildRequest($model, $caption, $title, $description, $clusterDescription, $clusters),
+                'request' => $this->buildRequest($model, $caption, $title, $description, $clusterDescription, $clusters, $selectedReferenceIndices),
             ];
         }
-                            'request' => $this->buildRequest($model, $caption, $title, $description, $clusterDescription, $clusters, $selectedReferenceIndices),
         // Execute all requests in parallel
         $poolResponses = Http::pool(function ($pool) use ($requestList) {
             foreach ($requestList as $item) {
@@ -181,7 +180,6 @@ class PromptGeneratorService
         foreach ($clusters as $cluster) {
             $clusterInfo = [];
             $clusterInfo[] = "Cluster {$cluster['cluster_id']}: {$cluster['name']}";
-                    ?array $selectedReferenceIndices
             $clusterInfo[] = "  - Images: " . implode(', ', $cluster['image_indices'] ?? []);
             $clusterInfo[] = "  - Coherence: " . ($cluster['coherence_score'] ?? 'N/A') . "%";
             $clusterInfo[] = "  - Mood: " . ($cluster['mood'] ?? 'neutral');
@@ -204,11 +202,11 @@ class PromptGeneratorService
         ?string $title,
         ?string $description,
         string $clusterDescription,
-        array $clusters
+        array $clusters,
+        ?array $selectedReferenceIndices = null
     ): array {
-        $prompt = $this->buildSystemPrompt($caption, $title, $description, $clusterDescription, $clusters);
+        $prompt = $this->buildSystemPrompt($caption, $title, $description, $clusterDescription, $clusters, $selectedReferenceIndices);
 
-                    ?array $selectedReferenceIndices
         return [
             'model' => $model,
             'messages' => [
@@ -231,7 +229,8 @@ class PromptGeneratorService
         ?string $title,
         ?string $description,
         string $clusterDescription,
-        array $clusters
+        array $clusters,
+        ?array $selectedReferenceIndices = null
     ): string {
         $lines = [];
         $lines[] = 'You are a creative visual designer generating one short, high-precision prompt for an image model.';
@@ -254,6 +253,17 @@ class PromptGeneratorService
         $lines[] = $clusterDescription;
         $lines[] = '';
         $lines[] = 'IMPORTANT: The image generator WILL receive the reference images alongside your prompt. Your prompt must explicitly tell it to mirror their style.';
+        if (!empty($selectedReferenceIndices)) {
+            $main = $selectedReferenceIndices[0] ?? null;
+            $supports = array_values(array_slice($selectedReferenceIndices, 1));
+            $lines[] = 'USE THESE SELECTED REFERENCES:';
+            if ($main !== null) {
+                $lines[] = "- Main style anchor image: index {$main}";
+            }
+            if (!empty($supports)) {
+                $lines[] = '- Supporting reference indices: ' . implode(', ', $supports);
+            }
+        }
         $lines[] = '';
         $lines[] = 'WRITE THE PROMPT WITH THESE RULES:';
         $lines[] = '- Start with: "Match the exact visual style and branding of the provided reference images."';
