@@ -1216,7 +1216,7 @@ export default function CanvasEditor(props: CanvasEditorProps) {
             const dx = (x - cropDragStart.x) / scale;
             const dy = (y - cropDragStart.y) / scale;
 
-            let newRect = { ...cropRect };
+            const newRect = { ...cropRect };
 
             switch (cropDragHandle) {
                 case 'move':

@@ -1,4 +1,4 @@
-import { FormEvent, useMemo, useState } from 'react';
+import { FormEvent, useMemo, useState, useEffect } from 'react';
 import { Head, Link, usePage } from '@inertiajs/react';
 import { router } from '@inertiajs/react';
 import { Button } from '@/components/ui/button';
@@ -72,6 +72,24 @@ interface BrandAnalysisResult {
     };
 }
 
+interface PromptResult {
+    model: string;
+    status: 'success' | 'failed';
+    duration_ms: number;
+    cost?: number;
+    error?: string;
+    cluster_id?: number;
+    cluster_name?: string;
+    prompt?: string;
+    raw_response?: string;
+}
+
+interface PromptResults {
+    successful: PromptResult[];
+    failed: PromptResult[];
+    total_cost: number;
+}
+
 interface PageProps {
     result?: BrandAnalysisResult | null;
     references?: Array<{ path: string; url: string; name: string }>;
@@ -79,16 +97,46 @@ interface PageProps {
     caption_analysis?: any;
     selection_result?: any;
     test_caption?: string;
+    prompt_results?: PromptResults;
     [key: string]: any;
 }
 
 export default function BrandAnalysisTest() {
-    const { result, references, caption_analysis, selection_result, test_caption } = usePage<PageProps>().props;
+    const { result: propsResult, references, caption_analysis, selection_result, test_caption, prompt_results } = usePage<PageProps>().props;
+    const [result, setResult] = useState<BrandAnalysisResult | null>(null);
     const [isLoading, setIsLoading] = useState(false);
     const [selectedFile, setSelectedFile] = useState<FileList | null>(null);
     const [caption, setCaption] = useState('');
     const [title, setTitle] = useState('');
     const [description, setDescription] = useState('');
+
+    // Debug logging
+    useEffect(() => {
+        console.log('Component props updated:', {
+            hasPropsResult: !!propsResult,
+            hasPromptResults: !!prompt_results,
+            promptResultsStructure: prompt_results,
+        });
+    }, [propsResult, prompt_results]);
+
+    // Initialize from props or localStorage on first mount
+    useEffect(() => {
+        if (propsResult) {
+            // Props take priority
+            setResult(propsResult);
+            localStorage.setItem('brand_analysis_test_result', JSON.stringify(propsResult));
+        } else {
+            // Try to restore from localStorage
+            const stored = localStorage.getItem('brand_analysis_test_result');
+            if (stored) {
+                try {
+                    setResult(JSON.parse(stored));
+                } catch {
+                    console.error('Failed to parse stored analysis');
+                }
+            }
+        }
+    }, [propsResult]);
 
     const handleFileChange = (e: FormEvent<HTMLInputElement>) => {
         const target = e.currentTarget;
@@ -122,6 +170,11 @@ export default function BrandAnalysisTest() {
             return;
         }
 
+        if (!result) {
+            alert('Please upload and analyze images first');
+            return;
+        }
+
         const formData = new FormData();
         formData.append('caption', caption);
         formData.append('title', title);
@@ -130,7 +183,18 @@ export default function BrandAnalysisTest() {
 
         setIsLoading(true);
         router.post('/test/brand-analysis/caption', formData as any, {
-            onFinish: () => setIsLoading(false),
+            preserveScroll: true,
+            onSuccess: (page) => {
+                console.log('Caption analysis successful:', page.props);
+            },
+            onError: (errors) => {
+                console.error('Caption analysis error:', errors);
+                alert('Error: ' + Object.values(errors).flat().join(', '));
+            },
+            onFinish: () => {
+                console.log('Caption analysis finished');
+                setIsLoading(false);
+            },
         });
     };
 
@@ -237,9 +301,23 @@ export default function BrandAnalysisTest() {
             <Head title="Brand Analysis Test" />
 
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                <div className="mb-8">
-                    <h1 className="text-4xl font-bold text-gray-900 mb-2">Brand Analysis Test UI</h1>
-                    <p className="text-gray-600">Upload reference images to visualize style clustering and element detection</p>
+                <div className="mb-8 flex items-center justify-between">
+                    <div>
+                        <h1 className="text-4xl font-bold text-gray-900 mb-2">Brand Analysis Test UI</h1>
+                        <p className="text-gray-600">Upload reference images to visualize style clustering and element detection</p>
+                    </div>
+                    {result && (
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                                localStorage.removeItem('brand_analysis_test_result');
+                                setResult(null);
+                            }}
+                        >
+                            Clear Cache
+                        </Button>
+                    )}
                 </div>
 
                 {/* Upload Section */}
@@ -345,6 +423,136 @@ export default function BrandAnalysisTest() {
                                     {isLoading ? 'Analyzing...' : 'Test Caption Matching'}
                                 </Button>
                             </form>
+                        </CardContent>
+                    </Card>
+                )}
+
+                {/* Model Prompt Results - Show after caption testing */}
+                {(() => {
+                    console.log('Checking prompt results display condition:', {
+                        hasPromptResults: !!prompt_results,
+                        successfulLength: prompt_results?.successful?.length,
+                        failedLength: prompt_results?.failed?.length,
+                        shouldDisplay: !!(prompt_results && (prompt_results.successful?.length > 0 || prompt_results.failed?.length > 0)),
+                    });
+                    return null;
+                })()}
+                {prompt_results && (prompt_results.successful?.length > 0 || prompt_results.failed?.length > 0) && (
+                    <Card className="border-blue-200 bg-blue-50">
+                        <CardHeader>
+                            <CardTitle className="text-blue-900">🤖 AI Model Prompt Generation Results</CardTitle>
+                            <CardDescription className="text-blue-700">
+                                {prompt_results.successful?.length || 0} model(s) successfully generated prompts
+                                {prompt_results.failed?.length > 0 && ` • ${prompt_results.failed.length} model(s) failed`}
+                            </CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                            {/* Show failed models first if all failed */}
+                            {prompt_results.failed && prompt_results.failed.length > 0 && prompt_results.successful?.length === 0 && (
+                                <div className="mb-6">
+                                    <Alert className="border-red-400 bg-red-50">
+                                        <AlertCircle className="h-4 w-4 text-red-600" />
+                                        <AlertDescription className="text-red-800">
+                                            <strong>All models failed to generate prompts.</strong> See details below:
+                                        </AlertDescription>
+                                    </Alert>
+                                    <div className="mt-4 space-y-2">
+                                        {prompt_results.failed.map((result, idx) => (
+                                            <div key={`failed-${idx}`} className="bg-white p-4 rounded border border-red-200">
+                                                <div className="flex items-center justify-between mb-2">
+                                                    <span className="font-semibold text-gray-900">{result.model}</span>
+                                                    <Badge variant="destructive">Failed</Badge>
+                                                </div>
+                                                <div className="text-sm text-red-600">{result.error}</div>
+                                                <div className="text-xs text-gray-500 mt-1">Duration: {result.duration_ms}ms</div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+
+                            {prompt_results.successful && prompt_results.successful.length > 0 && (
+                            <Tabs defaultValue={`model-${prompt_results.successful[0]?.model}`} className="w-full">
+                                <TabsList className="grid w-full" style={{ gridTemplateColumns: `repeat(${Math.min(prompt_results.successful.length, 5)}, 1fr)` }}>
+                                    {prompt_results.successful.map(result => (
+                                        <TabsTrigger key={`tab-${result.model}`} value={`model-${result.model}`} className="text-xs">
+                                            {result.model.split('/').pop()}
+                                        </TabsTrigger>
+                                    ))}
+                                </TabsList>
+
+                                {prompt_results.successful.map(result => (
+                                    <TabsContent key={`content-${result.model}`} value={`model-${result.model}`} className="space-y-6">
+                                        {/* Model Info */}
+                                        <div className="bg-white p-4 rounded-lg border grid grid-cols-2 md:grid-cols-4 gap-4">
+                                            <div>
+                                                <div className="text-sm text-gray-600">Model</div>
+                                                <div className="font-semibold text-gray-900">{result.model}</div>
+                                            </div>
+                                            <div>
+                                                <div className="text-sm text-gray-600">Generation Time</div>
+                                                <div className="font-semibold text-blue-600">{result.duration_ms}ms</div>
+                                            </div>
+                                            <div>
+                                                <div className="text-sm text-gray-600">Cost</div>
+                                                <div className="font-semibold text-green-600">${result.cost?.toFixed(3)}</div>
+                                            </div>
+                                            <div>
+                                                <div className="text-sm text-gray-600">Selected Cluster</div>
+                                                <div className="font-semibold text-purple-600">
+                                                    {result.cluster_name || `Cluster ${result.cluster_id}`}
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {/* Generated Prompt */}
+                                        <div className="bg-white p-4 rounded-lg border">
+                                            <div className="flex items-center justify-between mb-3">
+                                                <h4 className="font-semibold text-gray-900">Generated Prompt</h4>
+                                                <Button
+                                                    size="sm"
+                                                    variant="outline"
+                                                    onClick={() => {
+                                                        navigator.clipboard.writeText(result.prompt || '');
+                                                    }}
+                                                >
+                                                    Copy
+                                                </Button>
+                                            </div>
+                                            <div className="bg-gray-50 p-3 rounded text-sm text-gray-700 whitespace-pre-wrap font-mono max-h-96 overflow-y-auto">
+                                                {result.prompt}
+                                            </div>
+                                        </div>
+
+                                        {/* Select & Generate Button */}
+                                        <Button className="w-full bg-blue-600 hover:bg-blue-700 text-white">
+                                            Select This Prompt & Generate Image
+                                        </Button>
+                                    </TabsContent>
+                                ))}
+                            </Tabs>
+                            )}
+
+                            {/* Failed Models Notice */}
+                            {prompt_results.failed.length > 0 && (
+                                <div className="mt-6 pt-6 border-t">
+                                    <p className="text-sm font-semibold text-gray-700 mb-3">Failed Models:</p>
+                                    <div className="space-y-2">
+                                        {prompt_results.failed.map(result => (
+                                            <div key={`failed-${result.model}`} className="flex items-center justify-between bg-red-50 p-3 rounded border border-red-200">
+                                                <span className="text-sm text-gray-700">{result.model}</span>
+                                                <span className="text-xs text-red-600">{result.error}</span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Cost Summary */}
+                            <div className="mt-6 pt-6 border-t text-sm">
+                                <span className="text-gray-600">Total cost for all prompts: </span>
+                                <span className="font-bold text-green-600">${prompt_results.total_cost?.toFixed(3)}</span>
+                            </div>
                         </CardContent>
                     </Card>
                 )}
