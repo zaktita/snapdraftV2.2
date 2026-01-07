@@ -104,6 +104,7 @@ class BrandAnalysisTestController extends Controller
             'caption' => 'required|string',
             'title' => 'nullable|string',
             'description' => 'nullable|string',
+            'text_density' => 'required|in:light,standard,heavy',
             'analysis_json' => 'required|string',
         ]);
 
@@ -112,26 +113,14 @@ class BrandAnalysisTestController extends Controller
             return back()->withErrors(['analysis_json' => 'Invalid analysis data']);
         }
 
-        // Analyze caption to extract required elements and layout intent
-        $captionAnalysis = $this->captionAnalyzer->analyze(
-            $validated['caption'],
-            $validated['title'] ?? null,
-            $validated['description'] ?? null,
-            null
-        );
-
-        // Select the most relevant reference images (main + supports) to guide generation
-        $selection = $this->referenceSelector->selectBestReferences($analysis, $captionAnalysis, 3);
-        $selectedIndices = array_values(array_filter(array_map(fn ($img) => $img['index'] ?? null, $selection['selected']), fn ($v) => $v !== null));
-
-        // Generate prompts using multiple models
+        // Let each AI model analyze and select its own reference images
         try {
             $promptResults = $this->promptGenerator->generatePromptsMultiModel(
                 $analysis,
                 $validated['caption'],
                 $validated['title'] ?? null,
                 $validated['description'] ?? null,
-                $selectedIndices
+                $validated['text_density'] ?? 'standard'
             );
         } catch (\Exception $e) {
             Log::error('Multi-model prompt generation failed', [
@@ -146,7 +135,6 @@ class BrandAnalysisTestController extends Controller
             'result' => $analysis,
             'prompt_results' => $promptResults,
             'test_caption' => $validated['caption'],
-            'selected_reference_indices' => $selectedIndices,
         ]);
     }
 }

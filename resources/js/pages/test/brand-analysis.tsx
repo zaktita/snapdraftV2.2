@@ -82,6 +82,7 @@ interface PromptResult {
     cluster_name?: string;
     prompt?: string;
     raw_response?: string;
+    selected_indices?: number[];
 }
 
 interface PromptResults {
@@ -109,6 +110,7 @@ export default function BrandAnalysisTest() {
     const [caption, setCaption] = useState('');
     const [title, setTitle] = useState('');
     const [description, setDescription] = useState('');
+    const [textDensity, setTextDensity] = useState<'light' | 'standard' | 'heavy'>('standard');
 
     // Debug logging
     useEffect(() => {
@@ -157,6 +159,9 @@ export default function BrandAnalysisTest() {
             formData.append('reference_images[]', selectedFile[i]);
         }
 
+        // Clear any cached analysis so the next result overwrites localStorage
+        localStorage.removeItem('brand_analysis_test_result');
+
         setIsLoading(true);
         router.post('/test/brand-analysis', formData as any, {
             onFinish: () => setIsLoading(false),
@@ -179,6 +184,7 @@ export default function BrandAnalysisTest() {
         formData.append('caption', caption);
         formData.append('title', title);
         formData.append('description', description);
+        formData.append('text_density', textDensity);
         formData.append('analysis_json', JSON.stringify(result));
 
         setIsLoading(true);
@@ -392,6 +398,30 @@ export default function BrandAnalysisTest() {
                                     />
                                 </div>
 
+                                <div>
+                                    <Label htmlFor="text_density">Text Density</Label>
+                                    <div className="grid grid-cols-3 gap-2 mt-2">
+                                        {[
+                                            { value: 'light', label: 'Light' },
+                                            { value: 'standard', label: 'Standard' },
+                                            { value: 'heavy', label: 'Heavy' },
+                                        ].map(option => (
+                                            <Button
+                                                key={option.value}
+                                                type="button"
+                                                variant={textDensity === option.value ? 'default' : 'outline'}
+                                                className="w-full"
+                                                onClick={() => setTextDensity(option.value as 'light' | 'standard' | 'heavy')}
+                                            >
+                                                {option.label}
+                                            </Button>
+                                        ))}
+                                    </div>
+                                    <p className="text-xs text-gray-500 mt-1">
+                                        Light: only essentials • Standard: concise headline • Heavy: keep most details without filler
+                                    </p>
+                                </div>
+
                                 <div className="grid grid-cols-2 gap-4">
                                     <div>
                                         <Label htmlFor="title">Title (optional)</Label>
@@ -505,6 +535,44 @@ export default function BrandAnalysisTest() {
                                             </div>
                                         </div>
 
+                                        {/* Model's Reasoning */}
+                                        {result.reasoning && (
+                                            <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
+                                                <h4 className="font-semibold text-blue-900 mb-2">Model's Analysis & Reasoning</h4>
+                                                <p className="text-sm text-blue-800">{result.reasoning}</p>
+                                            </div>
+                                        )}
+
+                                        {/* Model's Selected Reference Images */}
+                                        {result.selected_indices && result.selected_indices.length > 0 && (
+                                            <div className="bg-white p-4 rounded-lg border">
+                                                <h4 className="font-semibold text-gray-900 mb-3">Images Selected by {result.model.split('/').pop()}</h4>
+                                                <div className="grid grid-cols-3 gap-4">
+                                                    {result.selected_indices.map((index, idx) => {
+                                                        const image = propsResult?.image_analysis?.[index];
+                                                        const label = idx === 0 ? 'Main Anchor' : `Support ${idx}`;
+                                                        const badgeColor = idx === 0 ? 'bg-purple-100 text-purple-800' : 'bg-blue-100 text-blue-800';
+                                                        
+                                                        return (
+                                                            <div key={`ref-${index}`} className="relative">
+                                                                <div className="aspect-square rounded-lg overflow-hidden border-2 border-gray-200">
+                                                                    {image?.url && (
+                                                                        <img src={image.url} alt={`Reference ${index}`} className="w-full h-full object-cover" />
+                                                                    )}
+                                                                </div>
+                                                                <div className={`absolute top-2 left-2 px-2 py-1 rounded text-xs font-semibold ${badgeColor}`}>
+                                                                    {label}
+                                                                </div>
+                                                                <div className="mt-1 text-xs text-gray-600 text-center">
+                                                                    Image {index}
+                                                                </div>
+                                                            </div>
+                                                        );
+                                                    })}
+                                                </div>
+                                            </div>
+                                        )}
+
                                         {/* Generated Prompt */}
                                         <div className="bg-white p-4 rounded-lg border">
                                             <div className="flex items-center justify-between mb-3">
@@ -526,7 +594,7 @@ export default function BrandAnalysisTest() {
 
                                         {/* Select & Generate Button */}
                                         <Button className="w-full bg-blue-600 hover:bg-blue-700 text-white">
-                                            Select This Prompt & Generate Image
+                                            Use {result.model.split('/').pop()}'s Selection & Generate Image
                                         </Button>
                                     </TabsContent>
                                 ))}

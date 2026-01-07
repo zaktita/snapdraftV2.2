@@ -48,7 +48,7 @@ class PromptGeneratorService
         string $caption,
         ?string $title = null,
         ?string $description = null,
-        ?array $selectedReferenceIndices = null
+        string $textDensity = 'standard'
     ): array {
         if (!$this->apiKey) {
             throw new RuntimeException('OpenRouter API key not configured');
@@ -71,7 +71,7 @@ class PromptGeneratorService
             $requestList[] = [
                 'model' => $model,
                 'start_time' => $startTime,
-                'request' => $this->buildRequest($model, $caption, $title, $description, $clusterDescription, $clusters, $selectedReferenceIndices),
+                'request' => $this->buildRequest($model, $caption, $title, $description, $clusterDescription, $clusters, $images, $textDensity),
             ];
         }
         // Execute all requests in parallel
@@ -141,20 +141,17 @@ class PromptGeneratorService
                     'cluster_id' => $parsed['cluster_id'] ?? null,
                     'cluster_name' => $parsed['cluster_name'] ?? 'Unknown',
                     'prompt' => $parsed['prompt'] ?? $content,
-                                'selected_indices' => $selectedReferenceIndices ?? [],
-                    'raw_response' => $content,
+                    'selected_indices' => $parsed['selected_images'] ?? [],
+                    'reasoning' => $parsed['reasoning'] ?? null,
                 ];
-
-                Log::info('PromptGeneratorService: Successful generation', [
-                    'model' => $model,
-                    'duration_ms' => round($duration * 1000),
-                ]);
-            } catch (\Exception $e) {
+            } catch (\Throwable $e) {
                 $failed[] = [
                     'model' => $model,
                     'status' => 'failed',
                     'duration_ms' => round($duration * 1000),
+                    'cost' => $this->estimateCost($model),
                     'error' => $e->getMessage(),
+                    'status_code' => method_exists($response, 'status') ? $response->status() : null,
                 ];
 
                 Log::warning('PromptGeneratorService: Generation failed', [
@@ -203,9 +200,10 @@ class PromptGeneratorService
         ?string $description,
         string $clusterDescription,
         array $clusters,
-        ?array $selectedReferenceIndices = null
+        array $images,
+        string $textDensity
     ): array {
-        $prompt = $this->buildSystemPrompt($caption, $title, $description, $clusterDescription, $clusters, $selectedReferenceIndices);
+        $prompt = $this->buildSystemPrompt($caption, $title, $description, $clusterDescription, $clusters, $images, $textDensity);
 
         return [
             'model' => $model,
@@ -230,16 +228,28 @@ class PromptGeneratorService
         ?string $description,
         string $clusterDescription,
         array $clusters,
-        ?array $selectedReferenceIndices = null
+        array $images,
+        string $textDensity
     ): string {
+        $densityGuide = [
+            'light' => 'Light: only the most important words (core event/product + CTA if present). Keep copy ultra-short.',
+            'standard' => 'Standard: concise headline-style copy; include key nouns, dates, CTA. Avoid filler.',
+            'heavy' => 'Heavy: keep most meaningful details but still concise; no filler or repetition.',
+        ];
+
+        $densityRule = $densityGuide[$textDensity] ?? $densityGuide['standard'];
+
         $lines = [];
-        $lines[] = 'You are a creative visual designer generating one short, high-precision prompt for an image model.';
+        $lines[] = 'You are a creative visual designer analyzing a caption to select the best brand references and generate a precise image prompt.';
         $lines[] = '';
         $lines[] = 'TASK:';
-        $lines[] = '1) Choose the single most relevant style cluster from the brand reference images';
-        $lines[] = '2) Write a concise prompt (2–4 sentences) that directly tells the image model what to do';
+        $lines[] = '1) Analyze the caption requirements (mood, subject, colors, complexity)';
+        $lines[] = '2) Choose the BEST style cluster that matches the caption';
+        $lines[] = '3) Select 1-3 specific reference images (by index) that best match the caption from ANY cluster';
+        $lines[] = '4) Write a concise generation prompt (2–4 sentences) incorporating the selected references';
         $lines[] = '';
-        $lines[] = 'CAPTION (include verbatim inside the prompt): ' . $caption;
+        $lines[] = 'CAPTION (analyze and extract only essential copy): ' . $caption;
+        $lines[] = 'TEXT DENSITY MODE: ' . strtoupper($textDensity) . ' — ' . $densityRule;
 
         if ($title) {
             $lines[] = 'TITLE: ' . $title;
@@ -249,36 +259,41 @@ class PromptGeneratorService
         }
 
         $lines[] = '';
-        $lines[] = 'AVAILABLE STYLE CLUSTERS (summarized from brand references):';
+        $lines[] = 'STYLE CLUSTERS FROM BRAND REFERENCES:';
         $lines[] = $clusterDescription;
         $lines[] = '';
-        $lines[] = 'IMPORTANT: The image generator WILL receive the reference images alongside your prompt. Your prompt must explicitly tell it to mirror their style.';
-        if (!empty($selectedReferenceIndices)) {
-            $main = $selectedReferenceIndices[0] ?? null;
-            $supports = array_values(array_slice($selectedReferenceIndices, 1));
-            $lines[] = 'USE THESE SELECTED REFERENCES:';
-            if ($main !== null) {
-                $lines[] = "- Main style anchor image: index {$main}";
-            }
-            if (!empty($supports)) {
-                $lines[] = '- Supporting reference indices: ' . implode(', ', $supports);
-            }
+        $lines[] = 'AVAILABLE REFERENCE IMAGES:';
+        foreach ($images as $image) {
+            $index = $image['index'] ?? 'N/A';
+            $cluster = $image['cluster_id'] ?? 'N/A';
+            $quality = $image['quality'] ?? 'N/A';
+            $complexity = $image['layout_complexity'] ?? 'N/A';
+            $lines[] = "- Image {$index}: Cluster {$cluster}, Quality: {$quality}, Complexity: {$complexity}";
         }
         $lines[] = '';
-        $lines[] = 'WRITE THE PROMPT WITH THESE RULES:';
+        $lines[] = 'IMAGE SELECTION CRITERIA:';
+        $lines[] = '- Choose images whose mood/subject/colors match the caption (not just the cluster)';
+        $lines[] = '- First image = primary style anchor (highest caption match)';
+        $lines[] = '- Additional images = supporting references (similar style but diverse composition)';
+        $lines[] = '- Prefer high quality images over poor quality';
+        $lines[] = '';
+        $lines[] = 'PROMPT REQUIREMENTS:';
         $lines[] = '- Start with: "Match the exact visual style and branding of the provided reference images."';
-        $lines[] = '- Include the full caption verbatim (in quotes)';
-        $lines[] = '- Keep the same amount of visible text as the references; do NOT add extra copy beyond the caption';
-        $lines[] = '- Use 1–2 hex colors from the chosen cluster (keep palette fidelity)';
-        $lines[] = '- Match the cluster\'s typography feel and layout pattern';
+        $lines[] = '- Distill the caption into key elements only (headline words, dates, CTA); omit filler.';
+        $lines[] = '- Obey TEXT DENSITY MODE when deciding how much copy to keep.';
+        $lines[] = '- Keep the prompt concise (2–4 sentences).';
+        $lines[] = '- Reference the selected cluster\'s colors (use hex codes from cluster)';
+        $lines[] = '- Match the cluster\'s typography and layout pattern';
+        $lines[] = '- Keep same text density as references; do NOT add extra copy';
         $lines[] = '- End with: "Maintain strict brand consistency with the reference images."';
         $lines[] = '';
-        $lines[] = 'RESPOND ONLY WITH VALID JSON (no markdown, no code blocks, no explanation):';
+        $lines[] = 'RESPOND ONLY WITH VALID JSON (no markdown, no code blocks):';
         $lines[] = '{';
         $lines[] = '  "cluster_id": <number>,';
         $lines[] = '  "cluster_name": "<string>",';
-        $lines[] = '  "reasoning": "<why this cluster matches the caption>",';
-        $lines[] = '  "prompt": "<2–4 short sentences following the rules above>"';
+        $lines[] = '  "selected_images": [<array of 1-3 image indices, e.g. [0, 2, 5]>],';
+        $lines[] = '  "reasoning": "<why these images and cluster match the caption>",';
+        $lines[] = '  "prompt": "<2–4 sentences following the requirements above>"';
         $lines[] = '}';
 
         return implode("\n", $lines);
