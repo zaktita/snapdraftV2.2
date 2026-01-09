@@ -12,6 +12,7 @@ use App\Http\Controllers\Wizards\TextWizardController;
 use App\Http\Controllers\Wizards\BrandAnalysisWizardController;
 use App\Http\Controllers\SimpleTextWizardController;
 use App\Http\Controllers\BrandAnalysisTestController;
+use App\Http\Controllers\TestAiModelsController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 use Laravel\Fortify\Features;
@@ -179,6 +180,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('test/brand-analysis', [BrandAnalysisTestController::class, 'index'])->name('test.brand-analysis.index');
     Route::post('test/brand-analysis', [BrandAnalysisTestController::class, 'store'])->name('test.brand-analysis.store');
     Route::post('test/brand-analysis/caption', [BrandAnalysisTestController::class, 'testCaption'])->name('test.brand-analysis.caption');
+
+    // AI Models Testing
+    Route::get('test-ai-models', [TestAiModelsController::class, 'index'])->name('test-ai-models.index');
+    Route::post('test-ai-models/generate', [TestAiModelsController::class, 'generate'])->name('test-ai-models.generate');
 });
 
 // Stripe Webhook (outside auth middleware)

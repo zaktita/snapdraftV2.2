@@ -18,12 +18,9 @@ class PromptGeneratorService
      */
     protected array $models = [
         'google/gemini-3-flash-preview',
-        'deepseek/deepseek-v3.2',
-        'bytedance-seed/seed-1.6-flash',
         'openai/gpt-5.2',
-        'openai/gpt-5.1',
-        'openai/gpt-oss-120b',
         'anthropic/claude-opus-4.5',
+        'nvidia/nemotron-3-nano-30b-a3b:free',
     ];
 
     public function __construct()
@@ -331,12 +328,9 @@ class PromptGeneratorService
         // Average input tokens: ~300, output tokens: ~800
         $costs = [
             'google/gemini-3-flash-preview' => 0.075,
-            'deepseek/deepseek-v3.2' => 0.14,
-            'bytedance-seed/seed-1.6-flash' => 0.03,
             'openai/gpt-5.2' => 0.08,
-            'openai/gpt-5.1' => 0.06,
-            'openai/gpt-oss-120b' => 0.80,
             'anthropic/claude-opus-4.5' => 0.15,
+            'nvidia/nemotron-3-nano-30b-a3b:free' => 0.0,
         ];
 
         return $costs[$model] ?? 0.10;
