@@ -211,13 +211,13 @@ class PromptGeneratorService
                 ],
             ],
             'temperature' => 0.7,
-            'max_tokens' => 1500,
+            'max_tokens' => 2500,
             'top_p' => 0.95,
         ];
     }
 
     /**
-     * Build the system prompt for models.
+     * Build the system prompt for models using the Master Prompt Template.
      */
     private function buildSystemPrompt(
         string $caption,
@@ -237,27 +237,25 @@ class PromptGeneratorService
         $densityRule = $densityGuide[$textDensity] ?? $densityGuide['standard'];
 
         $lines = [];
-        $lines[] = 'You are a creative visual designer analyzing a caption to select the best brand references and generate a precise image prompt.';
+        $lines[] = 'You are an expert AI prompt generator for poster creation. Your task is to produce a tailored, ready-to-use poster prompt for an image generation AI, adapting instructions based on the poster\'s complexity, type, and niche.';
         $lines[] = '';
-        $lines[] = 'TASK:';
-        $lines[] = '1) Analyze the caption requirements (mood, subject, colors, complexity)';
-        $lines[] = '2) Choose the BEST style cluster that matches the caption';
-        $lines[] = '3) Select 1-3 specific reference images (by index) that best match the caption from ANY cluster';
-        $lines[] = '4) Write a concise generation prompt (2–4 sentences) incorporating the selected references';
+        $lines[] = '━━━━━━━━━━━━━━━━━━━━━━━━━━━━';
+        $lines[] = '1. INPUTS';
+        $lines[] = '━━━━━━━━━━━━━━━━━━━━━━━━━━━━';
         $lines[] = '';
-        $lines[] = 'CAPTION (analyze and extract only essential copy): ' . $caption;
-        $lines[] = 'TEXT DENSITY MODE: ' . strtoupper($textDensity) . ' — ' . $densityRule;
-
+        $lines[] = 'BRAND DNA (from reference analysis):';
+        $lines[] = $clusterDescription;
+        $lines[] = '';
+        $lines[] = 'POSTER CONTENT:';
+        $lines[] = '- Caption: ' . $caption;
         if ($title) {
-            $lines[] = 'TITLE: ' . $title;
+            $lines[] = '- Title: ' . $title;
         }
         if ($description) {
-            $lines[] = 'DESCRIPTION: ' . $description;
+            $lines[] = '- Description: ' . $description;
         }
-
         $lines[] = '';
-        $lines[] = 'STYLE CLUSTERS FROM BRAND REFERENCES:';
-        $lines[] = $clusterDescription;
+        $lines[] = 'TEXT DENSITY MODE: ' . strtoupper($textDensity) . ' — ' . $densityRule;
         $lines[] = '';
         $lines[] = 'AVAILABLE REFERENCE IMAGES:';
         foreach ($images as $image) {
@@ -265,33 +263,97 @@ class PromptGeneratorService
             $cluster = $image['cluster_id'] ?? 'N/A';
             $quality = $image['quality'] ?? 'N/A';
             $complexity = $image['layout_complexity'] ?? 'N/A';
-            $lines[] = "- Image {$index}: Cluster {$cluster}, Quality: {$quality}, Complexity: {$complexity}";
+            $lines[] = "  - Image {$index}: Cluster {$cluster}, Quality: {$quality}, Layout: {$complexity}";
         }
         $lines[] = '';
-        $lines[] = 'IMAGE SELECTION CRITERIA:';
-        $lines[] = '- Choose images whose mood/subject/colors match the caption (not just the cluster)';
-        $lines[] = '- First image = primary style anchor (highest caption match)';
-        $lines[] = '- Additional images = supporting references (similar style but diverse composition)';
-        $lines[] = '- Prefer high quality images over poor quality';
+        $lines[] = '━━━━━━━━━━━━━━━━━━━━━━━━━━━━';
+        $lines[] = '2. YOUR TASK';
+        $lines[] = '━━━━━━━━━━━━━━━━━━━━━━━━━━━━';
         $lines[] = '';
-        $lines[] = 'PROMPT REQUIREMENTS:';
-        $lines[] = '- Start with: "Match the exact visual style and branding of the provided reference images."';
-        $lines[] = '- Distill the caption into key elements only (headline words, dates, CTA); omit filler.';
-        $lines[] = '- Obey TEXT DENSITY MODE when deciding how much copy to keep.';
-        $lines[] = '- Keep the prompt concise (2–4 sentences).';
-        $lines[] = '- Reference the selected cluster\'s colors (use hex codes from cluster)';
-        $lines[] = '- Match the cluster\'s typography and layout pattern';
-        $lines[] = '- Keep same text density as references; do NOT add extra copy';
-        $lines[] = '- End with: "Maintain strict brand consistency with the reference images."';
+        $lines[] = 'Step 1: COMPLEXITY ANALYSIS';
+        $lines[] = '  - Analyze the caption and determine layout complexity:';
+        $lines[] = '    * SIMPLE: 1-2 text elements, single image, no overlays, grid-based layout';
+        $lines[] = '    * COMPLEX: 3+ text elements, multiple images, shapes/masks, overlays, asymmetric layout';
+        $lines[] = '';
+        $lines[] = 'Step 2: SELECT BEST CLUSTER & IMAGES';
+        $lines[] = '  - Choose the style cluster that best matches the caption mood/subject';
+        $lines[] = '  - Select 1-3 reference images from ANY cluster that align with caption';
+        $lines[] = '  - Assign each selected image a role:';
+        $lines[] = '    * "style_anchor" = primary style reference (color, mood, overall vibe)';
+        $lines[] = '    * "typography_reference" = text style, hierarchy, font treatment';
+        $lines[] = '    * "composition_guide" = layout pattern, spacing, element arrangement';
+        $lines[] = '';
+        $lines[] = 'Step 3: DETECT POSTER NICHE';
+        $lines[] = '  - Auto-detect from brand DNA and caption (tech, fashion, nonprofit, luxury, corporate, etc.)';
+        $lines[] = '';
+        $lines[] = 'Step 4: IDENTIFY LAYOUT TYPE';
+        $lines[] = '  - Analyze the SELECTED images (1-3) to extract common layout patterns:';
+        $lines[] = '    * hero (single dominant image with text overlay)';
+        $lines[] = '    * split (image + text side-by-side or diagonal split)';
+        $lines[] = '    * grid (structured blocks/sections)';
+        $lines[] = '    * text-only (no images, pure typography with shapes/colors)';
+        $lines[] = '    * custom (unique asymmetric or layered composition)';
+        $lines[] = '';
+        $lines[] = 'Step 5: GENERATE FINAL PROMPT';
+        $lines[] = '  - Merge Brand DNA, Poster Content, and selected References';
+        $lines[] = '  - If complexity = COMPLEX, include detailed LAYOUT CONSTRUCTION section';
+        $lines[] = '  - If complexity = SIMPLE, keep instructions minimal and direct';
+        $lines[] = '  - Final prompt must be ready-to-use for image generation AI';
+        $lines[] = '';
+        $lines[] = '━━━━━━━━━━━━━━━━━━━━━━━━━━━━';
+        $lines[] = '3. PROMPT STRUCTURE GUIDELINES';
+        $lines[] = '━━━━━━━━━━━━━━━━━━━━━━━━━━━━';
+        $lines[] = '';
+        $lines[] = 'For SIMPLE layouts:';
+        $lines[] = '  - Start: "Match the exact visual style and branding of the provided reference images."';
+        $lines[] = '  - Include: Poster content (headline/subtext/CTA), brand colors (hex codes), typography style';
+        $lines[] = '  - Include: Text placement (centered, aligned), basic spacing';
+        $lines[] = '  - Reference usage: List which reference provides style/typography/composition';
+        $lines[] = '  - End: "Maintain strict brand consistency. High-resolution, flat poster output."';
+        $lines[] = '';
+        $lines[] = 'For COMPLEX layouts, ADD this section:';
+        $lines[] = '  LAYOUT CONSTRUCTION:';
+        $lines[] = '    - Layer order: [e.g., "background gradient → geometric shapes → masked product image → headline text → CTA button → accent elements"]';
+        $lines[] = '    - Image masking/clipping: [e.g., "Product photo clipped inside circular shape, no overflow"]';
+        $lines[] = '    - Text placement: [e.g., "Headline top-left aligned, subtext bottom-right, CTA centered"]';
+        $lines[] = '    - Spacing & margins: [e.g., "40px margins all sides, 20px gap between elements"]';
+        $lines[] = '    - Overlays/depth: [e.g., "Semi-transparent overlay on image, text shadow for depth"]';
+        $lines[] = '';
+        $lines[] = 'DO NOT instructions (always include):';
+        $lines[] = '  - No off-brand colors or fonts';
+        $lines[] = '  - No random overlapping or free-floating images';
+        $lines[] = '  - No 3D effects, mockups, or shadows unless specified in brand DNA';
+        $lines[] = '  - No extra text beyond caption content';
+        $lines[] = '';
+        $lines[] = '━━━━━━━━━━━━━━━━━━━━━━━━━━━━';
+        $lines[] = '4. OUTPUT FORMAT';
+        $lines[] = '━━━━━━━━━━━━━━━━━━━━━━━━━━━━';
         $lines[] = '';
         $lines[] = 'RESPOND ONLY WITH VALID JSON (no markdown, no code blocks):';
         $lines[] = '{';
         $lines[] = '  "cluster_id": <number>,';
         $lines[] = '  "cluster_name": "<string>",';
-        $lines[] = '  "selected_images": [<array of 1-3 image indices, e.g. [0, 2, 5]>],';
-        $lines[] = '  "reasoning": "<why these images and cluster match the caption>",';
-        $lines[] = '  "prompt": "<2–4 sentences following the requirements above>"';
+        $lines[] = '  "selected_images": [<array of 1-3 image indices>],';
+        $lines[] = '  "reference_roles": {';
+        $lines[] = '    "<image_index>": "style_anchor" | "typography_reference" | "composition_guide"';
+        $lines[] = '  },';
+        $lines[] = '  "complexity": "simple" | "complex",';
+        $lines[] = '  "layout_type": "hero" | "split" | "grid" | "text-only" | "custom",';
+        $lines[] = '  "layout_construction": {  // ONLY include if complexity = "complex"';
+        $lines[] = '    "layer_order": "<describe layer stack>",';
+        $lines[] = '    "masking_rules": "<image clipping/containment>",';
+        $lines[] = '    "text_placement": "<alignment and hierarchy>",';
+        $lines[] = '    "spacing": "<margins and gaps>",';
+        $lines[] = '    "overlays": "<transparency/depth effects>"';
+        $lines[] = '  },';
+        $lines[] = '  "niche": "<auto-detected niche>",';
+        $lines[] = '  "reasoning": "<why this cluster, images, layout, and complexity>",';
+        $lines[] = '  "prompt": "<final ready-to-use prompt for image generation AI>"';
         $lines[] = '}';
+        $lines[] = '';
+        $lines[] = 'CRITICAL: Obey TEXT DENSITY MODE (' . strtoupper($textDensity) . ') when extracting caption copy for the final prompt.';
+        $lines[] = 'CRITICAL: Only include layout_construction object if complexity = "complex".';
+        $lines[] = 'CRITICAL: Ensure reference_roles maps ALL selected_images to their roles.';
 
         return implode("\n", $lines);
     }

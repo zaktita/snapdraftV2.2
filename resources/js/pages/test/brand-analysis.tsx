@@ -83,6 +83,18 @@ interface PromptResult {
     prompt?: string;
     raw_response?: string;
     selected_indices?: number[];
+    reference_roles?: Record<string, 'style_anchor' | 'typography_reference' | 'composition_guide'>;
+    complexity?: 'simple' | 'complex';
+    layout_type?: 'hero' | 'split' | 'grid' | 'text-only' | 'custom';
+    layout_construction?: {
+        layer_order?: string;
+        masking_rules?: string;
+        text_placement?: string;
+        spacing?: string;
+        overlays?: string;
+    };
+    niche?: string;
+    reasoning?: string;
 }
 
 interface PromptResults {
@@ -513,25 +525,47 @@ export default function BrandAnalysisTest() {
 
                                 {prompt_results.successful.map(result => (
                                     <TabsContent key={`content-${result.model}`} value={`model-${result.model}`} className="space-y-6">
-                                        {/* Model Info */}
-                                        <div className="bg-white p-4 rounded-lg border grid grid-cols-2 md:grid-cols-4 gap-4">
-                                            <div>
-                                                <div className="text-sm text-gray-600">Model</div>
-                                                <div className="font-semibold text-gray-900">{result.model}</div>
-                                            </div>
-                                            <div>
-                                                <div className="text-sm text-gray-600">Generation Time</div>
-                                                <div className="font-semibold text-blue-600">{result.duration_ms}ms</div>
-                                            </div>
-                                            <div>
-                                                <div className="text-sm text-gray-600">Cost</div>
-                                                <div className="font-semibold text-green-600">${result.cost?.toFixed(3)}</div>
-                                            </div>
-                                            <div>
-                                                <div className="text-sm text-gray-600">Selected Cluster</div>
-                                                <div className="font-semibold text-purple-600">
-                                                    {result.cluster_name || `Cluster ${result.cluster_id}`}
+                                        {/* Model Info Header */}
+                                        <div className="bg-white p-4 rounded-lg border">
+                                            <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                                                <div>
+                                                    <div className="text-sm text-gray-600">Model</div>
+                                                    <div className="font-semibold text-gray-900">{result.model}</div>
                                                 </div>
+                                                <div>
+                                                    <div className="text-sm text-gray-600">Generation Time</div>
+                                                    <div className="font-semibold text-blue-600">{result.duration_ms}ms</div>
+                                                </div>
+                                                <div>
+                                                    <div className="text-sm text-gray-600">Cost</div>
+                                                    <div className="font-semibold text-green-600">${result.cost?.toFixed(3)}</div>
+                                                </div>
+                                                <div>
+                                                    <div className="text-sm text-gray-600">Complexity</div>
+                                                    <Badge className={result.complexity === 'complex' ? 'bg-orange-600' : 'bg-blue-600'}>
+                                                        {result.complexity || 'N/A'}
+                                                    </Badge>
+                                                </div>
+                                                <div>
+                                                    <div className="text-sm text-gray-600">Layout Type</div>
+                                                    <Badge variant="outline">
+                                                        {result.layout_type || 'N/A'}
+                                                    </Badge>
+                                                </div>
+                                            </div>
+                                            <div className="grid grid-cols-2 gap-4 mt-3 pt-3 border-t">
+                                                <div>
+                                                    <div className="text-sm text-gray-600">Selected Cluster</div>
+                                                    <div className="font-semibold text-purple-600">
+                                                        {result.cluster_name || `Cluster ${result.cluster_id}`}
+                                                    </div>
+                                                </div>
+                                                {result.niche && (
+                                                    <div>
+                                                        <div className="text-sm text-gray-600">Detected Niche</div>
+                                                        <div className="font-semibold text-indigo-600 capitalize">{result.niche}</div>
+                                                    </div>
+                                                )}
                                             </div>
                                         </div>
 
@@ -539,19 +573,30 @@ export default function BrandAnalysisTest() {
                                         {result.reasoning && (
                                             <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
                                                 <h4 className="font-semibold text-blue-900 mb-2">Model's Analysis & Reasoning</h4>
-                                                <p className="text-sm text-blue-800">{result.reasoning}</p>
+                                                <p className="text-sm text-blue-800 whitespace-pre-wrap">{result.reasoning}</p>
                                             </div>
                                         )}
 
-                                        {/* Model's Selected Reference Images */}
+                                        {/* Model's Selected Reference Images with Roles */}
                                         {result.selected_indices && result.selected_indices.length > 0 && (
                                             <div className="bg-white p-4 rounded-lg border">
                                                 <h4 className="font-semibold text-gray-900 mb-3">Images Selected by {result.model.split('/').pop()}</h4>
                                                 <div className="grid grid-cols-3 gap-4">
                                                     {result.selected_indices.map((index, idx) => {
                                                         const image = propsResult?.image_analysis?.[index];
-                                                        const label = idx === 0 ? 'Main Anchor' : `Support ${idx}`;
-                                                        const badgeColor = idx === 0 ? 'bg-purple-100 text-purple-800' : 'bg-blue-100 text-blue-800';
+                                                        const role = result.reference_roles?.[index.toString()];
+                                                        const roleLabels: Record<string, string> = {
+                                                            'style_anchor': '🎨 Style Anchor',
+                                                            'typography_reference': '✍️ Typography',
+                                                            'composition_guide': '📐 Composition',
+                                                        };
+                                                        const roleColors: Record<string, string> = {
+                                                            'style_anchor': 'bg-purple-100 text-purple-800',
+                                                            'typography_reference': 'bg-blue-100 text-blue-800',
+                                                            'composition_guide': 'bg-green-100 text-green-800',
+                                                        };
+                                                        const label = role ? roleLabels[role] : `Reference ${idx + 1}`;
+                                                        const badgeColor = role ? roleColors[role] : 'bg-gray-100 text-gray-800';
                                                         
                                                         return (
                                                             <div key={`ref-${index}`} className="relative">
@@ -569,6 +614,48 @@ export default function BrandAnalysisTest() {
                                                             </div>
                                                         );
                                                     })}
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {/* Layout Construction Details (Complex layouts only) */}
+                                        {result.complexity === 'complex' && result.layout_construction && (
+                                            <div className="bg-orange-50 p-4 rounded-lg border border-orange-200">
+                                                <h4 className="font-semibold text-orange-900 mb-3 flex items-center gap-2">
+                                                    <span>🏗️</span>
+                                                    Layout Construction (Complex)
+                                                </h4>
+                                                <div className="space-y-3 text-sm">
+                                                    {result.layout_construction.layer_order && (
+                                                        <div>
+                                                            <div className="font-semibold text-orange-800">Layer Order:</div>
+                                                            <div className="text-orange-700 mt-1">{result.layout_construction.layer_order}</div>
+                                                        </div>
+                                                    )}
+                                                    {result.layout_construction.masking_rules && (
+                                                        <div>
+                                                            <div className="font-semibold text-orange-800">Masking Rules:</div>
+                                                            <div className="text-orange-700 mt-1">{result.layout_construction.masking_rules}</div>
+                                                        </div>
+                                                    )}
+                                                    {result.layout_construction.text_placement && (
+                                                        <div>
+                                                            <div className="font-semibold text-orange-800">Text Placement:</div>
+                                                            <div className="text-orange-700 mt-1">{result.layout_construction.text_placement}</div>
+                                                        </div>
+                                                    )}
+                                                    {result.layout_construction.spacing && (
+                                                        <div>
+                                                            <div className="font-semibold text-orange-800">Spacing:</div>
+                                                            <div className="text-orange-700 mt-1">{result.layout_construction.spacing}</div>
+                                                        </div>
+                                                    )}
+                                                    {result.layout_construction.overlays && (
+                                                        <div>
+                                                            <div className="font-semibold text-orange-800">Overlays/Depth:</div>
+                                                            <div className="text-orange-700 mt-1">{result.layout_construction.overlays}</div>
+                                                        </div>
+                                                    )}
                                                 </div>
                                             </div>
                                         )}

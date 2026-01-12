@@ -14,11 +14,6 @@ class OpenRouterImageTester
 
     protected array $models = [
         'bytedance-seed/seedream-4.5',
-        'black-forest-labs/flux.2-max',
-        'sourceful/riverflow-v2-max-preview',
-        'black-forest-labs/flux.2-flex',
-        'google/gemini-3-pro-image-preview',
-        'openai/gpt-5-image-mini',
         'openai/gpt-5-image',
     ];
 
