@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Services\AI\BrandReferenceAnalyzer;
+use App\Services\AI\OpenRouterImageTester;
 use App\Services\AI\PromptGeneratorService;
 use App\Services\CaptionAnalyzer;
 use App\Services\IntelligentReferenceSelector;
@@ -16,6 +17,7 @@ class BrandAnalysisTestController extends Controller
     public function __construct(
         protected BrandReferenceAnalyzer $analyzer,
         protected PromptGeneratorService $promptGenerator,
+        protected OpenRouterImageTester $imageTester,
         protected CaptionAnalyzer $captionAnalyzer,
         protected IntelligentReferenceSelector $referenceSelector
     ) {
@@ -135,6 +137,130 @@ class BrandAnalysisTestController extends Controller
             'result' => $analysis,
             'prompt_results' => $promptResults,
             'test_caption' => $validated['caption'],
+        ]);
+    }
+
+    /**
+     * Generate images from the top 2 successful prompts using 2 image models each.
+     * Returns 4 images total (2 prompts × 2 image models).
+     */
+    public function generateImages(Request $request)
+    {
+        set_time_limit(300);
+
+        $validated = $request->validate([
+            'prompt_results' => 'required|string',
+            'selected_images' => 'required|string', // JSON array of selected image indices
+            'analysis_json' => 'required|string',   // For reference image paths
+        ]);
+
+        // Decode request data
+        $promptResults = json_decode($validated['prompt_results'], true);
+        $selectedImages = json_decode($validated['selected_images'], true);
+        $analysis = json_decode($validated['analysis_json'], true);
+
+        if (!is_array($promptResults) || !is_array($selectedImages) || !is_array($analysis)) {
+            return back()->withErrors(['data' => 'Invalid request data']);
+        }
+
+        // Get successful prompts
+        $successfulPrompts = $promptResults['successful'] ?? [];
+        if (empty($successfulPrompts)) {
+            return back()->withErrors(['prompts' => 'No successful prompts to generate from']);
+        }
+
+        // Take first 2 successful prompts
+        $selectedPrompts = array_slice($successfulPrompts, 0, 2);
+
+        // Prepare reference images as base64
+        $imageAnalysis = $analysis['image_analysis'] ?? [];
+        $referenceImagesBase64 = [];
+
+        foreach ($selectedImages as $imageIndex) {
+            if (isset($imageAnalysis[$imageIndex])) {
+                $imageMeta = $imageAnalysis[$imageIndex];
+                $path = $imageMeta['path'] ?? null;
+                
+                if ($path && Storage::disk('public')->exists($path)) {
+                    $mimeType = Storage::disk('public')->mimeType($path);
+                    $content = Storage::disk('public')->get($path);
+                    $base64 = base64_encode($content);
+                    
+                    $referenceImagesBase64[] = [
+                        'data' => $base64,
+                        'mimeType' => $mimeType,
+                    ];
+                }
+            }
+        }
+
+        if (empty($referenceImagesBase64)) {
+            return back()->withErrors(['images' => 'Could not load reference images']);
+        }
+
+        // Generate images for each of the 2 prompts
+        $imageResults = [];
+
+        try {
+            foreach ($selectedPrompts as $promptResult) {
+                $model = $promptResult['model'] ?? 'unknown';
+                $prompt = $promptResult['prompt'] ?? '';
+
+                if (empty($prompt)) {
+                    $imageResults[$model] = [
+                        'seedream' => [
+                            'image_url' => null,
+                            'duration_ms' => 0,
+                            'error' => 'Empty prompt',
+                        ],
+                        'gpt5image' => [
+                            'image_url' => null,
+                            'duration_ms' => 0,
+                            'error' => 'Empty prompt',
+                        ],
+                    ];
+                    continue;
+                }
+
+                // Generate images using both image models
+                $generationResults = $this->imageTester->generateForAllModels(
+                    $referenceImagesBase64,
+                    $prompt
+                );
+
+                // Map results to friendly names
+                $imageResults[$model] = [];
+                foreach ($generationResults as $imageModel => $result) {
+                    $modelKey = match($imageModel) {
+                        'bytedance-seed/seedream-4.5' => 'seedream',
+                        'openai/gpt-5-image' => 'gpt5image',
+                        default => str_replace(['/', '.'], '_', $imageModel),
+                    };
+                    
+                    $imageResults[$model][$modelKey] = [
+                        'image_url' => $result['image_url'] ?? null,
+                        'duration_ms' => $result['duration_ms'] ?? 0,
+                        'error' => $result['error'] ?? null,
+                    ];
+                }
+
+                Log::info('BrandAnalysisTestController: Images generated', [
+                    'prompt_model' => $model,
+                    'image_models_count' => count($imageResults[$model]),
+                ]);
+            }
+        } catch (\Exception $e) {
+            Log::error('Image generation failed', [
+                'error' => $e->getMessage(),
+            ]);
+
+            return back()->withErrors(['generation' => 'Image generation failed: ' . $e->getMessage()]);
+        }
+
+        return Inertia::render('test/brand-analysis', [
+            'result' => $analysis,
+            'prompt_results' => $promptResults,
+            'image_results' => $imageResults,
         ]);
     }
 }

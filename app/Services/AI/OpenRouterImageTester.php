@@ -14,7 +14,7 @@ class OpenRouterImageTester
 
     protected array $models = [
         'bytedance-seed/seedream-4.5',
-        'openai/gpt-5-image',
+        // 'openai/gpt-5-image',
     ];
 
     public function __construct()

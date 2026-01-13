@@ -103,6 +103,18 @@ interface PromptResults {
     total_cost: number;
 }
 
+interface ImageGenerationResult {
+    image_url: string | null;
+    duration_ms: number;
+    error?: string;
+}
+
+interface ImageResults {
+    [promptModel: string]: {
+        [imageModel: string]: ImageGenerationResult;
+    };
+}
+
 interface PageProps {
     result?: BrandAnalysisResult | null;
     references?: Array<{ path: string; url: string; name: string }>;
@@ -111,18 +123,32 @@ interface PageProps {
     selection_result?: any;
     test_caption?: string;
     prompt_results?: PromptResults;
+    image_results?: ImageResults;
     [key: string]: any;
 }
 
 export default function BrandAnalysisTest() {
-    const { result: propsResult, references, caption_analysis, selection_result, test_caption, prompt_results } = usePage<PageProps>().props;
+    const { result: propsResult, references, caption_analysis, selection_result, test_caption, prompt_results, image_results } = usePage<PageProps>().props;
     const [result, setResult] = useState<BrandAnalysisResult | null>(null);
     const [isLoading, setIsLoading] = useState(false);
-    const [selectedFile, setSelectedFile] = useState<FileList | null>(null);
+    const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
     const [caption, setCaption] = useState('');
     const [title, setTitle] = useState('');
     const [description, setDescription] = useState('');
     const [textDensity, setTextDensity] = useState<'light' | 'standard' | 'heavy'>('standard');
+    const [isGeneratingImages, setIsGeneratingImages] = useState(false);
+
+    const filePreviews = useMemo(
+        () => selectedFiles.map(file => ({ file, url: URL.createObjectURL(file) })),
+        [selectedFiles]
+    );
+
+    // Cleanup object URLs when file selection changes
+    useEffect(() => {
+        return () => {
+            filePreviews.forEach(p => URL.revokeObjectURL(p.url));
+        };
+    }, [filePreviews]);
 
     // Debug logging
     useEffect(() => {
@@ -155,21 +181,25 @@ export default function BrandAnalysisTest() {
     const handleFileChange = (e: FormEvent<HTMLInputElement>) => {
         const target = e.currentTarget;
         if (target.files) {
-            setSelectedFile(target.files);
+            setSelectedFiles(Array.from(target.files));
         }
+    };
+
+    const handleRemoveFile = (index: number) => {
+        setSelectedFiles(prev => prev.filter((_, i) => i !== index));
     };
 
     const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
         e.preventDefault();
-        if (!selectedFile || selectedFile.length === 0) {
+        if (!selectedFiles || selectedFiles.length === 0) {
             alert('Please select at least one image');
             return;
         }
 
         const formData = new FormData();
-        for (let i = 0; i < selectedFile.length; i++) {
-            formData.append('reference_images[]', selectedFile[i]);
-        }
+        selectedFiles.forEach(file => {
+            formData.append('reference_images[]', file);
+        });
 
         // Clear any cached analysis so the next result overwrites localStorage
         localStorage.removeItem('brand_analysis_test_result');
@@ -212,6 +242,41 @@ export default function BrandAnalysisTest() {
             onFinish: () => {
                 console.log('Caption analysis finished');
                 setIsLoading(false);
+            },
+        });
+    };
+
+    const handleGenerateImages = (e: FormEvent<HTMLFormElement>) => {
+        e.preventDefault();
+        
+        if (!prompt_results?.successful || prompt_results.successful.length === 0) {
+            alert('No successful prompts to generate images from');
+            return;
+        }
+
+        if (!result) {
+            alert('Analysis data not available');
+            return;
+        }
+
+        // Get selected images from first successful prompt
+        const firstSuccessful = prompt_results.successful[0];
+        const selectedImageIndices = firstSuccessful.selected_indices || [];
+
+        const formData = new FormData();
+        formData.append('prompt_results', JSON.stringify(prompt_results));
+        formData.append('selected_images', JSON.stringify(selectedImageIndices));
+        formData.append('analysis_json', JSON.stringify(result));
+
+        setIsGeneratingImages(true);
+        router.post('/test/brand-analysis/generate-images', formData as any, {
+            preserveScroll: true,
+            onError: (errors) => {
+                console.error('Image generation error:', errors);
+                alert('Error: ' + Object.values(errors).flat().join(', '));
+            },
+            onFinish: () => {
+                setIsGeneratingImages(false);
             },
         });
     };
@@ -362,22 +427,36 @@ export default function BrandAnalysisTest() {
                                 <p className="text-sm text-gray-500 mt-1">PNG, JPG, WebP up to 10MB each</p>
                             </div>
 
-                            {selectedFile && (
-                                <div className="mt-4">
+                            {selectedFiles.length > 0 && (
+                                <div className="mt-4 space-y-3">
                                     <p className="text-sm font-semibold text-gray-700 mb-2">
-                                        {selectedFile.length} file(s) selected
+                                        {selectedFiles.length} file(s) selected
                                     </p>
-                                    <ul className="space-y-1 text-sm text-gray-600">
-                                        {Array.from(selectedFile).map((file, i) => (
-                                            <li key={i}>• {file.name}</li>
+                                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                                        {filePreviews.map(({ file, url }, i) => (
+                                            <div key={`${file.name}-${i}`} className="relative border rounded-lg overflow-hidden">
+                                                <img src={url} alt={file.name} className="h-32 w-full object-cover" />
+                                                <div className="absolute inset-x-0 bottom-0 bg-black/60 text-white text-xs px-2 py-1 truncate">
+                                                    {file.name}
+                                                </div>
+                                                <Button
+                                                    type="button"
+                                                    size="sm"
+                                                    variant="destructive"
+                                                    className="absolute top-2 right-2 h-7 px-2"
+                                                    onClick={() => handleRemoveFile(i)}
+                                                >
+                                                    Remove
+                                                </Button>
+                                            </div>
                                         ))}
-                                    </ul>
+                                    </div>
                                 </div>
                             )}
 
                             <Button
                                 type="submit"
-                                disabled={isLoading || !selectedFile || selectedFile.length === 0}
+                                    disabled={isLoading || !selectedFiles || selectedFiles.length === 0}
                                 className="w-full"
                             >
                                 {isLoading ? 'Analyzing...' : 'Analyze Images'}
@@ -679,13 +758,78 @@ export default function BrandAnalysisTest() {
                                             </div>
                                         </div>
 
-                                        {/* Select & Generate Button */}
-                                        <Button className="w-full bg-blue-600 hover:bg-blue-700 text-white">
-                                            Use {result.model.split('/').pop()}'s Selection & Generate Image
-                                        </Button>
+                                        {/* Generate Images Button */}
+                                        <form onSubmit={handleGenerateImages} className="space-y-3">
+                                            <Button 
+                                                type="submit"
+                                                className="w-full bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white"
+                                                disabled={isGeneratingImages}
+                                            >
+                                                {isGeneratingImages ? 'Generating Images...' : 'Generate Images (Seedream + GPT-5)'}
+                                            </Button>
+                                        </form>
                                     </TabsContent>
                                 ))}
                             </Tabs>
+                            )}
+
+                            {/* Image Generation Results - 2x2 Grid */}
+                            {image_results && Object.keys(image_results).length > 0 && (
+                                <Card className="border-green-200 bg-green-50">
+                                    <CardHeader>
+                                        <CardTitle className="text-green-900">🖼️ Generated Images (2×2)</CardTitle>
+                                        <CardDescription className="text-green-700">
+                                            Images generated from top 2 prompts using 2 image models each
+                                        </CardDescription>
+                                    </CardHeader>
+                                    <CardContent>
+                                        <div className="grid grid-cols-2 gap-6">
+                                            {Object.entries(image_results).map(([promptModel, imageResults], idx) => (
+                                                <div key={`prompt-${idx}`} className="space-y-3">
+                                                    <div className="bg-white p-3 rounded border border-green-200">
+                                                        <h4 className="font-semibold text-sm text-gray-900 mb-2">
+                                                            Prompt: {promptModel.split('/').pop()}
+                                                        </h4>
+                                                        <div className="space-y-3">
+                                                            {Object.entries(imageResults).map(([imageModel, result]) => {
+                                                                const modelLabel = imageModel === 'seedream' ? '🌱 Seedream' : '🎨 GPT-5';
+                                                                return (
+                                                                    <div key={`img-${promptModel}-${imageModel}`} className="space-y-2">
+                                                                        <div className="text-xs font-semibold text-gray-700">{modelLabel}</div>
+                                                                        {result.image_url ? (
+                                                                            <div className="bg-gray-100 rounded overflow-hidden aspect-square">
+                                                                                <img 
+                                                                                    src={result.image_url} 
+                                                                                    alt={`${promptModel} + ${imageModel}`}
+                                                                                    className="w-full h-full object-cover"
+                                                                                    onError={(e) => {
+                                                                                        e.currentTarget.src = 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 400 400%22%3E%3Crect fill=%22%23e2e8f0%22 width=%22400%22 height=%22400%22/%3E%3C/svg%3E';
+                                                                                    }}
+                                                                                />
+                                                                            </div>
+                                                                        ) : (
+                                                                            <div className="bg-gray-100 rounded aspect-square flex items-center justify-center">
+                                                                                <div className="text-center">
+                                                                                    <AlertCircle className="h-6 w-6 text-red-500 mx-auto mb-2" />
+                                                                                    <p className="text-xs text-red-600 break-words px-2">
+                                                                                        {result.error || 'Failed to generate'}
+                                                                                    </p>
+                                                                                </div>
+                                                                            </div>
+                                                                        )}
+                                                                        <div className="text-xs text-gray-500">
+                                                                            {result.duration_ms}ms
+                                                                        </div>
+                                                                    </div>
+                                                                );
+                                                            })}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </CardContent>
+                                </Card>
                             )}
 
                             {/* Failed Models Notice */}

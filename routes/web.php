@@ -13,6 +13,7 @@ use App\Http\Controllers\Wizards\BrandAnalysisWizardController;
 use App\Http\Controllers\SimpleTextWizardController;
 use App\Http\Controllers\BrandAnalysisTestController;
 use App\Http\Controllers\TestAiModelsController;
+use App\Http\Controllers\QuickGenerateController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 use Laravel\Fortify\Features;
@@ -73,6 +74,22 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('projects/wizards/brand-analysis/generate', [BrandAnalysisWizardController::class, 'generate'])
         ->middleware('has.credits')
         ->name('projects.wizards.brand-analysis.generate');
+
+    // Quick Generate Routes
+    Route::get('quick-generate', [QuickGenerateController::class, 'index'])
+        ->name('quick-generate.index');
+    
+    Route::post('quick-generate', [QuickGenerateController::class, 'store'])
+        ->name('quick-generate.store');
+    
+    Route::get('quick-generate/{session}', [QuickGenerateController::class, 'show'])
+        ->name('quick-generate.show');
+    
+    Route::get('quick-generate/{session}/result', [QuickGenerateController::class, 'result'])
+        ->name('quick-generate.result');
+    
+    Route::get('quick-generate/{session}/status', [QuickGenerateController::class, 'status'])
+        ->name('quick-generate.status');
 
     // Projects Resource Routes (except create, which we handle above)
     Route::resource('projects', ProjectController::class)->except(['create']);
@@ -180,6 +197,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('test/brand-analysis', [BrandAnalysisTestController::class, 'index'])->name('test.brand-analysis.index');
     Route::post('test/brand-analysis', [BrandAnalysisTestController::class, 'store'])->name('test.brand-analysis.store');
     Route::post('test/brand-analysis/caption', [BrandAnalysisTestController::class, 'testCaption'])->name('test.brand-analysis.caption');
+    Route::post('test/brand-analysis/generate-images', [BrandAnalysisTestController::class, 'generateImages'])->name('test.brand-analysis.generate-images');
 
     // AI Models Testing
     Route::get('test-ai-models', [TestAiModelsController::class, 'index'])->name('test-ai-models.index');

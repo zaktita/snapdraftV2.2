@@ -19,8 +19,7 @@ class PromptGeneratorService
     protected array $models = [
         'google/gemini-3-flash-preview',
         'openai/gpt-5.2',
-        'anthropic/claude-opus-4.5',
-        'nvidia/nemotron-3-nano-30b-a3b:free',
+
     ];
 
     public function __construct()
@@ -379,6 +378,150 @@ class PromptGeneratorService
         }
 
         return $parsed;
+    }
+
+    /**
+     * Generate simple prompt with title/description extraction for Quick Generate.
+     * Uses first successful model, extracts title/description, selects cluster, generates simple prompt.
+     *
+     * @param array $analysis Brand analysis with style_clusters and image_analysis
+     * @param string $caption User-provided caption
+     * @return array ['title' => string, 'description' => string, 'cluster_id' => int, 'selected_images' => array, 'prompt' => string]
+     */
+    public function generateSimplePrompt(array $analysis, string $caption): array
+    {
+        if (!$this->apiKey) {
+            throw new RuntimeException('OpenRouter API key not configured');
+        }
+
+        $clusters = $analysis['style_clusters'] ?? [];
+        $images = $analysis['image_analysis'] ?? [];
+
+        if (empty($clusters)) {
+            throw new RuntimeException('No style clusters available for prompt generation');
+        }
+
+        $clusterDescription = $this->buildClusterDescription($clusters, $images);
+        
+        // Build simplified prompt for title/description extraction + cluster matching
+        $prompt = $this->buildSimpleSystemPrompt($caption, $clusterDescription, $images);
+
+        // Try models in sequence until one succeeds
+        foreach ($this->models as $model) {
+            try {
+                $response = Http::withHeaders([
+                    'Authorization' => "Bearer {$this->apiKey}",
+                    'Content-Type' => 'application/json',
+                    'HTTP-Referer' => $this->siteUrl,
+                    'X-Title' => $this->siteName,
+                ])
+                ->withOptions(['verify' => false])
+                ->timeout(120)
+                ->post($this->baseUrl, [
+                    'model' => $model,
+                    'messages' => [
+                        ['role' => 'user', 'content' => $prompt],
+                    ],
+                    'temperature' => 0.7,
+                    'max_tokens' => 1000,
+                    'top_p' => 0.95,
+                ]);
+
+                if (!$response->successful()) {
+                    continue;
+                }
+
+                $data = $response->json();
+                $content = $data['candidates'][0]['content']['parts'][0]['text']
+                    ?? $data['choices'][0]['message']['content']
+                    ?? null;
+
+                if (!$content) {
+                    continue;
+                }
+
+                $parsed = $this->parsePromptJson($content);
+                
+                // Validate required fields
+                if (!isset($parsed['title']) || !isset($parsed['description']) || !isset($parsed['cluster_id'])) {
+                    continue;
+                }
+
+                Log::info('PromptGeneratorService: Simple prompt generated', [
+                    'model' => $model,
+                    'title' => $parsed['title'],
+                    'cluster_id' => $parsed['cluster_id'],
+                ]);
+
+                return [
+                    'title' => $parsed['title'],
+                    'description' => $parsed['description'],
+                    'cluster_id' => $parsed['cluster_id'],
+                    'selected_images' => $parsed['selected_images'] ?? [],
+                    'simple_prompt' => $this->buildFinalSimplePrompt(
+                        $caption,
+                        $parsed['title'],
+                        $parsed['description']
+                    ),
+                    'model_used' => $model,
+                ];
+
+            } catch (\Throwable $e) {
+                Log::warning('PromptGeneratorService: Model failed', [
+                    'model' => $model,
+                    'error' => $e->getMessage(),
+                ]);
+                continue;
+            }
+        }
+
+        throw new RuntimeException('All models failed to generate prompt');
+    }
+
+    /**
+     * Build simplified system prompt for Quick Generate.
+     */
+    private function buildSimpleSystemPrompt(string $caption, string $clusterDescription, array $images): string
+    {
+        $lines = [];
+        $lines[] = 'You are an AI assistant for visual content generation. Analyze the caption and brand DNA to extract key information.';
+        $lines[] = '';
+        $lines[] = 'BRAND DNA:';
+        $lines[] = $clusterDescription;
+        $lines[] = '';
+        $lines[] = 'AVAILABLE REFERENCE IMAGES:';
+        foreach ($images as $image) {
+            $index = $image['index'] ?? 'N/A';
+            $cluster = $image['cluster_id'] ?? 'N/A';
+            $lines[] = "  - Image {$index}: Cluster {$cluster}";
+        }
+        $lines[] = '';
+        $lines[] = 'CAPTION:';
+        $lines[] = $caption;
+        $lines[] = '';
+        $lines[] = 'YOUR TASK:';
+        $lines[] = '1. Extract a concise title (main headline, 3-8 words)';
+        $lines[] = '2. Extract supporting description/details (1 sentence)';
+        $lines[] = '3. Select the best matching cluster ID based on caption mood/subject';
+        $lines[] = '4. Select 1-3 reference image indices that best match the caption';
+        $lines[] = '';
+        $lines[] = 'RESPOND WITH VALID JSON ONLY:';
+        $lines[] = '{';
+        $lines[] = '  "title": "<extracted title>",';
+        $lines[] = '  "description": "<extracted description>",';
+        $lines[] = '  "cluster_id": <number>,';
+        $lines[] = '  "selected_images": [<array of 1-3 image indices>]';
+        $lines[] = '}';
+
+        return implode("\n", $lines);
+    }
+
+    /**
+     * Build final simple prompt for image generation.
+     */
+    private function buildFinalSimplePrompt(string $caption, string $title, string $description): string
+    {
+        return "Generate a visual for this caption: {$caption}, with this title: {$title} and this description: {$description}. Match the style and branding of the reference images.";
     }
 
     /**

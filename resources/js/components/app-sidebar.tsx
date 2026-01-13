@@ -35,6 +35,7 @@ import {
     CreditCard,
     Shield,
     Crown,
+    Zap,
 } from 'lucide-react';
 import AppLogo from './app-logo';
 
@@ -123,6 +124,11 @@ export function AppSidebar() {
         {
             title: 'Tools',
             items: [
+                {
+                    title: 'Quick Generate',
+                    href: '/quick-generate',
+                    icon: Zap,
+                },
                 {
                     title: 'Canvas Editor',
                     href: '/canvas-editor',
