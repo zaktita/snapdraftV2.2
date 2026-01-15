@@ -44,16 +44,22 @@ class GenerateBatchImagesJob implements ShouldQueue
             $jobs = [];
             $jobIndex = 0;
             foreach ($csvData as $row) {
-                // Skip rows with empty title AND description
+                // Skip rows with empty title, and caption/description must not both be empty
                 $title = trim($row['title'] ?? '');
+                $caption = trim($row['caption'] ?? '');
                 $description = trim($row['description'] ?? '');
 
-                if (empty($title) && empty($description)) {
-                    Log::debug('Skipping empty CSV row', ['row' => $row]);
+                if (empty($title)) {
+                    Log::debug('Skipping row: title is required', ['row' => $row]);
                     continue;
                 }
 
-                $prompt = $this->buildPrompt($row);
+                if (empty($caption) && empty($description)) {
+                    Log::debug('Skipping row: caption or description required', ['row' => $row]);
+                    continue;
+                }
+
+                $prompt = $this->buildPrompt($caption, $description);
                 $format = trim($row['format'] ?? '') ?: '1:1';
 
                 // Determine AI model based on text accuracy flag
@@ -71,13 +77,25 @@ class GenerateBatchImagesJob implements ShouldQueue
                         'text_accurate' => $textAccurate,
                         'wizard_type' => 'csv',
                         'csv_row_index' => $jobIndex,
+                        'caption' => $caption,
+                        'title' => $title,
+                        'description' => $description,
                     ],
                 ]);
 
                 // Create job with delay to prevent API rate limiting (2 seconds between each generation)
                 $delaySeconds = $jobIndex * 2; // 2 seconds between each job
-                $job = (new GenerateSingleImageJob($this->project, $prompt, $format, $textAccurate, $generation->id))
-                    ->delay(now()->addSeconds($delaySeconds));
+                $job = (new GenerateSingleImageJob(
+                    project: $this->project, 
+                    prompt: $prompt, 
+                    format: $format, 
+                    textAccurate: $textAccurate, 
+                    generationId: $generation->id,
+                    caption: $caption ?: null,
+                    title: $title ?: null,
+                    description: $description ?: null,
+                    useSimplePrompt: true  // Enable simple prompt logic for all CSV rows
+                ))->delay(now()->addSeconds($delaySeconds));
 
                 $jobs[] = $job;
                 $jobIndex++;
@@ -103,14 +121,14 @@ class GenerateBatchImagesJob implements ShouldQueue
     }
 
     /**
-     * Build prompt from CSV row data.
+     * Build prompt from caption/description.
+     * Caption takes priority over description if both exist.
      */
-    protected function buildPrompt(array $row): string
+    protected function buildPrompt(?string $caption, ?string $description): string
     {
-        $title = $row['title'] ?? '';
-        $description = $row['description'] ?? '';
-
-        return trim("{$title}. {$description}");
+        // Use caption if available, otherwise use description
+        $primaryPrompt = $caption ?: $description;
+        return trim($primaryPrompt ?? '');
     }
 
     /**

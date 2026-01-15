@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 import AppLayout from '@/layouts/app-layout';
 import { type BreadcrumbItem } from '@/types';
 import { dashboard } from '@/routes';
-import quickGenerate from '@/routes/quick-generate';
+import * as quickGenerate from '@/routes/quick-generate';
 import { Loader2, Zap } from 'lucide-react';
 
 const breadcrumbs: BreadcrumbItem[] = [
@@ -41,11 +41,11 @@ export default function QuickGenerateProcessing({ session, error }: ProcessingPr
         // Poll status every 3 seconds if still processing
         if (!error && session.status !== 'completed' && session.status !== 'failed') {
             const interval = setInterval(() => {
-                fetch(quickGenerate.status({ session: session.id }).url())
+                fetch(quickGenerate.status({ session: session.id }).url)
                     .then((res) => res.json())
                     .then((data) => {
                         if (data.is_completed) {
-                            router.visit(quickGenerate.result({ session: session.id }).url());
+                            router.visit(quickGenerate.result({ session: session.id }).url);
                         } else if (data.is_failed) {
                             router.reload({ only: ['session', 'error'] });
                         }

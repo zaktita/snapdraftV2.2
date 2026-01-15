@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Wizards;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreProjectRequest;
 use App\Models\Project;
+use App\Services\AI\BrandReferenceAnalyzer;
 use App\Services\FileUploadService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -15,7 +16,8 @@ use Inertia\Inertia;
 class CSVWizardController extends Controller
 {
     public function __construct(
-        protected FileUploadService $fileUploadService
+        protected FileUploadService $fileUploadService,
+        protected BrandReferenceAnalyzer $brandAnalyzer
     ) {}
 
     /**
@@ -49,6 +51,7 @@ class CSVWizardController extends Controller
         ]);
 
         // Upload and store brand reference images (if provided)
+        $referencePaths = [];
         if ($request->hasFile('reference_images')) {
             $referenceDir = 'projects/' . $project->id . '/references';
             foreach ($request->file('reference_images') as $index => $file) {
@@ -58,6 +61,18 @@ class CSVWizardController extends Controller
                     'url' => $uploadResult['url'],
                     'thumbnail_url' => $uploadResult['thumbnail_url'],
                     'order' => $index,
+                ]);
+                
+                $referencePaths[] = $uploadResult['url'];
+            }
+            
+            // Analyze brand DNA once and store in project settings
+            if (!empty($referencePaths)) {
+                $brandAnalysis = $this->brandAnalyzer->analyze($referencePaths);
+                $project->update([
+                    'settings' => array_merge($project->settings ?? [], [
+                        'brand_analysis' => $brandAnalysis,
+                    ]),
                 ]);
             }
         }
@@ -108,7 +123,7 @@ class CSVWizardController extends Controller
             'project' => $project->id,
             'justCreated' => true,
             'expectedImages' => count($csvData),
-        ])->with('success', 'Generation started! Images will appear as they complete.')
+        ])->with('success', 'Project created! Your images will appear as they complete.')
           ->with('generating', true);
     }
 

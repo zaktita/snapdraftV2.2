@@ -5,6 +5,7 @@ namespace App\Jobs;
 use App\Models\GenerationHistory;
 use App\Models\Project;
 use App\Services\AI\AIServiceManager;
+use App\Services\AI\PromptGeneratorService;
 use App\Services\FileUploadService;
 use Illuminate\Bus\Batchable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -47,18 +48,30 @@ class GenerateSingleImageJob implements ShouldQueue
      * Create a new job instance.
      */
     public bool $textAccurate = false;
+    public ?string $caption = null;
+    public ?string $title = null;
+    public ?string $description = null;
+    public bool $useSimplePrompt = false;
 
     public function __construct(
         public Project $project,
         public string $prompt,
         public string $format = 'square',
         bool $textAccurate = false,
-        public ?int $generationId = null
+        public ?int $generationId = null,
+        ?string $caption = null,
+        ?string $title = null,
+        ?string $description = null,
+        bool $useSimplePrompt = false
     ) {
         // Validate inputs
         $this->validateInputs();
         
         $this->textAccurate = (bool) $textAccurate;
+        $this->caption = $caption;
+        $this->title = $title;
+        $this->description = $description;
+        $this->useSimplePrompt = $useSimplePrompt;
     }
 
     /**
@@ -93,11 +106,15 @@ class GenerateSingleImageJob implements ShouldQueue
     /**
      * Execute the job.
      */
-    public function handle(AIServiceManager $aiService, FileUploadService $fileUploadService): void
+    public function handle(AIServiceManager $aiService, FileUploadService $fileUploadService, PromptGeneratorService $promptGenerator): void
     {
         Log::info('Starting single image generation', [
             'project_id' => $this->project->id,
             'prompt' => $this->prompt,
+            'format' => $this->format,
+            'text_accurate' => $this->textAccurate,
+            'use_simple_prompt' => $this->useSimplePrompt,
+        ]);
             'format' => $this->format,
             'text_accurate' => $this->textAccurate,
         ]);
@@ -187,8 +204,42 @@ class GenerateSingleImageJob implements ShouldQueue
         $imageData = null;
         $fullPath = null;
         $thumbnailPath = null;
+        $finalPrompt = $this->prompt;
+        $extractedTitle = $this->title;
+        $extractedDescription = $this->description;
 
         try {
+            // Handle simple prompt generation if enabled
+            if ($this->useSimplePrompt) {
+                $brandAnalysis = $this->project->settings['brand_analysis'] ?? null;
+                
+                if ($brandAnalysis) {
+                    // Check if we need to extract title/description
+                    $needsExtraction = empty($this->title) || empty($this->description);
+                    
+                    if ($needsExtraction) {
+                        $promptResult = $promptGenerator->generateSimplePrompt($brandAnalysis, $this->prompt);
+                        $extractedTitle = $this->title ?: $promptResult['title'];
+                        $extractedDescription = $this->description ?: $promptResult['description'];
+                        $finalPrompt = $promptResult['simple_prompt'];
+                        
+                        Log::info('AI extracted title/description', [
+                            'project_id' => $this->project->id,
+                            'extracted_title' => $extractedTitle,
+                            'cluster_id' => $promptResult['cluster_id'],
+                        ]);
+                    } else {
+                        // User provided all fields, use caption if available, otherwise description
+                        $primaryPrompt = $this->caption ?: $this->description;
+                        $finalPrompt = "Generate a visual for this caption: {$primaryPrompt}, titled '{$this->title}'. Match the style and branding of the reference images.";
+                    }
+                } else {
+                    Log::warning('Brand analysis not found, using original prompt', [
+                        'project_id' => $this->project->id,
+                    ]);
+                }
+            }
+
             // Get brand reference image paths
             $referenceImagePaths = $this->getValidImagePaths(
                 $this->project->brandReferences()->pluck('url')->toArray()
@@ -209,7 +260,7 @@ class GenerateSingleImageJob implements ShouldQueue
 
             // Generate image using AI service
             $result = $aiService->generateWithReferences(
-                $this->prompt,
+                $finalPrompt,
                 $referenceImagePaths,
                 $productImagePaths,
                 $this->format,
@@ -238,7 +289,7 @@ class GenerateSingleImageJob implements ShouldQueue
             $image = $this->project->images()->create([
                 'url' => $fullPath,
                 'thumbnail_url' => $thumbnailPath,
-                'prompt' => $this->prompt,
+                'prompt' => $finalPrompt,
                 'order' => $this->project->images()->max('order') + 1,
                 'metadata' => array_merge($result['metadata'] ?? [], [
                     'ai_generated' => true,
@@ -246,6 +297,10 @@ class GenerateSingleImageJob implements ShouldQueue
                     'format' => $this->format,
                     'text_accurate' => $this->textAccurate,
                     'file_size' => $fileSize,
+                    'caption' => $this->caption,
+                    'title' => $extractedTitle,
+                    'description' => $extractedDescription,
+                    'use_simple_prompt' => $this->useSimplePrompt,
                 ]),
             ]);
 

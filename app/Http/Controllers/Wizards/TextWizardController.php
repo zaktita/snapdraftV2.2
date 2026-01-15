@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Wizards;
 
 use App\Http\Controllers\Controller;
 use App\Models\Project;
+use App\Services\AI\BrandReferenceAnalyzer;
 use App\Services\FileUploadService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -12,7 +13,8 @@ use Illuminate\Support\Facades\Gate;
 class TextWizardController extends Controller
 {
     public function __construct(
-        protected FileUploadService $fileUploadService
+        protected FileUploadService $fileUploadService,
+        protected BrandReferenceAnalyzer $brandAnalyzer
     ) {}
 
     /**
@@ -46,6 +48,7 @@ class TextWizardController extends Controller
         ]);
 
         // Upload and store optional reference images
+        $referencePaths = [];
         if ($request->hasFile('reference_images')) {
             $referenceDir = 'projects/' . $project->id . '/references';
             foreach ($request->file('reference_images') as $index => $file) {
@@ -55,6 +58,18 @@ class TextWizardController extends Controller
                     'url' => $uploadResult['url'],
                     'thumbnail_url' => $uploadResult['thumbnail_url'],
                     'order' => $index,
+                ]);
+                
+                $referencePaths[] = $uploadResult['url'];
+            }
+            
+            // Analyze brand DNA once and store in project settings
+            if (!empty($referencePaths)) {
+                $brandAnalysis = $this->brandAnalyzer->analyze($referencePaths);
+                $project->update([
+                    'settings' => array_merge($project->settings ?? [], [
+                        'brand_analysis' => $brandAnalysis,
+                    ]),
                 ]);
             }
         }
@@ -81,14 +96,33 @@ class TextWizardController extends Controller
         $format = $validated['format'];
         
         // Pass the generation ID so the job updates this record instead of creating a new one
+        // Enable simple prompt logic since this is from Text Wizard
         if (app()->environment('local')) {
-            \App\Jobs\GenerateSingleImageJob::dispatchSync($project, $prompt, $format, $textAccurate, $generation->id);
+            \App\Jobs\GenerateSingleImageJob::dispatchSync(
+                project: $project, 
+                prompt: $prompt, 
+                format: $format, 
+                textAccurate: $textAccurate, 
+                generationId: $generation->id,
+                title: null,  // AI will extract from prompt
+                description: null,  // AI will extract from prompt
+                useSimplePrompt: true
+            );
         } else {
-            \App\Jobs\GenerateSingleImageJob::dispatch($project, $prompt, $format, $textAccurate, $generation->id);
+            \App\Jobs\GenerateSingleImageJob::dispatch(
+                project: $project, 
+                prompt: $prompt, 
+                format: $format, 
+                textAccurate: $textAccurate, 
+                generationId: $generation->id,
+                title: null,  // AI will extract from prompt
+                description: null,  // AI will extract from prompt
+                useSimplePrompt: true
+            );
         }
 
         return redirect()->route('projects.show', $project->id)
-            ->with('success', 'Project created! Your image is being generated...')
+            ->with('success', 'Project created! Your image will appear when complete.')
             ->with('generating', true);
     }
 }

@@ -3,7 +3,7 @@ import AppLayout from '@/layouts/app-layout';
 import { Button } from '@/components/ui/button';
 import { type BreadcrumbItem } from '@/types';
 import { dashboard } from '@/routes';
-import quickGenerate from '@/routes/quick-generate';
+import * as quickGenerate from '@/routes/quick-generate';
 import { Download, Edit, RefreshCw, CheckCircle } from 'lucide-react';
 
 const breadcrumbs: BreadcrumbItem[] = [
@@ -54,7 +54,7 @@ interface ResultProps {
 export default function QuickGenerateResult({ session, project, image, references }: ResultProps) {
     const handleDownload = () => {
         const link = document.createElement('a');
-        link.href = `/${image.url}`;
+        link.href = `/storage/${image.url}`;
         link.download = `${session.extracted_title.replace(/\s+/g, '_')}.png`;
         link.click();
     };
@@ -91,7 +91,7 @@ export default function QuickGenerateResult({ session, project, image, reference
                             <h2 className="mb-4 text-lg font-semibold">Generated Visual</h2>
                             <div className="bg-muted rounded-lg p-4">
                                 <img
-                                    src={`/${image.url}`}
+                                    src={`/storage/${image.url}`}
                                     alt={session.extracted_title}
                                     className="mx-auto max-h-[600px] w-full rounded-md object-contain"
                                 />

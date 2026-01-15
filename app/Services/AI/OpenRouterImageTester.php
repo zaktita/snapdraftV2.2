@@ -468,8 +468,8 @@ class OpenRouterImageTester
             $filename = "{$timestamp}_{$modelSlug}.{$extension}";
             $path = "testaimodel/{$filename}";
 
-            // Save to storage/app/testaimodel
-            Storage::put($path, $imageData);
+            // Save to storage/app/public/testaimodel (accessible via symlink)
+            Storage::disk('public')->put($path, $imageData);
 
             Log::info('OpenRouterImageTester: Image saved to storage', [
                 'model' => $model,

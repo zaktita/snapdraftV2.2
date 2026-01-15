@@ -121,30 +121,30 @@ class QuickGenerateVisualJob implements ShouldQueue
                 throw new \RuntimeException('Image generation failed for all models');
             }
 
-            // Step 4: Save to database as Image
+            // Step 4: Save to database as Image (using CSV wizard structure)
             $savedPath = $successfulResult['saved_path'];
-            $publicPath = 'storage/' . $savedPath;
-
+            
             $image = Image::create([
                 'project_id' => $this->session->project_id,
-                'url' => $publicPath,
-                'thumbnail_url' => $publicPath, // Same for now
+                'url' => $savedPath, // Path relative to storage/app/public
+                'thumbnail_url' => $savedPath, // Same for now (CSV wizard creates thumbnails separately)
                 'prompt' => $promptResult['simple_prompt'],
                 'metadata' => [
+                    'ai_generated' => true,
                     'format' => $this->session->format,
                     'title' => $promptResult['title'],
                     'description' => $promptResult['description'],
                     'cluster_id' => $promptResult['cluster_id'],
                     'selected_images' => $promptResult['selected_images'],
                     'generation_duration_ms' => $successfulResult['duration_ms'] ?? 0,
+                    'model' => $successfulResult['model'] ?? 'unknown',
                 ],
                 'order' => 0,
-                'format' => 'png',
             ]);
 
             // Update project featured image and count
             $this->session->project->update([
-                'featured_image' => $publicPath,
+                'featured_image' => $savedPath,
                 'images_count' => $this->session->project->images()->count(),
             ]);
 
