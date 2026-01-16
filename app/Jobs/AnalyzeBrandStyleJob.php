@@ -74,7 +74,23 @@ class AnalyzeBrandStyleJob implements ShouldQueue
                 GenerateBatchImagesJob::dispatch($this->project);
             } else {
                 // Images or Text wizard: generate single image
-                GenerateSingleImageJob::dispatch($this->project);
+                $prompt = (string) ($this->project->description
+                    ?: ($this->project->settings['prompt'] ?? ''));
+
+                $format = (string) (($this->project->settings['format'] ?? null)
+                    ?: ($this->project->format ?? '1:1'));
+
+                $textAccurate = (bool) ($this->project->settings['text_accurate'] ?? false);
+
+                if (trim($prompt) === '') {
+                    Log::warning('AnalyzeBrandStyleJob: No prompt available for single generation', [
+                        'project_id' => $this->project->id,
+                        'wizard_type' => $wizardType,
+                    ]);
+                    return;
+                }
+
+                GenerateSingleImageJob::dispatch($this->project, $prompt, $format, $textAccurate);
             }
 
         } catch (\Exception $e) {

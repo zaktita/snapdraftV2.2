@@ -2,6 +2,7 @@
 
 namespace App\Jobs;
 
+use App\Models\CsvWizardSession;
 use App\Models\GenerationHistory;
 use App\Models\Project;
 use Illuminate\Bus\Batch;
@@ -15,10 +16,46 @@ class GenerateBatchImagesJob implements ShouldQueue
     use Queueable;
 
     /**
+     * Allowed per-row format presets (blank => AI decides).
+     */
+    private const FORMAT_PRESETS = [
+        // Instagram
+        'instagram_square',
+        'instagram_story',
+        'instagram_portrait',
+        'instagram_landscape',
+
+        // Facebook
+        'facebook_square',
+        'facebook_story',
+        'facebook_landscape',
+        'facebook_link',
+
+        // LinkedIn
+        'linkedin_square',
+        'linkedin_landscape',
+
+        // X (Twitter)
+        'x_square',
+        'x_landscape',
+
+        // TikTok
+        'tiktok_video',
+
+        // YouTube
+        'youtube_thumbnail',
+
+        // Pinterest
+        'pinterest_pin',
+        'pinterest_square',
+    ];
+
+    /**
      * Create a new job instance.
      */
     public function __construct(
-        public Project $project
+        public Project $project,
+        public ?int $sessionId = null,
     ) {
         //
     }
@@ -28,12 +65,27 @@ class GenerateBatchImagesJob implements ShouldQueue
      */
     public function handle(): void
     {
-        Log::info('Starting batch image generation', ['project_id' => $this->project->id]);
+        $batchStart = microtime(true);
+        Log::info('🚀 STARTING GenerateBatchImagesJob', [
+            'project_id' => $this->project->id,
+            'timestamp' => now()->toDateTimeString(),
+            'session_id' => $this->sessionId,
+        ]);
+
+        $session = null;
+        if ($this->sessionId) {
+            $session = CsvWizardSession::query()->find($this->sessionId);
+        }
 
         try {
             // Get CSV data from project settings
             $csvData = $this->project->settings['csv_data'] ?? [];
             $textAccurate = $this->project->settings['text_accurate'] ?? false;
+            
+            Log::info('📊 CSV data loaded', [
+                'total_rows' => count($csvData),
+                'text_accurate' => $textAccurate,
+            ]);
 
             if (empty($csvData)) {
                 Log::warning('No CSV data found for batch generation', ['project_id' => $this->project->id]);
@@ -42,25 +94,76 @@ class GenerateBatchImagesJob implements ShouldQueue
 
             // Create array of generation jobs with rate limiting
             $jobs = [];
-            $jobIndex = 0;
-            foreach ($csvData as $row) {
-                // Skip rows with empty title, and caption/description must not both be empty
+            $scheduledIndex = 0;
+            foreach ($csvData as $rowIndex => $row) {
+                // Only require caption OR description (title is optional, AI will extract)
                 $title = trim($row['title'] ?? '');
                 $caption = trim($row['caption'] ?? '');
                 $description = trim($row['description'] ?? '');
 
-                if (empty($title)) {
-                    Log::debug('Skipping row: title is required', ['row' => $row]);
+                $formatRaw = trim($row['format'] ?? '');
+                $formatPreset = $formatRaw !== '' ? $formatRaw : null;
+
+                if ($formatPreset !== null && !in_array($formatPreset, self::FORMAT_PRESETS, true)) {
+                    $generation = GenerationHistory::create([
+                        'user_id' => $this->project->user_id,
+                        'project_id' => $this->project->id,
+                        'prompt' => $this->buildPrompt($caption, $description),
+                        'ai_model' => $textAccurate ? 'gemini-3-pro-image-preview' : 'gemini-2.5-flash-image',
+                        'status' => 'failed',
+                        'error_message' => 'Invalid format. Allowed: ' . implode(', ', self::FORMAT_PRESETS) . ' (or leave blank to let AI decide).',
+                        'parameters' => [
+                            'format' => $formatRaw,
+                            'format_source' => $formatRaw === '' ? 'ai' : 'user',
+                            'text_accurate' => $textAccurate,
+                            'wizard_type' => 'csv',
+                            'csv_row_index' => $rowIndex,
+                            'caption' => $caption,
+                            'title' => $title,
+                            'description' => $description,
+                            'validation_error' => true,
+                        ],
+                    ]);
+
+                    Log::debug('Skipping row: invalid format preset', [
+                        'row_index' => $rowIndex,
+                        'format' => $formatRaw,
+                        'generation_id' => $generation->id,
+                    ]);
                     continue;
                 }
 
                 if (empty($caption) && empty($description)) {
-                    Log::debug('Skipping row: caption or description required', ['row' => $row]);
+                    $generation = GenerationHistory::create([
+                        'user_id' => $this->project->user_id,
+                        'project_id' => $this->project->id,
+                        'prompt' => '',
+                        'ai_model' => $textAccurate ? 'gemini-3-pro-image-preview' : 'gemini-2.5-flash-image',
+                        'status' => 'failed',
+                        'error_message' => 'Caption or description is required (at least one must be non-empty).',
+                        'parameters' => [
+                            'format' => $formatPreset,
+                            'format_source' => $formatPreset ? 'user' : 'ai',
+                            'text_accurate' => $textAccurate,
+                            'wizard_type' => 'csv',
+                            'csv_row_index' => $rowIndex,
+                            'caption' => $caption,
+                            'title' => $title,
+                            'description' => $description,
+                            'validation_error' => true,
+                        ],
+                    ]);
+
+                    Log::debug('Skipping row: caption or description required', [
+                        'row_index' => $rowIndex,
+                        'generation_id' => $generation->id,
+                    ]);
                     continue;
                 }
 
                 $prompt = $this->buildPrompt($caption, $description);
-                $format = trim($row['format'] ?? '') ?: '1:1';
+                // If format is blank, let the AI decide (we'll instruct the model in the prompt).
+                $format = $formatPreset ?? '';
 
                 // Determine AI model based on text accuracy flag
                 $aiModel = $textAccurate ? 'gemini-3-pro-image-preview' : 'gemini-2.5-flash-image';
@@ -73,10 +176,11 @@ class GenerateBatchImagesJob implements ShouldQueue
                     'ai_model' => $aiModel,
                     'status' => 'pending',
                     'parameters' => [
-                        'format' => $format,
+                        'format' => $formatPreset,
+                        'format_source' => $formatPreset ? 'user' : 'ai',
                         'text_accurate' => $textAccurate,
                         'wizard_type' => 'csv',
-                        'csv_row_index' => $jobIndex,
+                        'csv_row_index' => $rowIndex,
                         'caption' => $caption,
                         'title' => $title,
                         'description' => $description,
@@ -84,7 +188,7 @@ class GenerateBatchImagesJob implements ShouldQueue
                 ]);
 
                 // Create job with delay to prevent API rate limiting (2 seconds between each generation)
-                $delaySeconds = $jobIndex * 2; // 2 seconds between each job
+                $delaySeconds = $scheduledIndex * 2; // 2 seconds between each job
                 $job = (new GenerateSingleImageJob(
                     project: $this->project, 
                     prompt: $prompt, 
@@ -98,23 +202,39 @@ class GenerateBatchImagesJob implements ShouldQueue
                 ))->delay(now()->addSeconds($delaySeconds));
 
                 $jobs[] = $job;
-                $jobIndex++;
+                $scheduledIndex++;
             }
 
             // Dispatch batch of jobs without callbacks (to avoid closure serialization issues)
-            Bus::batch($jobs)
+            $dispatchStart = microtime(true);
+
+            $batch = Bus::batch($jobs)
                 ->name('Batch Generation - Project ' . $this->project->id)
                 ->dispatch();
 
-            Log::info('Batch jobs dispatched', [
+            if ($session) {
+                $session->markAsGenerating(batchId: $batch->id, totalJobs: count($jobs));
+            }
+            
+            $dispatchTime = round((microtime(true) - $dispatchStart) * 1000);
+            $totalBatchTime = round((microtime(true) - $batchStart) * 1000);
+            
+            Log::info('✅ Batch jobs dispatched', [
+                'dispatch_duration_ms' => $dispatchTime,
+                'total_batch_setup_ms' => $totalBatchTime,
                 'project_id' => $this->project->id,
                 'job_count' => count($jobs),
+                'batch_id' => $batch->id ?? null,
             ]);
         } catch (\Exception $e) {
             Log::error('Batch generation setup failed', [
                 'project_id' => $this->project->id,
                 'error' => $e->getMessage(),
             ]);
+
+            if ($session) {
+                $session->markAsFailed($e->getMessage());
+            }
 
             throw $e;
         }

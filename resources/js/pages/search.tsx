@@ -177,7 +177,7 @@ export default function Search() {
                                                                     />
                                                                 ) : (
                                                                     <div className="size-full flex items-center justify-center">
-                                                                        <PlaceholderPattern className="size-full" seed={project.id} />
+                                                                        <PlaceholderPattern className="size-full" />
                                                                     </div>
                                                                 )}
                                                                 

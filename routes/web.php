@@ -47,6 +47,16 @@ Route::middleware(['auth', 'verified'])->group(function () {
         ->middleware('has.credits')
         ->name('projects.wizards.csv.store');
 
+    // CSV Wizard Session Routes (processing + result)
+    Route::get('projects/wizards/csv/sessions/{session}', [CSVWizardController::class, 'showSession'])
+        ->name('projects.wizards.csv.session.show');
+
+    Route::get('projects/wizards/csv/sessions/{session}/result', [CSVWizardController::class, 'resultSession'])
+        ->name('projects.wizards.csv.session.result');
+
+    Route::get('projects/wizards/csv/sessions/{session}/status', [CSVWizardController::class, 'statusSession'])
+        ->name('projects.wizards.csv.session.status');
+
     Route::get('projects/create/images', function () {
         return Inertia::render('projects/wizards/images');
     })->name('projects.wizards.images');

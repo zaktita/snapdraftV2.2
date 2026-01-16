@@ -3,570 +3,347 @@
 namespace App\Jobs;
 
 use App\Models\GenerationHistory;
+use App\Models\Image;
 use App\Models\Project;
-use App\Services\AI\AIServiceManager;
+use App\Services\AI\OpenRouterImageTester;
 use App\Services\AI\PromptGeneratorService;
-use App\Services\FileUploadService;
 use Illuminate\Bus\Batchable;
+use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
-use Illuminate\Foundation\Queue\Queueable;
+use Illuminate\Foundation\Bus\Dispatchable;
+use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
-use Intervention\Image\Laravel\Facades\Image as InterventionImage;
 
 class GenerateSingleImageJob implements ShouldQueue
 {
-    use Batchable, Queueable, SerializesModels;
+    use Batchable, Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
-    /**
-     * The number of times the job may be attempted.
-     *
-     * @var int
-     */
+    public $timeout = 300;
     public $tries = 3;
-
-    /**
-     * The number of seconds to wait before retrying the job.
-     *
-     * @var array
-     */
-    public $backoff = [60, 300, 900]; // 1 minute, 5 minutes, 15 minutes
-
-    /**
-     * Allowed image formats
-     */
-    private const ALLOWED_FORMATS = [
-        '1:1', '2:3', '3:2', '3:4', '4:3', '4:5', '5:4', '2:1', '16:9', '21:9', '9:16', '4:1',
-        'square', 'portrait', 'landscape',
-        'instagram-post', 'instagram-story', 'facebook-post', 'facebook-ad',
-        'linkedin-post', 'linkedin-banner', 'twitter-post', 'youtube-thumbnail'
-    ];
-
-    /**
-     * Create a new job instance.
-     */
-    public bool $textAccurate = false;
-    public ?string $caption = null;
-    public ?string $title = null;
-    public ?string $description = null;
-    public bool $useSimplePrompt = false;
 
     public function __construct(
         public Project $project,
-        public string $prompt,
-        public string $format = 'square',
-        bool $textAccurate = false,
+        public string $prompt = '',
+        public string $format = '1:1',
+        public bool $textAccurate = false,
         public ?int $generationId = null,
-        ?string $caption = null,
-        ?string $title = null,
-        ?string $description = null,
-        bool $useSimplePrompt = false
+        public ?string $caption = null,
+        public ?string $title = null,
+        public ?string $description = null,
+        public bool $useSimplePrompt = false,
     ) {
-        // Validate inputs
-        $this->validateInputs();
-        
-        $this->textAccurate = (bool) $textAccurate;
-        $this->caption = $caption;
-        $this->title = $title;
-        $this->description = $description;
-        $this->useSimplePrompt = $useSimplePrompt;
     }
 
-    /**
-     * Validate job input parameters
-     */
-    protected function validateInputs(): void
-    {
-        if (empty($this->prompt)) {
-            throw new \InvalidArgumentException('Prompt cannot be empty');
-        }
-
-        if (!in_array($this->format, self::ALLOWED_FORMATS)) {
-            throw new \InvalidArgumentException(
-                sprintf('Invalid format "%s". Allowed formats: %s', 
-                    $this->format, 
-                    implode(', ', self::ALLOWED_FORMATS)
-                )
-            );
-        }
-
-        if (!$this->project->exists) {
-            throw new \InvalidArgumentException('Project does not exist');
-        }
-
-        // Sanitize prompt
-        $this->prompt = trim(strip_tags($this->prompt));
-        if (strlen($this->prompt) > 5000) {
-            throw new \InvalidArgumentException('Prompt too long (max 5000 characters)');
-        }
-    }
-
-    /**
-     * Execute the job.
-     */
-    public function handle(AIServiceManager $aiService, FileUploadService $fileUploadService, PromptGeneratorService $promptGenerator): void
-    {
-        Log::info('Starting single image generation', [
-            'project_id' => $this->project->id,
-            'prompt' => $this->prompt,
-            'format' => $this->format,
-            'text_accurate' => $this->textAccurate,
-            'use_simple_prompt' => $this->useSimplePrompt,
-        ]);
-            'format' => $this->format,
-            'text_accurate' => $this->textAccurate,
-        ]);
-
-        // Determine credit cost (1 for normal, 4 for text-accurate)
-        $creditCost = $this->textAccurate ? 4 : 1;
-
-        // Use database transaction for atomic operations
-        DB::transaction(function () use ($aiService, $fileUploadService, $creditCost) {
-            $this->executeGeneration($aiService, $fileUploadService, $creditCost);
-        });
-    }
-
-    /**
-     * Execute the generation process within a transaction
-     */
-    protected function executeGeneration(AIServiceManager $aiService, FileUploadService $fileUploadService, int $creditCost): void
-    {
-        // Lock user record for update to prevent race conditions
-        $user = $this->project->user()->lockForUpdate()->first();
-        if (!$user) {
-            throw new \Exception("User not found for project {$this->project->id}");
-        }
-
-        // Check if user has sufficient credits
-        if (!$user->hasCredits($creditCost)) {
-            Log::warning('User has insufficient credits', [
-                'user_id' => $user->id,
-                'project_id' => $this->project->id,
-                'required_credits' => $creditCost,
-                'available_credits' => $user->credits_remaining,
-            ]);
-
-            $errorMessage = "Insufficient credits (need {$creditCost}, have {$user->credits_remaining})";
-
-            if ($this->generationId && $generation = GenerationHistory::find($this->generationId)) {
-                $generation->update([
-                    'status' => 'failed',
-                    'error_message' => $errorMessage,
-                    'ai_model' => $aiService->getActiveServiceName(),
-                ]);
-            } else {
-                GenerationHistory::create([
-                    'user_id' => $this->project->user_id,
-                    'project_id' => $this->project->id,
-                    'ai_model' => $aiService->getActiveServiceName(),
-                    'status' => 'failed',
-                    'error_message' => $errorMessage,
-                ]);
-            }
-
-            return;
-        }
-
-        // Deduct credits (1 or 4 depending on text accuracy)
-        $user->useCredit($creditCost);
-
-        // Get or create generation history record
-        if ($this->generationId) {
-            $generation = GenerationHistory::find($this->generationId);
-            if ($generation) {
-                $generation->update([
-                    'status' => 'processing',
-                    'ai_model' => $aiService->getActiveServiceName(),
-                ]);
-            } else {
-                // Fallback if ID provided but not found
-                $generation = GenerationHistory::create([
-                    'user_id' => $this->project->user_id,
-                    'project_id' => $this->project->id,
-                    'ai_model' => $aiService->getActiveServiceName(),
-                    'status' => 'processing',
-                    'prompt' => $this->prompt,
-                ]);
-            }
-        } else {
-            // Legacy behavior: create new record
-            $generation = GenerationHistory::create([
-                'user_id' => $this->project->user_id,
-                'project_id' => $this->project->id,
-                'ai_model' => $aiService->getActiveServiceName(),
-                'status' => 'processing',
-                'prompt' => $this->prompt,
-            ]);
-        }
-
-        $imageData = null;
-        $fullPath = null;
-        $thumbnailPath = null;
-        $finalPrompt = $this->prompt;
-        $extractedTitle = $this->title;
-        $extractedDescription = $this->description;
-
+    public function handle(
+        PromptGeneratorService $promptGenerator,
+        OpenRouterImageTester $imageTester
+    ): void {
+        $generation = null;
         try {
-            // Handle simple prompt generation if enabled
-            if ($this->useSimplePrompt) {
-                $brandAnalysis = $this->project->settings['brand_analysis'] ?? null;
-                
-                if ($brandAnalysis) {
-                    // Check if we need to extract title/description
-                    $needsExtraction = empty($this->title) || empty($this->description);
-                    
-                    if ($needsExtraction) {
-                        $promptResult = $promptGenerator->generateSimplePrompt($brandAnalysis, $this->prompt);
-                        $extractedTitle = $this->title ?: $promptResult['title'];
-                        $extractedDescription = $this->description ?: $promptResult['description'];
-                        $finalPrompt = $promptResult['simple_prompt'];
-                        
-                        Log::info('AI extracted title/description', [
-                            'project_id' => $this->project->id,
-                            'extracted_title' => $extractedTitle,
-                            'cluster_id' => $promptResult['cluster_id'],
-                        ]);
-                    } else {
-                        // User provided all fields, use caption if available, otherwise description
-                        $primaryPrompt = $this->caption ?: $this->description;
-                        $finalPrompt = "Generate a visual for this caption: {$primaryPrompt}, titled '{$this->title}'. Match the style and branding of the reference images.";
-                    }
-                } else {
-                    Log::warning('Brand analysis not found, using original prompt', [
-                        'project_id' => $this->project->id,
-                    ]);
+            if ($this->batch()?->cancelled()) {
+                Log::info('GenerateSingleImageJob: Skipped (batch cancelled)', [
+                    'project_id' => $this->project->id,
+                    'generation_id' => $this->generationId,
+                ]);
+                return;
+            }
+
+            Log::info('GenerateSingleImageJob: Starting', [
+                'project_id' => $this->project->id,
+                'title' => $this->title,
+                'caption' => $this->caption,
+                'format' => $this->format,
+                'generation_id' => $this->generationId,
+                'text_accurate' => $this->textAccurate,
+                'use_simple_prompt' => $this->useSimplePrompt,
+            ]);
+
+            if ($this->generationId) {
+                $generation = GenerationHistory::query()->find($this->generationId);
+                if ($generation) {
+                    $generation->update(['status' => 'processing']);
                 }
             }
 
-            // Get brand reference image paths
-            $referenceImagePaths = $this->getValidImagePaths(
-                $this->project->brandReferences()->pluck('url')->toArray()
-            );
-
-            // Get product images if any
-            $productImagePaths = $this->getValidImagePaths(
-                $this->project->images()
-                    ->whereJsonContains('metadata->type', 'product_overlay')
-                    ->pluck('url')
-                    ->toArray()
-            );
-
-            Log::info('Reference images found', [
-                'brand_references' => count($referenceImagePaths),
-                'product_overlays' => count($productImagePaths),
-            ]);
-
-            // Generate image using AI service
-            $result = $aiService->generateWithReferences(
-                $finalPrompt,
-                $referenceImagePaths,
-                $productImagePaths,
-                $this->format,
-                $this->textAccurate
-            );
-
-            // Validate AI service response
-            if (!isset($result['image_data'])) {
-                throw new \Exception('No image data in AI service response');
+            // Prefer explicit caption/description; fall back to prompt
+            $primaryText = trim((string) ($this->caption ?: $this->description ?: $this->prompt));
+            if ($primaryText === '') {
+                throw new \RuntimeException('Prompt cannot be empty');
             }
 
-            // Decode and validate image data
-            $imageData = base64_decode($result['image_data']);
-            if ($imageData === false) {
-                throw new \Exception('Invalid base64 image data received from AI service');
+            $finalPrompt = $primaryText;
+            $promptResult = null;
+
+            $brandAnalysis = $this->project->settings['brand_analysis'] ?? null;
+            if ($this->useSimplePrompt && $brandAnalysis) {
+                $promptResult = $promptGenerator->generateSimplePrompt($brandAnalysis, $primaryText);
+                $finalPrompt = (string) ($promptResult['simple_prompt'] ?? $primaryText);
+
+                // Backfill extracted fields if not explicitly provided
+                $this->title = $this->title ?: ($promptResult['title'] ?? null);
+                $this->description = $this->description ?: ($promptResult['description'] ?? null);
             }
 
-            if (!$this->isValidImageData($imageData)) {
-                throw new \Exception('Invalid image data format received from AI service');
-            }
-
-            // Save generated image and create thumbnail
-            [$fullPath, $thumbnailPath, $fileSize] = $this->saveGeneratedImage($imageData, $result['mime_type'] ?? 'image/png');
-
-            // Create Image record
-            $image = $this->project->images()->create([
-                'url' => $fullPath,
-                'thumbnail_url' => $thumbnailPath,
+            Log::info('GenerateSingleImageJob: Prompt prepared', [
+                'project_id' => $this->project->id,
                 'prompt' => $finalPrompt,
-                'order' => $this->project->images()->max('order') + 1,
-                'metadata' => array_merge($result['metadata'] ?? [], [
+            ]);
+
+            $formatInfo = $this->resolveFormat($this->format);
+            $finalPromptWithFormat = $this->appendFormatInstruction($finalPrompt, $formatInfo);
+
+            // Prepare reference images (selected cluster when available)
+            $brandReferences = $this->project->brandReferences()->orderBy('order')->get();
+            $referenceImagesBase64 = [];
+            $referenceCluster = [];
+
+            $selectedIndices = null;
+            if (is_array($promptResult) && isset($promptResult['selected_images']) && is_array($promptResult['selected_images'])) {
+                $selectedIndices = array_values(array_filter($promptResult['selected_images'], fn ($v) => is_int($v) || ctype_digit((string) $v)));
+                $selectedIndices = array_map('intval', $selectedIndices);
+            }
+
+            $indicesToUse = $selectedIndices;
+            if (!$indicesToUse || count($indicesToUse) === 0) {
+                $indicesToUse = array_keys($brandReferences->all());
+            }
+            
+            foreach ($indicesToUse as $index) {
+                if (!isset($brandReferences[$index])) {
+                    continue;
+                }
+
+                $ref = $brandReferences[$index];
+                $path = str_replace('storage/', '', (string) $ref->url);
+                
+                if (Storage::disk('public')->exists($path)) {
+                    $mimeType = Storage::disk('public')->mimeType($path);
+                    $content = Storage::disk('public')->get($path);
+                    $base64 = base64_encode($content);
+                    
+                    $referenceImagesBase64[] = [
+                        'data' => $base64,
+                        'mimeType' => $mimeType,
+                    ];
+
+                    $referenceCluster[] = [
+                        'id' => $ref->id,
+                        'url' => $ref->url,
+                        'thumbnail_url' => $ref->thumbnail_url,
+                        'order' => $ref->order,
+                        'index' => $index,
+                    ];
+                }
+            }
+
+            if (empty($referenceImagesBase64)) {
+                throw new \RuntimeException('No reference images could be loaded');
+            }
+
+            Log::info('GenerateSingleImageJob: Generating image', [
+                'project_id' => $this->project->id,
+                'reference_count' => count($referenceImagesBase64),
+                'format_token' => $formatInfo['token'],
+                'format_ratio' => $formatInfo['ratio'],
+                'format_source' => $formatInfo['source'],
+            ]);
+
+            if ($generation) {
+                $generation->update([
+                    'prompt' => $finalPromptWithFormat,
+                    'request_data' => array_merge($generation->request_data ?? [], [
+                        'prompt_sent' => $finalPromptWithFormat,
+                        'cluster_id' => $promptResult['cluster_id'] ?? null,
+                        'selected_image_indices' => $selectedIndices,
+                        'reference_cluster' => $referenceCluster,
+                        'reference_count' => count($referenceCluster),
+                    ]),
+                ]);
+            }
+
+            // Generate image
+            $generationResults = $imageTester->generateForAllModels(
+                $referenceImagesBase64,
+                $finalPromptWithFormat
+            );
+
+            // Get first successful result
+            $successfulResult = null;
+            foreach ($generationResults as $model => $result) {
+                if (!isset($result['error']) && isset($result['saved_path'])) {
+                    $successfulResult = $result;
+                    break;
+                }
+            }
+
+            if (!$successfulResult) {
+                throw new \RuntimeException('Image generation failed for all models');
+            }
+
+            // Save to database
+            $savedPath = $successfulResult['saved_path'];
+            
+            $image = Image::create([
+                'project_id' => $this->project->id,
+                'url' => $savedPath,
+                'thumbnail_url' => $savedPath,
+                'prompt' => $finalPromptWithFormat,
+                'metadata' => [
                     'ai_generated' => true,
-                    'model' => $result['metadata']['model'] ?? 'gemini-2.5-flash-image',
-                    'format' => $this->format,
-                    'text_accurate' => $this->textAccurate,
-                    'file_size' => $fileSize,
+                    'format' => $formatInfo['token'],
+                    'format_ratio' => $formatInfo['ratio'],
+                    'format_source' => $formatInfo['source'],
+                    'title' => $this->title,
                     'caption' => $this->caption,
-                    'title' => $extractedTitle,
-                    'description' => $extractedDescription,
-                    'use_simple_prompt' => $this->useSimplePrompt,
-                ]),
+                    'description' => $this->description,
+                    'text_accurate' => $this->textAccurate,
+                    'cluster_id' => $promptResult['cluster_id'] ?? null,
+                    'selected_images' => $promptResult['selected_images'] ?? null,
+                    'reference_cluster' => $referenceCluster,
+                    'generation_duration_ms' => $successfulResult['duration_ms'] ?? 0,
+                    'model' => $successfulResult['model'] ?? 'bytedance-seed/seedream-4.5',
+                ],
+                'order' => 0,
             ]);
 
-            // Update generation history
-            $generation->update([
-                'status' => 'completed',
-                'tokens_used' => $result['metadata']['tokens_used'] ?? 0,
-                'cost' => $this->calculateCost($result['metadata']['tokens_used'] ?? 0),
-                'image_id' => $image->id,
+            // Update project
+            $this->project->update([
+                'featured_image' => $savedPath,
+                'images_count' => $this->project->images()->count(),
             ]);
 
-            Log::info('Image generation completed', [
+            Log::info('GenerateSingleImageJob: Completed', [
                 'project_id' => $this->project->id,
                 'image_id' => $image->id,
-                'generation_id' => $generation->id,
-                'size_kb' => strlen($imageData) / 1024,
-                'credits_used' => $creditCost,
             ]);
 
-        } catch (\Exception $e) {
-            // Clean up any created files on failure
-            $this->cleanupFiles([$fullPath, $thumbnailPath]);
+            if ($generation) {
+                $generation->update([
+                    'image_id' => $image->id,
+                    'ai_model' => $successfulResult['model'] ?? ($generation->ai_model ?? 'bytedance-seed/seedream-4.5'),
+                    'status' => 'completed',
+                    'response_data' => [
+                        'saved_path' => $savedPath,
+                        'duration_ms' => $successfulResult['duration_ms'] ?? null,
+                        'model' => $successfulResult['model'] ?? null,
+                        'format_token' => $formatInfo['token'],
+                        'format_ratio' => $formatInfo['ratio'],
+                        'format_source' => $formatInfo['source'],
+                    ],
+                ]);
+            }
 
-            Log::error('Image generation failed', [
+        } catch (\Throwable $e) {
+            Log::error('GenerateSingleImageJob: Failed', [
                 'project_id' => $this->project->id,
-                'generation_id' => $generation->id ?? null,
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString(),
             ]);
 
-            // Refund credits on failure (except for validation errors)
-            if (!($e instanceof \InvalidArgumentException)) {
-                $user->refundCredit($creditCost);
-                Log::info('Credits refunded due to generation failure', [
-                    'user_id' => $user->id,
-                    'credits_refunded' => $creditCost,
-                ]);
+            if ($generation) {
+                $generation->markAsFailed($e->getMessage());
             }
-
-            // Update generation history
-            if (isset($generation)) {
-                $generation->update([
-                    'status' => 'failed',
-                    'error_message' => $e->getMessage(),
-                ]);
-            }
-
             throw $e;
         }
     }
 
     /**
-     * Save generated image and create thumbnail
+     * Resolve a CSV format preset into a normalized token + ratio.
+     * Blank format means "AI decides".
+     *
+     * @return array{token:string,ratio:?string,source:'user'|'ai'}
      */
-    protected function saveGeneratedImage(string $imageData, string $mimeType): array
+    private function resolveFormat(?string $format): array
     {
-        $extension = $this->getFileExtension($mimeType);
-        $filename = 'generated_' . time() . '_' . uniqid() . '.' . $extension;
-        $directory = 'projects/' . $this->project->id . '/images';
-        $thumbnailDirectory = $directory . '/thumbnails';
-
-        Storage::disk('public')->makeDirectory($directory);
-        Storage::disk('public')->makeDirectory($thumbnailDirectory);
-
-        $fullPath = $directory . '/' . $filename;
-
-        $fileSize = Storage::disk('public')->put($fullPath, $imageData);
-        if (!$fileSize) {
-            throw new \Exception('Failed to save image to storage');
+        $format = trim((string) $format);
+        if ($format === '') {
+            return [
+                'token' => 'auto',
+                'ratio' => null,
+                'source' => 'ai',
+            ];
         }
 
-        $thumbnailPath = $this->generateThumbnail($imageData, $thumbnailDirectory, $filename);
-        
-        return [$fullPath, $thumbnailPath, $fileSize];
+        $map = [
+            // Instagram
+            'instagram_square' => '1:1',
+            'instagram_story' => '9:16',
+            'instagram_portrait' => '4:5',
+            'instagram_landscape' => '16:9',
+
+            // Facebook
+            'facebook_square' => '1:1',
+            'facebook_story' => '9:16',
+            'facebook_landscape' => '16:9',
+            'facebook_link' => '1.91:1',
+
+            // LinkedIn
+            'linkedin_square' => '1:1',
+            'linkedin_landscape' => '1.91:1',
+
+            // X (Twitter)
+            'x_square' => '1:1',
+            'x_landscape' => '16:9',
+
+            // TikTok
+            'tiktok_video' => '9:16',
+
+            // YouTube
+            'youtube_thumbnail' => '16:9',
+
+            // Pinterest
+            'pinterest_pin' => '2:3',
+            'pinterest_square' => '1:1',
+
+            // Generic aspect presets
+            'square_1_1' => '1:1',
+            'portrait_4_5' => '4:5',
+            'portrait_3_4' => '3:4',
+            'portrait_2_3' => '2:3',
+            'story_9_16' => '9:16',
+            'landscape_3_2' => '3:2',
+            'landscape_4_3' => '4:3',
+            'landscape_5_4' => '5:4',
+            'wide_2_1' => '2:1',
+            'landscape_16_9' => '16:9',
+            'cinematic_21_9' => '21:9',
+            'banner_4_1' => '4:1',
+        ];
+
+        if (isset($map[$format])) {
+            return [
+                'token' => $format,
+                'ratio' => $map[$format],
+                'source' => 'user',
+            ];
+        }
+
+        // Fallback: treat it as a ratio-like string (legacy support)
+        return [
+            'token' => $format,
+            'ratio' => $format,
+            'source' => 'user',
+        ];
     }
 
     /**
-     * Get valid image paths from URLs
+     * Add format guidance to the prompt so the model composes correctly.
      */
-    protected function getValidImagePaths(array $urls): array
+    private function appendFormatInstruction(string $prompt, array $formatInfo): string
     {
-        return collect($urls)
-            ->map(function ($url) {
-                // Extract filename from URL
-                $filename = basename($url);
-                
-                // Check if file exists in storage
-                if (Storage::disk('public')->exists($filename)) {
-                    return Storage::disk('public')->path($filename);
-                }
-                
-                // Also check with full URL path
-                if (Storage::disk('public')->exists($url)) {
-                    return Storage::disk('public')->path($url);
-                }
-                
-                Log::warning('Reference image not found', ['url' => $url, 'filename' => $filename]);
-                return null;
-            })
-            ->filter()
-            ->values()
-            ->toArray();
-    }
+        $prompt = trim($prompt);
+        $instruction = null;
 
-    /**
-     * Validate image data
-     */
-    protected function isValidImageData(string $imageData): bool
-    {
-        // Check minimum size (at least 100 bytes)
-        if (strlen($imageData) < 100) {
-            return false;
+        if (($formatInfo['token'] ?? '') === 'auto') {
+            $instruction = 'Choose the best social format based on the content (Instagram Square 1:1, Portrait 4:5, Story 9:16, or Landscape 16:9).';
+        } elseif (!empty($formatInfo['ratio'])) {
+            $instruction = "Compose for {$formatInfo['token']} in {$formatInfo['ratio']} aspect ratio.";
+        } else {
+            $instruction = "Compose for {$formatInfo['token']} format.";
         }
 
-        // Try to get image info
-        $imageInfo = @getimagesizefromstring($imageData);
-        return $imageInfo !== false && in_array($imageInfo[2], [IMAGETYPE_JPEG, IMAGETYPE_PNG, IMAGETYPE_WEBP]);
-    }
-
-    /**
-     * Get file extension from MIME type
-     */
-    protected function getFileExtension(string $mimeType): string
-    {
-        return match ($mimeType) {
-            'image/jpeg' => 'jpg',
-            'image/png' => 'png',
-            'image/webp' => 'webp',
-            default => 'png'
-        };
-    }
-
-    /**
-     * Generate thumbnail with memory optimization
-     */
-    protected function generateThumbnail(string $imageData, string $thumbnailDirectory, string $filename): string
-    {
-        try {
-            // Use temporary file to reduce memory usage for large images
-            $tempPath = tempnam(sys_get_temp_dir(), 'img_');
-            file_put_contents($tempPath, $imageData);
-
-            $interventionImage = InterventionImage::read($tempPath);
-            $thumbnail = $interventionImage->cover(400, 400);
-            
-            $thumbnailPath = $thumbnailDirectory . '/' . $filename;
-            $thumbnailData = $thumbnail->toPng()->toString();
-            
-            Storage::disk('public')->put($thumbnailPath, $thumbnailData);
-            
-            // Clean up temporary file
-            unlink($tempPath);
-            
-            return $thumbnailPath;
-            
-        } catch (\Exception $e) {
-            Log::warning('Failed to generate thumbnail', [
-                'error' => $e->getMessage(),
-                'filename' => $filename,
-            ]);
-            
-            // Return original path as fallback (don't use the same path)
-            return ''; // Empty string indicates no thumbnail
-        }
-    }
-
-    /**
-     * Clean up files on failure
-     */
-    protected function cleanupFiles(array $paths): void
-    {
-        foreach ($paths as $path) {
-            if ($path && Storage::disk('public')->exists($path)) {
-                try {
-                    Storage::disk('public')->delete($path);
-                    Log::info('Cleaned up file after failed generation', ['path' => $path]);
-                } catch (\Exception $e) {
-                    Log::warning('Failed to cleanup file', ['path' => $path, 'error' => $e->getMessage()]);
-                }
-            }
-        }
-    }
-
-    /**
-     * Calculate cost based on token usage (approximate)
-     */
-    protected function calculateCost(int $tokens): float
-    {
-        // Gemini 2.0 Flash pricing (approximate): $0.00001 per token
-        // Update these rates based on actual Gemini pricing
-        return round(($tokens * 0.00001), 6);
-    }
-
-    /**
-     * Handle job failure.
-     */
-    public function failed(\Throwable $exception): void
-    {
-        Log::error('GenerateSingleImageJob failed permanently', [
-            'project_id' => $this->project->id,
-            'prompt' => substr($this->prompt, 0, 100), // Log only first 100 chars
-            'error' => $exception->getMessage(),
-            'attempts' => $this->attempts(),
-            'batch_id' => $this->batchId ?? null,
-        ]);
-
-        // Update generation history if ID is available
-        if ($this->generationId && $generation = GenerationHistory::find($this->generationId)) {
-             $generation->markAsFailed($this->getUserFriendlyError($exception));
-        }
-
-        // Send email notification to project owner
-        try {
-            \Illuminate\Support\Facades\Mail::to($this->project->user->email)
-                ->send(new \App\Mail\JobFailedNotification(
-                    jobType: 'Single Image Generation',
-                    projectName: $this->project->name ?? $this->project->title,
-                    projectId: $this->project->id,
-                    errorMessage: $this->getUserFriendlyError($exception),
-                    attemptNumber: $this->attempts()
-                ));
-        } catch (\Exception $mailException) {
-            Log::error('Failed to send job failure notification email', [
-                'project_id' => $this->project->id,
-                'mail_error' => $mailException->getMessage(),
-            ]);
-        }
-    }
-
-    /**
-     * Convert technical error to user-friendly message
-     */
-    protected function getUserFriendlyError(\Throwable $exception): string
-    {
-        $message = $exception->getMessage();
-
-        // Map common errors to user-friendly messages
-        if (str_contains($message, '429') || str_contains($message, 'rate limit')) {
-            return 'Our AI service is experiencing high demand. Please try again in a few minutes.';
-        }
-
-        if (str_contains($message, '401') || str_contains($message, 'authentication')) {
-            return 'There was an authentication issue with our AI service. Our team has been notified.';
-        }
-
-        if (str_contains($message, '500') || str_contains($message, 'server error')) {
-            return 'Our AI service encountered a temporary error. Please try again later.';
-        }
-
-        if (str_contains($message, 'timeout') || str_contains($message, 'timed out')) {
-            return 'The image generation took too long and timed out. Please try again with a simpler prompt.';
-        }
-
-        if (str_contains($message, 'credit') || str_contains($message, 'insufficient')) {
-            return 'You have insufficient credits to complete this generation. Please upgrade your plan.';
-        }
-
-        if (str_contains($message, 'Invalid image data')) {
-            return 'The AI service returned invalid image data. Please try again with a different prompt.';
-        }
-
-        if (str_contains($message, 'empty') || str_contains($message, 'required')) {
-            return 'There was a problem with your request. Please check your input and try again.';
-        }
-
-        // Generic fallback
-        return 'An unexpected error occurred during image generation. Our team has been notified and is investigating.';
+        return $prompt . "\n\nOUTPUT FORMAT:\n- {$instruction}\n";
     }
 }

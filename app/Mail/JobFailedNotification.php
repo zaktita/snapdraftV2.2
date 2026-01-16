@@ -7,6 +7,7 @@ use Illuminate\Mail\Mailable;
 use Illuminate\Mail\Mailables\Content;
 use Illuminate\Mail\Mailables\Envelope;
 use Illuminate\Queue\SerializesModels;
+use Illuminate\Support\Facades\Route;
 
 class JobFailedNotification extends Mailable
 {
@@ -38,6 +39,16 @@ class JobFailedNotification extends Mailable
      */
     public function content(): Content
     {
+        $projectUrl = Route::has('projects.show')
+            ? route('projects.show', $this->projectId)
+            : rtrim((string) config('app.url'), '/') . '/projects/' . $this->projectId;
+
+        $supportUrl = Route::has('settings.support')
+            ? route('settings.support')
+            : (Route::has('dashboard')
+                ? route('dashboard')
+                : (string) config('app.url'));
+
         return new Content(
             markdown: 'emails.job-failed',
             with: [
@@ -46,8 +57,8 @@ class JobFailedNotification extends Mailable
                 'projectId' => $this->projectId,
                 'errorMessage' => $this->errorMessage,
                 'attemptNumber' => $this->attemptNumber,
-                'projectUrl' => route('projects.show', $this->projectId),
-                'supportUrl' => route('settings.support'),
+                'projectUrl' => $projectUrl,
+                'supportUrl' => $supportUrl,
             ],
         );
     }

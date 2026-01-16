@@ -3,19 +3,28 @@ import { ArrowLeft, ArrowRight, FileText, Grid, Image as ImageIcon, Upload, X, C
 import { useState, useRef, DragEvent, ChangeEvent, useEffect } from 'react';
 import csv from '@/routes/projects/wizards/csv';
 
-const aspectRatioOptions = [
-    { value: '1:1', label: '1:1 Square' },
-    { value: '4:5', label: '4:5 Portrait' },
-    { value: '3:4', label: '3:4 Portrait' },
-    { value: '2:3', label: '2:3 Portrait' },
-    { value: '9:16', label: '9:16 Portrait/Story' },
-    { value: '3:2', label: '3:2 Landscape' },
-    { value: '4:3', label: '4:3 Landscape' },
-    { value: '5:4', label: '5:4 Landscape' },
-    { value: '2:1', label: '2:1 Wide' },
-    { value: '16:9', label: '16:9 Landscape' },
-    { value: '21:9', label: '21:9 Cinematic' },
-    { value: '4:1', label: '4:1 Banner' },
+const formatPresetOptions = [
+    { value: '', label: 'Auto (AI chooses)' },
+    { value: 'instagram_square', label: 'Instagram — Square (1:1)' },
+    { value: 'instagram_portrait', label: 'Instagram — Portrait (4:5)' },
+    { value: 'instagram_story', label: 'Instagram — Story/Reel (9:16)' },
+    { value: 'instagram_landscape', label: 'Instagram — Landscape (16:9)' },
+
+    { value: 'facebook_square', label: 'Facebook — Square (1:1)' },
+    { value: 'facebook_link', label: 'Facebook — Link/Post (1.91:1)' },
+    { value: 'facebook_story', label: 'Facebook — Story (9:16)' },
+    { value: 'facebook_landscape', label: 'Facebook — Landscape (16:9)' },
+
+    { value: 'linkedin_square', label: 'LinkedIn — Square (1:1)' },
+    { value: 'linkedin_landscape', label: 'LinkedIn — Post (1.91:1)' },
+
+    { value: 'x_square', label: 'X — Square (1:1)' },
+    { value: 'x_landscape', label: 'X — Landscape (16:9)' },
+
+    { value: 'tiktok_video', label: 'TikTok — Video (9:16)' },
+    { value: 'youtube_thumbnail', label: 'YouTube — Thumbnail (16:9)' },
+    { value: 'pinterest_pin', label: 'Pinterest — Pin (2:3)' },
+    { value: 'pinterest_square', label: 'Pinterest — Square (1:1)' },
 ];
 
 interface CSVRow {
@@ -44,8 +53,8 @@ const stepContent = {
         subtitle: 'Confirm your data is correct before proceeding.'
     },
     4: {
-        title: 'Add Style References (Optional)',
-        subtitle: (count: number) => `Upload 5-10 images to define the visual style for the ${count} selected product${count !== 1 ? 's' : ''}. You can skip this step if you prefer.`
+        title: 'Add Style References',
+        subtitle: (count: number) => `Upload 3-10 images to lock the brand style for the ${count} selected product${count !== 1 ? 's' : ''}. This step is required.`
     },
     5: {
         title: 'Preview & Generate',
@@ -69,26 +78,107 @@ export default function CSVWizard() {
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [uploadMode, setUploadMode] = useState<UploadMode>('upload');
     const [editableData, setEditableData] = useState<CSVRow[]>([]);
-    const [editableHeaders, setEditableHeaders] = useState<string[]>(['title', 'description', 'format']);
+    const [editableHeaders, setEditableHeaders] = useState<string[]>(['title', 'caption', 'description', 'format']);
     const [showError, setShowError] = useState(false);
+    const [localError, setLocalError] = useState<string | null>(null);
     const [textAccurate, setTextAccurate] = useState(false);
     
     const csvInputRef = useRef<HTMLInputElement>(null);
     const imageInputRef = useRef<HTMLInputElement>(null);
 
+    const debug = (...args: any[]) => {
+        if (!import.meta.env.DEV) return;
+        // eslint-disable-next-line no-console
+        console.log('[CSVWizard]', ...args);
+    };
+
+    const downloadCsvTemplate = () => {
+        debug('downloadCsvTemplate: start');
+        const headers = ['title', 'caption', 'description', 'format'];
+        const rows: Array<Record<string, string>> = [
+            {
+                title: 'Spring Sale',
+                caption: 'Up to 50% off • This weekend only',
+                description: '',
+                format: 'instagram_square',
+            },
+            {
+                title: 'New Product Drop',
+                caption: '',
+                description: 'Announcing our newest release. Keep it bold, modern, and brand-consistent.',
+                format: '', // Auto (AI chooses)
+            },
+            {
+                title: 'Webinar Invite',
+                caption: 'Join us live • Reserve your seat',
+                description: '',
+                format: 'linkedin_landscape',
+            },
+            {
+                title: 'Behind the Scenes',
+                caption: 'A quick story update for today',
+                description: '',
+                format: 'instagram_story',
+            },
+        ];
+
+        const escapeCsv = (value: string) => {
+            const v = String(value ?? '');
+            return `"${v.replaceAll('"', '""')}"`;
+        };
+
+        const csvContent = [
+            headers.join(','),
+            ...rows.map((r) => headers.map((h) => escapeCsv(r[h] ?? '')).join(',')),
+        ].join('\n');
+
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'snapdraft_template.csv';
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+
+        debug('downloadCsvTemplate: done', { bytes: blob.size, rows: rows.length, headers });
+    };
+
     // Show error message if present (supports legacy top-level or flash container)
-    const errorMessage = (page.props as any).error || (page.props as any).flash?.error;
+    const backendErrorMessage = (page.props as any).error || (page.props as any).flash?.error;
+    const errorMessage = localError || backendErrorMessage;
 
     useEffect(() => {
+        debug('mount', {
+            url: typeof window !== 'undefined' ? window.location.href : null,
+            hasFlashError: !!backendErrorMessage,
+        });
+        if (backendErrorMessage) {
+            setLocalError(null);
+        }
         if (errorMessage) {
             setShowError(true);
             const timer = setTimeout(() => setShowError(false), 7000);
             return () => clearTimeout(timer);
         }
-    }, [errorMessage]);
+    }, [errorMessage, backendErrorMessage]);
+
+    useEffect(() => {
+        debug('stepChanged', {
+            step: currentStep,
+            uploadComplete,
+            csvRowsPreview: csvData.length,
+            selectedRowCount: selectedRows.size,
+            styleRefCount: styleImageFiles.length,
+            textAccurate,
+            uploadMode,
+        });
+    }, [currentStep]);
 
     // Parse CSV
     const parseCSV = (text: string): CSVRow[] => {
+        debug('parseCSV: start', { length: text.length });
         const lines = text.trim().split('\n');
         const headers = lines[0].split(',').map(h => h.trim());
         const data: CSVRow[] = [];
@@ -119,12 +209,19 @@ export default function CSVWizard() {
             }
         });
         setColumnMappings(mappings);
+
+        debug('parseCSV: done', {
+            headers,
+            previewRows: data.length,
+            mappings,
+        });
         
         return data;
     };
 
     // Handle file upload
     const handleFileUpload = (file: File) => {
+        debug('handleFileUpload', { name: file.name, size: file.size, type: file.type });
         setFileName(file.name);
         setCsvFile(file);
         const reader = new FileReader();
@@ -138,6 +235,15 @@ export default function CSVWizard() {
             setSelectedRows(new Set(data.map((_, index) => index)));
             
             setUploadComplete(true);
+
+            debug('handleFileUpload: complete', {
+                previewRows: data.length,
+                selectedRowCount: data.length,
+            });
+        };
+
+        reader.onerror = () => {
+            debug('handleFileUpload: reader error');
         };
         
         reader.readAsText(file);
@@ -148,12 +254,14 @@ export default function CSVWizard() {
         e.preventDefault();
         e.stopPropagation();
         setDragOver(true);
+        debug('dragOver');
     };
 
     const handleDragLeave = (e: DragEvent<HTMLDivElement>) => {
         e.preventDefault();
         e.stopPropagation();
         setDragOver(false);
+        debug('dragLeave');
     };
 
     const handleDrop = (e: DragEvent<HTMLDivElement>) => {
@@ -163,6 +271,7 @@ export default function CSVWizard() {
         
         const files = e.dataTransfer.files;
         if (files.length > 0) {
+            debug('drop', { count: files.length, first: { name: files[0].name, size: files[0].size } });
             handleFileUpload(files[0]);
         }
     };
@@ -170,12 +279,14 @@ export default function CSVWizard() {
     const handleFileInputChange = (e: ChangeEvent<HTMLInputElement>) => {
         const files = e.target.files;
         if (files && files.length > 0) {
+            debug('fileInputChange', { count: files.length, first: { name: files[0].name, size: files[0].size } });
             handleFileUpload(files[0]);
         }
     };
 
     // CSV cell editing
     const updateCellValue = (rowIndex: number, header: string, value: string) => {
+        debug('updateCellValue', { rowIndex, header, value });
         const newData = [...csvData];
         newData[rowIndex][header] = value;
         setCsvData(newData);
@@ -189,13 +300,14 @@ export default function CSVWizard() {
         const blob = new Blob([csvContent], { type: 'text/csv' });
         const file = new File([blob], fileName || 'edited.csv', { type: 'text/csv' });
         setCsvFile(file);
+        debug('updateCellValue: regenerated csv file', { bytes: blob.size });
     };
 
     // CSV Creator functions
     const addRow = () => {
         const newRow: CSVRow = {};
         editableHeaders.forEach(header => {
-            newRow[header] = header.toLowerCase() === 'format' ? '1:1' : '';
+            newRow[header] = header.toLowerCase() === 'format' ? '' : '';
         });
         setEditableData([...editableData, newRow]);
     };
@@ -278,6 +390,11 @@ export default function CSVWizard() {
     const handleImageUpload = (e: ChangeEvent<HTMLInputElement>) => {
         const files = e.target.files;
         if (!files) return;
+
+        debug('handleImageUpload', {
+            count: files.length,
+            names: Array.from(files).map((f) => f.name),
+        });
         
         Array.from(files).forEach(file => {
             const reader = new FileReader();
@@ -290,12 +407,14 @@ export default function CSVWizard() {
     };
 
     const removeImage = (index: number) => {
+        debug('removeImage', { index });
         setStyleImages(prev => prev.filter((_, i) => i !== index));
         setStyleImageFiles(prev => prev.filter((_, i) => i !== index));
     };
 
     // Toggle row selection
     const toggleRow = (index: number) => {
+        debug('toggleRow', { index });
         setSelectedRows(prev => {
             const newSet = new Set(prev);
             if (newSet.has(index)) {
@@ -308,6 +427,7 @@ export default function CSVWizard() {
     };
 
     const toggleAllRows = (checked: boolean) => {
+        debug('toggleAllRows', { checked });
         if (checked) {
             setSelectedRows(new Set(csvData.map((_, index) => index)));
         } else {
@@ -317,6 +437,7 @@ export default function CSVWizard() {
 
     // Update column mapping
     const updateMapping = (header: string, value: string) => {
+        debug('updateMapping', { header, value });
         setColumnMappings(prev => ({ ...prev, [header]: value }));
     };
 
@@ -327,40 +448,86 @@ export default function CSVWizard() {
             ? projectName.trim()
             : (fileName ? fileName.replace(/\.[^.]+$/, '') : 'CSV Project');
 
+        debug('submitToBackend: start', {
+            name,
+            currentStep,
+            uploadMode,
+            uploadComplete,
+            hasCsvFile: !!csvFile,
+            csvPreviewRows: csvData.length,
+            selectedRowCount: selectedRows.size,
+            styleRefCount: styleImageFiles.length,
+            textAccurate,
+        });
+
         if (!csvFile) return;
         if (isSubmitting) return;
 
+        // OpenRouter generation requires reference images
+        if (styleImageFiles.length < 3) {
+            setLocalError('Please upload at least 3 style reference images.');
+            setShowError(true);
+            debug('submitToBackend: blocked - not enough references', { count: styleImageFiles.length });
+            return;
+        }
+
         setIsSubmitting(true);
+
+        debug('submitToBackend: building FormData', {
+            csvFileName: csvFile.name,
+            csvFileSize: csvFile.size,
+        });
 
         const fd = new FormData();
         fd.append('project_name', name);
         fd.append('csv_file', csvFile);
         fd.append('text_accurate', textAccurate ? '1' : '0');
         
-        // Add reference images only if provided (optional)
-        if (styleImageFiles.length > 0) {
-            styleImageFiles.slice(0, 10).forEach((f) => fd.append('reference_images[]', f));
-        }
+        // Add reference images (required: 5-10)
+        styleImageFiles.slice(0, 10).forEach((f) => fd.append('reference_images[]', f));
         // product_images optional: skip for now
+
+        debug('submitToBackend: appended references', {
+            count: Math.min(styleImageFiles.length, 10),
+            names: styleImageFiles.slice(0, 10).map((f) => f.name),
+        });
 
         router.post(csv.store.url(), fd, {
             forceFormData: true,
             preserveScroll: false,
-            onError: () => setIsSubmitting(false),
-            onFinish: () => setIsSubmitting(false),
+            onStart: () => debug('inertia: onStart', { url: csv.store.url() }),
+            onProgress: (event) => debug('inertia: onProgress', { loaded: event?.loaded, total: event?.total, percentage: (event as any)?.percentage }),
+            onSuccess: () => debug('inertia: onSuccess'),
+            onError: (errs) => {
+                debug('inertia: onError', errs);
+                setIsSubmitting(false);
+            },
+            onFinish: () => {
+                debug('inertia: onFinish');
+                setIsSubmitting(false);
+            },
         });
     };
 
     const nextStep = () => {
+        debug('nextStep', { from: currentStep });
         // Step 1: Project Name - must have name
         if (currentStep === 1 && !projectName.trim()) return;
         
         // Step 2: CSV Upload - must have data
         if (currentStep === 2 && !csvData.length) return;
         
+        // Step 4: References - require 3 images minimum
+        if (currentStep === 4 && styleImageFiles.length < 3) {
+            setLocalError('Please upload at least 3 style reference images to continue.');
+            setShowError(true);
+            return;
+        }
+
         // If on step 2 and upload is complete, skip to step 4 (style references)
         if (currentStep === 2 && uploadComplete) {
             setCurrentStep(4);
+            debug('nextStep: skipping to step 4 (uploadComplete)');
         } else if (currentStep < 5) {
             setCurrentStep(currentStep + 1);
         } else {
@@ -370,6 +537,7 @@ export default function CSVWizard() {
     };
 
     const previousStep = () => {
+        debug('previousStep', { from: currentStep });
         if (currentStep > 1) {
             // If on step 4 and we skipped step 3, go back to step 2
             if (currentStep === 4 && uploadComplete) {
@@ -706,6 +874,28 @@ export default function CSVWizard() {
 
                                         {uploadMode === 'upload' ? (
                                             <>
+                                                <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '12px' }}>
+                                                    <button
+                                                        type="button"
+                                                        onClick={downloadCsvTemplate}
+                                                        style={{
+                                                            display: 'inline-flex',
+                                                            alignItems: 'center',
+                                                            gap: '8px',
+                                                            padding: '10px 14px',
+                                                            fontSize: '13px',
+                                                            fontWeight: 600,
+                                                            background: 'var(--color-card)',
+                                                            border: '1px solid var(--color-border)',
+                                                            borderRadius: '8px',
+                                                            color: 'var(--color-foreground)',
+                                                            cursor: 'pointer',
+                                                        }}
+                                                    >
+                                                        <FileText size={16} />
+                                                        Download CSV Template
+                                                    </button>
+                                                </div>
                                                 <div 
                                                     onClick={() => csvInputRef.current?.click()}
                                                     onDragOver={handleDragOver}
@@ -1023,7 +1213,7 @@ export default function CSVWizard() {
                                                                     <td key={header} style={{ padding: '14px 16px', borderBottom: '1px solid var(--color-border)' }}>
                                                                         {isFormat ? (
                                                                             <select
-                                                                                value={row[header] || '1:1'}
+                                                                                        value={row[header] || ''}
                                                                                 onChange={(e) => updateCellValue(rowIndex, header, e.target.value)}
                                                                                 style={{
                                                                                     width: '100%',
@@ -1038,7 +1228,7 @@ export default function CSVWizard() {
                                                                                 onFocus={(e) => e.target.style.borderColor = 'var(--color-primary)'}
                                                                                 onBlur={(e) => e.target.style.borderColor = 'var(--color-border)'}
                                                                             >
-                                                                                {aspectRatioOptions.map((opt) => (
+                                                                                {formatPresetOptions.map((opt) => (
                                                                                     <option key={opt.value} value={opt.value}>{opt.label}</option>
                                                                                 ))}
                                                                             </select>
