@@ -3,138 +3,110 @@ import { login, register } from '@/routes';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Sparkles, Zap, Paintbrush, ArrowRight, Upload, FileSpreadsheet, Image as ImageIcon, Download, Check, TrendingUp, Users, Clock } from 'lucide-react';
+import { 
+  Sparkles, Zap, Paintbrush, ArrowRight, Upload, FileSpreadsheet, Image as ImageIcon, Download, Check, 
+  TrendingUp, Users, Clock, AlertCircle, Layers, Palette, BarChart3, RefreshCw, Shield, Compass, 
+  ChevronDown, Brain, Briefcase, Workflow, GripHorizontal
+} from 'lucide-react';
+import { useState } from 'react';
 
 export default function Home() {
-  const features = [
-    {
-      icon: Sparkles,
-      title: 'AI-Powered Generation',
-      description: 'Transform CSV data into stunning visuals with intelligent AI that learns your brand style.',
-    },
-    {
-      icon: Zap,
-      title: 'Batch Processing',
-      description: 'Generate hundreds of on-brand images at once. Upload your CSV and let AI handle the rest.',
-    },
-    {
-      icon: Paintbrush,
-      title: 'Canvas Editor',
-      description: 'Fine-tune every detail with AI-powered retouching tools. Replace text, erase, and regenerate with precision.',
-    },
+  const [expandedFaq, setExpandedFaq] = useState<number | null>(0);
+
+  const painPoints = [
+    'Content is approved — visuals aren\'t ready',
+    'Designers are stuck on repetitive social formats',
+    'AI tools create one-offs, not production-ready batches',
+    'Brand consistency breaks at scale',
   ];
 
-  const workflow = [
+  const keyFeatures = [
     {
-      icon: Upload,
-      title: 'Upload Brand References',
-      description: 'Add 5-10 images that represent your brand style. Our AI analyzes colors, typography, and composition.',
-      color: 'from-blue-500 to-cyan-500',
+      icon: Brain,
+      title: 'Brand DNA',
+      description: 'Automatically enforce brand colors, typography, and layout across all outputs.',
     },
     {
-      icon: FileSpreadsheet,
-      title: 'Paste Your CSV',
-      description: 'Simple format: title, description, format. Each row becomes a unique, on-brand visual.',
-      color: 'from-purple-500 to-pink-500',
+      icon: Workflow,
+      title: 'Production System',
+      description: 'Not templates or prompts—a repeatable workflow designed for high-volume output.',
     },
     {
-      icon: ImageIcon,
-      title: 'Generate in Batch',
-      description: 'Watch as AI creates dozens or hundreds of images in minutes, maintaining perfect brand consistency.',
-      color: 'from-orange-500 to-red-500',
-    },
-    {
-      icon: Download,
-      title: 'Export & Use',
-      description: 'Download individual files or bulk export. Perfect for social media, ads, presentations, and more.',
-      color: 'from-green-500 to-emerald-500',
+      icon: Users,
+      title: 'Agency-Ready',
+      description: 'Manage multiple brands with consistent results. Social managers and designers collaborate seamlessly.',
     },
   ];
 
   const useCases = [
     {
-      title: 'Social Media Content',
-      description: 'Create hundreds of post variations for Instagram, Facebook, and LinkedIn in one batch.',
-      stats: '100+ posts/hour',
+      title: 'Multi-brand social calendars',
+      description: 'Manage dozens of accounts with consistent visual identity',
     },
     {
-      title: 'E-commerce Product Cards',
-      description: 'Generate product visuals with descriptions at scale. Maintain brand consistency across catalogs.',
-      stats: '10x faster',
+      title: 'Weekly & monthly content batches',
+      description: 'Generate all your content at once with approved brand styles',
     },
     {
-      title: 'Marketing Campaigns',
-      description: 'Launch campaigns with dozens of ad variations. A/B test creatives without designer bottlenecks.',
-      stats: '90% cost savings',
+      title: 'Campaign rollouts',
+      description: 'Launch campaigns across channels with perfect visual consistency',
     },
     {
-      title: 'Presentations & Reports',
-      description: 'Turn data into compelling visuals. Perfect for sales decks, quarterly reports, and client pitches.',
-      stats: 'Professional quality',
+      title: 'Localization & variations',
+      description: 'Create region-specific content while maintaining brand DNA',
     },
   ];
 
-  const stats = [
-    { icon: TrendingUp, value: '10,000+', label: 'Images generated' },
-    { icon: Users, value: '500+', label: 'Active users' },
-    { icon: Clock, value: '5 min', label: 'Average generation time' },
+  const differentiation = [
+    {
+      icon: AlertCircle,
+      title: 'Not Canva templates',
+      description: 'We don\'t use templates—we use your brand DNA',
+    },
+    {
+      icon: Sparkles,
+      title: 'Not prompt-based AI tools',
+      description: 'Structure and consistency, not guesswork and variation',
+    },
+    {
+      icon: Download,
+      title: 'Not one-off image generation',
+      description: 'Built for volume, batches, and production workflows',
+    },
   ];
 
-  const pricing = [
+  const faqs = [
     {
-      name: 'Starter',
-      subtitle: 'The Decoy',
-      price: '$29',
-      description: 'Perfect for trying out SnapDraft',
-      features: [
-        '200 credits/month',
-        '~50 high-precision posts',
-        '1 active project',
-        'Free Brand DNA / Setup (Unlimited)',
-        '30 rows per CSV batch',
-        'Basic canvas editor',
-      ],
-      cta: 'Start Starter',
-      variant: 'outline' as const,
+      question: 'Is SnapDraft just another AI image tool?',
+      answer: 'No. SnapDraft is a production system built around planning, consistency, and volume — not prompts. We focus on helping teams produce hundreds of on-brand visuals at scale.'
     },
     {
-      name: 'Growth',
-      subtitle: 'The Anchor',
-      price: '$59',
-      description: 'For professionals and small teams',
-      features: [
-        '650 credits/month (3.2x more)',
-        '~160 high-precision posts',
-        '10 active projects',
-        'Free Brand DNA / Setup (Unlimited)',
-        'Unlimited CSV batching',
-        'Full canvas editor + Versioning',
-      ],
-      cta: 'Start Growth',
-      variant: 'default' as const,
-      popular: true,
+      question: 'Does this replace designers?',
+      answer: 'No. It reduces repetitive production so designers can focus on creative work. Social managers generate batches, designers review and refine. Everyone stays in control.'
     },
     {
-      name: 'Agency',
-      subtitle: 'The Pro',
-      price: '$149',
-      description: 'For agencies and large teams',
-      features: [
-        '1,800 credits/month (9x more)',
-        '~450 high-precision posts',
-        'Unlimited active projects',
-        'Free Brand DNA / Setup (Unlimited)',
-        'Priority queue CSV batching',
-        'Full canvas editor + Teams',
-      ],
-      cta: 'Start Agency',
-      variant: 'outline' as const,
+      question: 'How accurate is the branding?',
+      answer: 'SnapDraft enforces structure (colors, typography, layout) about 80% of the time. Final refinement stays human—that\'s what our canvas editor is for.'
+    },
+    {
+      question: 'Can I use it for different clients?',
+      answer: 'Yes. SnapDraft is built for agencies managing multiple brands. Upload brand references for each client, and the system learns and applies their identity automatically.'
+    },
+    {
+      question: 'Is it post-ready or draft-ready?',
+      answer: 'Both — depending on your workflow. Some teams post directly. Others use the canvas editor for refinements. You decide the level of polish needed.'
+    },
+    {
+      question: 'What is SnapDraft not good for?',
+      answer: 'Hyper-artistic branding and pixel-perfect print design (for now). We\'re focused on production-volume formats like social media, marketing materials, and digital content.'
     },
   ];
+
+
 
   return (
     <div className="min-h-dvh bg-background">
-      <Head title="SnapDraft - AI-Powered Visual Content Generator" />
+      <Head title="SnapDraft - Turn content plans into weeks of on-brand social visuals" />
 
       {/* Header */}
       <header className="fixed top-0 z-50 w-full border-b border-border/40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
@@ -148,158 +120,120 @@ export default function Home() {
             </Link>
             <Link href={register().url}>
               <Button size="sm" className="gap-2">
-                Get started <ArrowRight className="h-4 w-4" />
+                Start trial <ArrowRight className="h-4 w-4" />
               </Button>
             </Link>
           </div>
         </nav>
       </header>
 
-      {/* Hero Section */}
+      {/* SECTION 1: HERO */}
       <section className="relative overflow-hidden pt-32 pb-24 sm:pt-40 sm:pb-32">
         <div className="absolute inset-0 -z-10 bg-[radial-gradient(45rem_50rem_at_top,theme(colors.primary.200/20%),transparent)] dark:bg-[radial-gradient(45rem_50rem_at_top,theme(colors.primary.900/20%),transparent)]" />
         
         <div className="mx-auto max-w-7xl px-6">
           <div className="mx-auto max-w-3xl text-center">
-            <Badge variant="secondary" className="mb-4 gap-2">
-              <Sparkles className="h-3 w-3" />
-              <span>Powered by AI</span>
-            </Badge>
-            
             <h1 className="text-5xl font-bold tracking-tight sm:text-7xl font-sans bg-gradient-to-br from-foreground to-foreground/60 bg-clip-text text-transparent">
-              Brand-consistent visuals from CSV data
+              Turn content plans into weeks of on-brand social visuals — in minutes.
             </h1>
             
             <p className="mt-6 text-lg leading-8 text-muted-foreground max-w-2xl mx-auto">
-              Upload your brand references, paste your content, and generate stunning, on-brand images in minutes. No design skills required.
+              SnapDraft is a production system for social media agencies. Generate high-volume, brand-consistent visuals without slowing designers down.
             </p>
             
-            <div className="mt-10 flex items-center justify-center gap-4">
+            <div className="mt-10 flex flex-col items-center gap-4">
               <Link href={register().url}>
                 <Button size="lg" className="gap-2 text-base h-12 px-8">
-                  Start creating <ArrowRight className="h-4 w-4" />
+                  Start your trial <ArrowRight className="h-4 w-4" />
                 </Button>
               </Link>
-              <Link href={login().url}>
-                <Button size="lg" variant="outline" className="text-base h-12 px-8">
-                  Sign in
-                </Button>
-              </Link>
+              <p className="text-sm text-muted-foreground">
+                7-day trial · $7 · Cancel anytime
+              </p>
             </div>
-            
-            <p className="mt-4 text-sm text-muted-foreground">
-              Free to start · No credit card required
+          </div>
+
+          {/* Hero Visual: Split-screen animation */}
+          <div className="mt-16 sm:mt-24">
+            <div className="relative rounded-xl border border-border/50 bg-gradient-to-br from-background to-muted/30 p-2 shadow-2xl overflow-hidden">
+              <div className="aspect-[16/9] rounded-lg bg-gradient-to-r from-muted/50 to-muted/30 flex items-center justify-center overflow-hidden relative">
+                <div className="absolute inset-0 flex items-center justify-between px-4 sm:px-8">
+                  {/* Left: Spreadsheet */}
+                  <div className="flex-1 space-y-2">
+                    <div className="text-xs font-semibold text-muted-foreground mb-3">Content Plan</div>
+                    <div className="space-y-2">
+                      {[1, 2, 3].map((i) => (
+                        <div key={i} className="h-10 bg-muted/60 rounded border border-border/50 animate-pulse" />
+                      ))}
+                    </div>
+                  </div>
+                  
+                  {/* Arrow indicator */}
+                  <div className="flex items-center justify-center h-12 w-12 rounded-full bg-primary/10 mx-4 sm:mx-8 animate-pulse">
+                    <ArrowRight className="h-6 w-6 text-primary" />
+                  </div>
+                  
+                  {/* Right: Generated visuals grid */}
+                  <div className="flex-1 grid grid-cols-2 gap-2">
+                    {[1, 2, 3, 4].map((i) => (
+                      <div key={i} className="aspect-square bg-gradient-to-br from-primary/20 to-primary/10 rounded border border-border/50 animate-pulse" />
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+            <p className="text-center text-xs text-muted-foreground mt-4">Spreadsheet rows → post-ready visuals in minutes</p>
+          </div>
+        </div>
+      </section>
+
+      {/* SECTION 2: PAIN SECTION */}
+      <section className="py-24 sm:py-32 bg-destructive/5 border-y border-border/40">
+        <div className="mx-auto max-w-7xl px-6">
+          <div className="mx-auto max-w-2xl text-center">
+            <h2 className="text-3xl font-bold tracking-tight sm:text-4xl font-sans">
+              Planning is easy. Production is the bottleneck.
+            </h2>
+            <p className="mt-4 text-lg text-muted-foreground">
+              Social teams don't need more ideas. They need a faster way to produce.
             </p>
           </div>
 
-          {/* Hero Visual */}
-          <div className="mt-16 sm:mt-24">
-            <div className="relative rounded-xl border border-border/50 bg-gradient-to-br from-background to-muted/30 p-2 shadow-2xl">
-              <div className="aspect-[16/9] rounded-lg bg-muted/50 flex items-center justify-center overflow-hidden">
-                <div className="text-center space-y-4 p-8">
-                  <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 text-primary text-sm font-medium">
-                    <Sparkles className="h-4 w-4" />
-                    AI Canvas Editor
-                  </div>
-                  <p className="text-muted-foreground text-sm max-w-md mx-auto">
-                    Interactive demo coming soon - see how AI transforms your images with precision mask editing
-                  </p>
+          <div className="mx-auto mt-16 max-w-2xl">
+            <div className="space-y-4">
+              {painPoints.map((point, idx) => (
+                <div key={idx} className="flex items-start gap-4 p-4 rounded-lg bg-card border border-border/50 hover:border-destructive/50 transition-colors">
+                  <AlertCircle className="h-5 w-5 text-destructive shrink-0 mt-0.5" />
+                  <p className="text-muted-foreground">{point}</p>
                 </div>
-              </div>
+              ))}
             </div>
           </div>
         </div>
       </section>
 
-      {/* Features Section */}
+      {/* SECTION 3: SOLUTION */}
       <section className="py-24 sm:py-32">
         <div className="mx-auto max-w-7xl px-6">
-          <div className="mx-auto max-w-2xl text-center">
+          <div className="mx-auto max-w-2xl text-center mb-16">
             <h2 className="text-3xl font-bold tracking-tight sm:text-4xl font-sans">
-              Everything you need to create at scale
+              Built for production — not one-off design.
             </h2>
             <p className="mt-4 text-lg text-muted-foreground">
-              From CSV to canvas, SnapDraft handles the entire workflow
+              SnapDraft turns your content plan into batches of on-brand visuals. Not prompts. Not templates. A repeatable production workflow.
             </p>
           </div>
 
-          <div className="mx-auto mt-16 grid max-w-5xl gap-8 sm:grid-cols-2 lg:grid-cols-3">
-            {features.map((feature, idx) => (
-              <div
-                key={idx}
-                className="relative overflow-hidden rounded-2xl border border-border/50 bg-card p-8 hover:border-primary/50 transition-colors"
-              >
-                <div className="flex items-center gap-4">
-                  <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10">
+          <div className="mx-auto max-w-5xl grid gap-8 sm:grid-cols-3">
+            {keyFeatures.map((feature, idx) => (
+              <Card key={idx} className="border-border/50">
+                <CardHeader>
+                  <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10 mb-4">
                     <feature.icon className="h-6 w-6 text-primary" />
                   </div>
-                </div>
-                <h3 className="mt-4 text-xl font-semibold">{feature.title}</h3>
-                <p className="mt-2 text-sm text-muted-foreground leading-relaxed">
-                  {feature.description}
-                </p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* How it Works */}
-      <section className="py-24 sm:py-32 bg-muted/30">
-        <div className="mx-auto max-w-7xl px-6">
-          <div className="mx-auto max-w-2xl text-center">
-            <Badge variant="secondary" className="mb-4">How it works</Badge>
-            <h2 className="text-3xl font-bold tracking-tight sm:text-4xl font-sans">
-              From data to visuals in 4 simple steps
-            </h2>
-            <p className="mt-4 text-lg text-muted-foreground">
-              No design experience needed. Just upload, paste, and generate.
-            </p>
-          </div>
-
-          <div className="mx-auto mt-16 grid max-w-6xl gap-8 lg:grid-cols-2">
-            {workflow.map((step, idx) => (
-              <div key={idx} className="relative overflow-hidden rounded-2xl border border-border/50 bg-card p-8">
-                <div className="flex items-start gap-6">
-                  <div className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br ${step.color} text-white`}>
-                    <step.icon className="h-7 w-7" />
-                  </div>
-                  <div>
-                    <div className="text-sm font-medium text-muted-foreground mb-2">Step {idx + 1}</div>
-                    <h3 className="text-xl font-semibold mb-3">{step.title}</h3>
-                    <p className="text-sm text-muted-foreground leading-relaxed">
-                      {step.description}
-                    </p>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* Use Cases */}
-      <section className="py-24 sm:py-32">
-        <div className="mx-auto max-w-7xl px-6">
-          <div className="mx-auto max-w-2xl text-center">
-            <h2 className="text-3xl font-bold tracking-tight sm:text-4xl font-sans">
-              Built for modern teams
-            </h2>
-            <p className="mt-4 text-lg text-muted-foreground">
-              From startups to enterprises, SnapDraft powers visual content creation
-            </p>
-          </div>
-
-          <div className="mx-auto mt-16 grid max-w-6xl gap-8 sm:grid-cols-2">
-            {useCases.map((useCase, idx) => (
-              <Card key={idx} className="border-border/50 hover:border-primary/50 transition-colors">
-                <CardHeader>
-                  <div className="flex items-start justify-between">
-                    <CardTitle className="text-xl">{useCase.title}</CardTitle>
-                    <Badge variant="secondary" className="text-xs">{useCase.stats}</Badge>
-                  </div>
+                  <CardTitle className="text-xl">{feature.title}</CardTitle>
                   <CardDescription className="text-sm leading-relaxed mt-2">
-                    {useCase.description}
+                    {feature.description}
                   </CardDescription>
                 </CardHeader>
               </Card>
@@ -308,93 +242,251 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Stats */}
-      <section className="py-16 border-y border-border/40 bg-muted/20">
+      {/* SECTION 4: HOW IT WORKS (3 STEPS) */}
+      <section className="py-24 sm:py-32 bg-muted/30">
         <div className="mx-auto max-w-7xl px-6">
-          <div className="grid gap-8 sm:grid-cols-3">
-            {stats.map((stat, idx) => (
-              <div key={idx} className="text-center">
-                <div className="inline-flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10 mb-4">
-                  <stat.icon className="h-6 w-6 text-primary" />
+          <div className="mx-auto max-w-2xl text-center mb-16">
+            <h2 className="text-3xl font-bold tracking-tight sm:text-4xl font-sans">
+              From plan to visuals in three steps.
+            </h2>
+          </div>
+
+          <div className="mx-auto max-w-4xl grid gap-8 sm:grid-cols-3">
+            {[
+              {
+                step: 1,
+                title: 'Upload brand references',
+                description: 'Logos, past posts, brand visuals — SnapDraft learns the structure.',
+                icon: Upload,
+              },
+              {
+                step: 2,
+                title: 'Drop your content plan',
+                description: 'Use a spreadsheet with titles, captions, formats.',
+                icon: FileSpreadsheet,
+              },
+              {
+                step: 3,
+                title: 'Generate a batch',
+                description: 'Get consistent visuals — post-ready or ready for quick refinement.',
+                icon: ImageIcon,
+              },
+            ].map((item) => (
+              <div key={item.step} className="relative">
+                <div className="rounded-2xl border border-border/50 bg-card p-8 text-center">
+                  <div className="absolute -top-4 left-1/2 -translate-x-1/2">
+                    <div className="h-8 w-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-sm font-bold">
+                      {item.step}
+                    </div>
+                  </div>
+                  <item.icon className="h-10 w-10 text-primary mx-auto mb-4 mt-2" />
+                  <h3 className="text-lg font-semibold mb-2">{item.title}</h3>
+                  <p className="text-sm text-muted-foreground">{item.description}</p>
                 </div>
-                <div className="text-3xl font-bold">{stat.value}</div>
-                <div className="text-sm text-muted-foreground mt-1">{stat.label}</div>
               </div>
             ))}
           </div>
         </div>
       </section>
 
-      {/* Pricing */}
+      {/* SECTION 5: DESIGNER-FRIENDLY */}
       <section className="py-24 sm:py-32">
         <div className="mx-auto max-w-7xl px-6">
-          <div className="mx-auto max-w-2xl text-center">
+          <div className="mx-auto max-w-2xl text-center mb-16">
             <h2 className="text-3xl font-bold tracking-tight sm:text-4xl font-sans">
-              Simple, transparent pricing
+              Not a designer replacement. A production accelerator.
             </h2>
             <p className="mt-4 text-lg text-muted-foreground">
-              Start free, upgrade when you need more power
+              SnapDraft handles repetitive social production so designers can focus on creative work. Social managers can generate visuals themselves — designers stay in control of the final output.
             </p>
           </div>
 
-          <div className="mx-auto mt-16 grid max-w-6xl gap-8 lg:grid-cols-3">
-            {pricing.map((plan, idx) => (
-              <Card key={idx} className={`relative ${plan.popular ? 'border-primary shadow-lg ring-2 ring-primary/20' : 'border-border/50'}`}>
-                {plan.popular && (
-                  <div className="absolute -top-3 left-1/2 -translate-x-1/2">
-                    <Badge className="bg-primary text-primary-foreground">Most popular</Badge>
+          <div className="mx-auto max-w-4xl grid gap-8 sm:grid-cols-2">
+            {[
+              { title: 'Fewer briefs', icon: Briefcase },
+              { title: 'Fewer repetitive layouts', icon: Layers },
+              { title: 'Faster turnaround', icon: Zap },
+              { title: 'Better use of design time', icon: RefreshCw },
+            ].map((item, idx) => (
+              <Card key={idx} className="border-border/50">
+                <CardHeader>
+                  <div className="flex items-center gap-3">
+                    <item.icon className="h-6 w-6 text-primary" />
+                    <CardTitle className="text-lg">{item.title}</CardTitle>
                   </div>
-                )}
-                <CardHeader className="pb-8">
-                  <div className="flex items-baseline gap-2">
-                    <CardTitle className="text-2xl">{plan.name}</CardTitle>
-                    <span className="text-sm text-muted-foreground">({plan.subtitle})</span>
-                  </div>
-                  <div className="mt-4 flex items-baseline gap-1">
-                    <span className="text-4xl font-bold tracking-tight">{plan.price}</span>
-                    <span className="text-muted-foreground">/month</span>
-                  </div>
-                  <CardDescription className="text-sm mt-2">{plan.description}</CardDescription>
                 </CardHeader>
-                <CardContent className="space-y-6">
-                  <ul className="space-y-3">
-                    {plan.features.map((feature, featureIdx) => (
-                      <li key={featureIdx} className="flex items-start gap-3 text-sm">
-                        <Check className="h-5 w-5 text-primary shrink-0 mt-0.5" />
-                        <span className="text-muted-foreground">{feature}</span>
-                      </li>
-                    ))}
-                  </ul>
-                  <Link href={register().url}>
-                    <Button variant={plan.variant} className="w-full">
-                      {plan.cta}
-                    </Button>
-                  </Link>
-                </CardContent>
               </Card>
             ))}
           </div>
         </div>
       </section>
 
-      {/* CTA Section */}
+      {/* SECTION 6: USE CASES */}
+      <section className="py-24 sm:py-32 bg-muted/30">
+        <div className="mx-auto max-w-7xl px-6">
+          <div className="mx-auto max-w-2xl text-center mb-16">
+            <h2 className="text-3xl font-bold tracking-tight sm:text-4xl font-sans">
+              Built for real agency workflows.
+            </h2>
+          </div>
+
+          <div className="mx-auto max-w-3xl grid gap-6 sm:grid-cols-2 mb-12">
+            {useCases.map((useCase, idx) => (
+              <Card key={idx} className="border-border/50 hover:border-primary/50 transition-colors">
+                <CardHeader>
+                  <CardTitle className="text-lg">{useCase.title}</CardTitle>
+                  <CardDescription className="text-sm leading-relaxed">
+                    {useCase.description}
+                  </CardDescription>
+                </CardHeader>
+              </Card>
+            ))}
+          </div>
+
+          <div className="text-center">
+            <p className="text-lg font-semibold text-foreground">
+              Same workflow. Different clients. Consistent results.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      {/* SECTION 7: CANVAS EDITOR */}
+      <section className="py-24 sm:py-32">
+        <div className="mx-auto max-w-7xl px-6">
+          <div className="mx-auto max-w-2xl text-center mb-16">
+            <h2 className="text-3xl font-bold tracking-tight sm:text-4xl font-sans">
+              Make final tweaks without restarting production.
+            </h2>
+            <p className="mt-4 text-lg text-muted-foreground">
+              Adjust text, layout, or spacing directly in SnapDraft. No need to regenerate or jump between tools.
+            </p>
+          </div>
+
+          <div className="mx-auto max-w-2xl">
+            <div className="rounded-2xl border border-border/50 bg-gradient-to-br from-muted/50 to-muted/30 p-8 aspect-video flex items-center justify-center">
+              <div className="text-center space-y-4">
+                <Paintbrush className="h-12 w-12 text-primary mx-auto" />
+                <p className="text-sm text-muted-foreground">Canvas Editor Demo</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* SECTION 8: DIFFERENTIATION */}
+      <section className="py-24 sm:py-32 bg-muted/30">
+        <div className="mx-auto max-w-7xl px-6">
+          <div className="mx-auto max-w-2xl text-center mb-16">
+            <h2 className="text-3xl font-bold tracking-tight sm:text-4xl font-sans">
+              Why agencies choose SnapDraft.
+            </h2>
+          </div>
+
+          <div className="mx-auto max-w-4xl grid gap-8 sm:grid-cols-3">
+            {differentiation.map((item, idx) => (
+              <Card key={idx} className="border-border/50 text-center">
+                <CardHeader>
+                  <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-muted mx-auto mb-4">
+                    <item.icon className="h-6 w-6 text-muted-foreground line-through" />
+                  </div>
+                  <CardTitle className="text-lg">{item.title}</CardTitle>
+                  <CardDescription className="text-sm leading-relaxed mt-2">
+                    {item.description}
+                  </CardDescription>
+                </CardHeader>
+              </Card>
+            ))}
+          </div>
+
+          <div className="text-center mt-16">
+            <p className="text-lg font-semibold text-foreground">
+              SnapDraft is built for volume, consistency, and speed.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      {/* SECTION 9: PRICING / TRIAL CTA */}
+      <section className="py-24 sm:py-32">
+        <div className="mx-auto max-w-7xl px-6">
+          <div className="mx-auto max-w-2xl text-center mb-16">
+            <h2 className="text-3xl font-bold tracking-tight sm:text-4xl font-sans">
+              Try SnapDraft with real production.
+            </h2>
+            <p className="mt-4 text-lg text-muted-foreground">
+              A serious tool for serious workflows. No free toy. No long-term commitment.
+            </p>
+          </div>
+
+          <div className="mx-auto max-w-md text-center">
+            <Link href={register().url}>
+              <Button size="lg" className="w-full gap-2 text-base h-12 px-8">
+                Start your trial <ArrowRight className="h-4 w-4" />
+              </Button>
+            </Link>
+            <p className="mt-4 text-sm text-muted-foreground">
+              7-day trial · $7 · Cancel anytime
+            </p>
+          </div>
+        </div>
+      </section>
+
+      {/* SECTION 10: FAQ */}
+      <section className="py-24 sm:py-32 bg-muted/30">
+        <div className="mx-auto max-w-7xl px-6">
+          <div className="mx-auto max-w-2xl text-center mb-16">
+            <h2 className="text-3xl font-bold tracking-tight sm:text-4xl font-sans">
+              Frequently asked questions
+            </h2>
+          </div>
+
+          <div className="mx-auto max-w-2xl space-y-4">
+            {faqs.map((faq, idx) => (
+              <div key={idx} className="rounded-lg border border-border/50 bg-card overflow-hidden">
+                <button
+                  onClick={() => setExpandedFaq(expandedFaq === idx ? null : idx)}
+                  className="w-full flex items-center justify-between p-6 hover:bg-muted/50 transition-colors text-left"
+                >
+                  <span className="font-semibold text-foreground">{faq.question}</span>
+                  <ChevronDown
+                    className={`h-5 w-5 text-muted-foreground shrink-0 transition-transform ${
+                      expandedFaq === idx ? 'rotate-180' : ''
+                    }`}
+                  />
+                </button>
+                {expandedFaq === idx && (
+                  <div className="px-6 pb-6 text-sm text-muted-foreground border-t border-border/50">
+                    {faq.answer}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* SECTION 11: FINAL CTA */}
       <section className="py-24 sm:py-32">
         <div className="mx-auto max-w-7xl px-6">
           <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-primary/90 to-primary px-8 py-16 sm:px-16 sm:py-24 text-center">
             <div className="absolute inset-0 -z-10 bg-[radial-gradient(45rem_50rem_at_top,theme(colors.background/10%),transparent)]" />
             
             <h2 className="text-3xl font-bold tracking-tight text-primary-foreground sm:text-4xl font-sans">
-              Ready to transform your workflow?
+              Stop waiting on production.
             </h2>
             <p className="mx-auto mt-4 max-w-xl text-lg text-primary-foreground/90">
-              Join teams creating thousands of brand-consistent visuals with AI
+              Join agencies creating thousands of brand-consistent visuals every week.
             </p>
             <div className="mt-8">
               <Link href={register().url}>
                 <Button size="lg" variant="secondary" className="gap-2 text-base h-12 px-8">
-                  Get started for free <ArrowRight className="h-4 w-4" />
+                  Start your trial <ArrowRight className="h-4 w-4" />
                 </Button>
               </Link>
+              <p className="mt-4 text-sm text-primary-foreground/90">
+                7-day trial · $7 · Cancel anytime
+              </p>
             </div>
           </div>
         </div>
