@@ -8,6 +8,7 @@ import {
   ArrowRight,
   Brain,
   Briefcase,
+  Check,
   ChevronDown,
   Download,
   FileSpreadsheet,
@@ -25,6 +26,7 @@ import { useState } from 'react';
 
 export default function Home() {
   const [expandedFaq, setExpandedFaq] = useState<number | null>(0);
+  const [billingCycle, setBillingCycle] = useState<'annual' | 'monthly'>('monthly');
 
   const painPoints = [
     'Content is approved — visuals aren\'t ready',
@@ -115,6 +117,11 @@ export default function Home() {
     },
   ];
 
+  const [featureOne, featureTwo, featureThree] = keyFeatures;
+  const FeatureOneIcon = featureOne.icon;
+  const FeatureTwoIcon = featureTwo.icon;
+  const FeatureThreeIcon = featureThree.icon;
+
   return (
     <div className="sd-motion relative min-h-dvh bg-background text-foreground">
       <Head title="SnapDraft - Turn content plans into weeks of on-brand social visuals" />
@@ -126,36 +133,59 @@ export default function Home() {
         <div className="absolute inset-x-0 top-0 h-[28rem] bg-gradient-to-b from-background via-background/60 to-transparent" />
       </div>
 
-      {/* Header */}
-      <header className="fixed inset-x-0 top-0 z-50 border-b border-border/50 bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-        <nav aria-label="Primary" className="mx-auto flex h-16 max-w-7xl items-center justify-between px-6">
-          <Link href="/" className="flex items-center gap-3">
-            <img
-              src="/SnapdraftLogoBlack.svg"
-              alt="SnapDraft"
-              className="h-7 w-auto dark:invert"
-              loading="eager"
-            />
-          </Link>
-          <div className="flex items-center gap-3">
-            <Button asChild variant="ghost" size="sm">
-              <Link href={login().url}>Sign in</Link>
-            </Button>
-            <Button asChild size="sm" className="gap-2">
-              <Link href={register().url}>
-                Start trial <ArrowRight className="h-4 w-4" />
-              </Link>
-            </Button>
+      {/* Navbar (reference-style pill) */}
+      <header className="fixed inset-x-0 top-0 z-50">
+        <nav aria-label="Primary" className="mx-auto max-w-7xl px-4 pt-4 sm:px-6 sm:pt-6">
+          <div className="flex items-center justify-between rounded-full border border-border/60 bg-background/80 px-4 py-2 shadow-lg backdrop-blur supports-[backdrop-filter]:bg-background/60 sm:px-5">
+            <Link href="/" className="flex items-center gap-3">
+              <img
+                src="/SnapdraftLogoBlack.svg"
+                alt="SnapDraft"
+                className="h-7 w-auto dark:invert"
+                loading="eager"
+              />
+            </Link>
+
+            <div className="hidden items-center gap-7 text-sm font-medium text-foreground/70 md:flex">
+              <a href="#features" className="transition-colors hover:text-foreground">
+                Features
+              </a>
+              <a href="#benefits" className="transition-colors hover:text-foreground">
+                Benefits
+              </a>
+              <a href="#pricing" className="transition-colors hover:text-foreground">
+                Pricing
+              </a>
+              <a href="/updates" className="transition-colors hover:text-foreground">
+                Blog
+              </a>
+              <a href="#contact" className="transition-colors hover:text-foreground">
+                Contact Us
+              </a>
+              <span className="h-1.5 w-1.5 rounded-full bg-[var(--color-sidebar-primary)]" />
+            </div>
+
+            <div className="flex items-center gap-3">
+              <a href={login().url} className="hidden text-sm font-medium text-foreground/70 transition-colors hover:text-foreground sm:inline">
+                Sign in
+              </a>
+              <Button
+                asChild
+                className="h-10 rounded-full bg-foreground px-5 text-background shadow-sm hover:bg-foreground/90"
+              >
+                <Link href={register().url}>Start your trial</Link>
+              </Button>
+            </div>
           </div>
         </nav>
       </header>
 
       <main>
         {/* SECTION 1: HERO */}
-        <section className="relative overflow-hidden pt-28 sm:pt-32">
+        <section className="relative overflow-hidden pt-32 sm:pt-40">
           <div className="mx-auto max-w-7xl px-6">
-            <div className="grid gap-14 lg:grid-cols-12 lg:items-center">
-              <div className="lg:col-span-7">
+            <div className="grid gap-12 lg:grid-cols-12 lg:items-center">
+              <div className="lg:col-span-6">
                 {/* Accent micro-mark to echo reference without adding new copy */}
                 <div className="sd-fade-up mb-6 flex items-center gap-3">
                   <div className="h-2 w-2 bg-[var(--color-sidebar-primary)]" />
@@ -183,55 +213,21 @@ export default function Home() {
               </div>
 
               {/* Hero Visual */}
-              <div className="lg:col-span-5">
+              <div className="lg:col-span-6">
                 <div className="sd-fade-up sd-delay-2 relative">
-                  {/* Large hero image */}
-                  <div className="relative ml-auto overflow-hidden rounded-2xl border border-border/60 bg-gradient-to-br from-background to-muted/30 shadow-2xl">
+                  {/* Large hero image (clean: no border/shadow) */}
+                  <div className="relative -mr-6 overflow-hidden rounded-2xl sm:-mr-10 lg:-mr-16">
                     <img
-                      src="/images/landing/generated-grid-placeholder.svg"
-                      alt="Product visuals placeholder"
-                      className="sd-float h-auto w-full"
+                      src="/images/landing/hero-reference.png"
+                      alt="SnapDraft hero illustration"
+                      className="h-auto w-full"
+                      decoding="async"
                       loading="lazy"
+                      onError={(e) => {
+                        e.currentTarget.onerror = null;
+                        e.currentTarget.src = '/images/landing/generated-grid-placeholder.svg';
+                      }}
                     />
-                    <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(110deg,transparent,rgba(255,255,255,0.22),transparent)] opacity-0 transition-opacity duration-500 sd-shimmer group-hover:opacity-100" />
-                  </div>
-
-                  {/* Floating status card (no marketing claims) */}
-                  <div className="sd-float absolute -left-4 top-10 w-56 rounded-xl border border-border/60 bg-background/80 p-4 shadow-xl backdrop-blur sm:-left-10">
-                    <div className="mb-3 flex items-center justify-between">
-                      <div className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">System status</div>
-                      <div className="h-2 w-2 rounded-full bg-emerald-500" />
-                    </div>
-                    <div className="space-y-3">
-                      <div className="space-y-1">
-                        <div className="flex items-center justify-between text-[11px] text-muted-foreground">
-                          <span>Consistency</span>
-                          <span className="text-foreground/60">—</span>
-                        </div>
-                        <div className="h-1.5 rounded-full bg-muted/60">
-                          <div className="h-full w-[78%] rounded-full bg-[var(--color-sidebar-primary)] opacity-80" />
-                        </div>
-                      </div>
-                      <div className="space-y-1">
-                        <div className="flex items-center justify-between text-[11px] text-muted-foreground">
-                          <span>Throughput</span>
-                          <span className="text-foreground/60">—</span>
-                        </div>
-                        <div className="h-1.5 rounded-full bg-muted/60">
-                          <div className="h-full w-[62%] rounded-full bg-foreground/30" />
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Accent metric block (decorative, no new copy) */}
-                  <div className="sd-float absolute -left-2 bottom-6 w-64 rounded-2xl bg-[var(--color-sidebar-primary)] p-6 shadow-2xl [animation-delay:1.2s] sm:-left-8">
-                    <div className="h-1.5 w-10 rounded-full bg-white/70" />
-                    <div className="mt-6 space-y-3">
-                      <div className="h-8 w-32 rounded bg-white/25" />
-                      <div className="h-4 w-44 rounded bg-white/20" />
-                      <div className="h-4 w-36 rounded bg-white/15" />
-                    </div>
                   </div>
                 </div>
               </div>
@@ -242,7 +238,7 @@ export default function Home() {
         {/* SECTION 2: PAIN SECTION */}
         <section className="mt-16 border-y border-border/50 bg-muted/20 py-20 sm:mt-24 sm:py-28">
           <div className="mx-auto max-w-7xl px-6">
-            <div className="grid gap-10 lg:grid-cols-12 lg:items-start">
+            <div className="grid gap-12 lg:grid-cols-12 lg:items-start">
               <div className="lg:col-span-5">
                 <h2 className="text-balance text-3xl font-bold tracking-tight sm:text-4xl font-sans">
                   Planning is easy. Production is the bottleneck.
@@ -253,16 +249,24 @@ export default function Home() {
               </div>
 
               <div className="lg:col-span-7">
-                <div className="grid gap-4">
+                <div className="grid gap-4 sm:grid-cols-2">
                   {painPoints.map((point, idx) => (
                     <div
                       key={idx}
-                      className="flex items-start gap-4 rounded-xl border border-border/60 bg-background/60 p-5 shadow-sm backdrop-blur"
+                      className="group flex flex-col gap-4 rounded-2xl border border-border/60 bg-background/70 p-5 shadow-sm transition-transform duration-200 hover:-translate-y-0.5"
                     >
-                      <div className="mt-0.5 grid h-9 w-9 place-items-center rounded-lg border border-border/60 bg-muted/30">
-                        <AlertCircle className="h-4 w-4 text-destructive" />
+                      <div className="flex items-start justify-between gap-4">
+                        <img
+                          src={`/images/landing/pain-${idx + 1}.svg`}
+                          alt=""
+                          className="h-20 w-28 rounded-xl bg-white"
+                          loading="lazy"
+                        />
+                        <div className="mt-1 grid h-9 w-9 place-items-center rounded-full border border-border/60 bg-muted/30">
+                          <AlertCircle className="h-4 w-4 text-destructive" />
+                        </div>
                       </div>
-                      <p className="text-muted-foreground">{point}</p>
+                      <p className="text-sm text-muted-foreground">{point}</p>
                     </div>
                   ))}
                 </div>
@@ -272,7 +276,7 @@ export default function Home() {
         </section>
 
         {/* SECTION 3: SOLUTION */}
-        <section className="py-20 sm:py-28">
+        <section id="features" className="py-20 sm:py-28">
           <div className="mx-auto max-w-7xl px-6">
             <div className="mx-auto max-w-2xl text-center">
               <h2 className="text-balance text-3xl font-bold tracking-tight sm:text-4xl font-sans">
@@ -283,21 +287,103 @@ export default function Home() {
               </p>
             </div>
 
-            <div className="mx-auto mt-14 grid max-w-5xl gap-6 sm:grid-cols-3">
-              {keyFeatures.map((feature, idx) => (
-                <Card
-                  key={idx}
-                  className="group border-border/60 bg-background/70 shadow-sm transition-shadow hover:shadow-md"
-                >
-                  <CardHeader>
-                    <div className="mb-4 inline-flex h-12 w-12 items-center justify-center rounded-2xl border border-border/60 bg-gradient-to-br from-muted/40 to-background">
-                      <feature.icon className="h-6 w-6 text-foreground/80" />
+            <div className="mx-auto mt-14 grid max-w-6xl gap-4 md:grid-cols-12">
+              {/* Wide feature tile (top row) */}
+              <div className="group md:col-span-7">
+                <div className="flex h-full flex-col justify-between rounded-3xl border border-border/60 bg-background/70 p-8 shadow-sm transition-transform duration-200 hover:-translate-y-0.5">
+                  <div>
+                    <div className="mb-6 inline-flex h-12 w-12 items-center justify-center rounded-2xl border border-border/60 bg-gradient-to-br from-muted/40 to-background">
+                      <FeatureOneIcon className="h-6 w-6 text-foreground/80" />
                     </div>
-                    <CardTitle className="text-xl">{feature.title}</CardTitle>
-                    <CardDescription className="mt-2 text-sm leading-relaxed">{feature.description}</CardDescription>
-                  </CardHeader>
-                </Card>
-              ))}
+                    <h3 className="text-xl font-semibold text-foreground">{featureOne.title}</h3>
+                    <p className="mt-3 text-sm leading-relaxed text-muted-foreground">{featureOne.description}</p>
+                  </div>
+                  <div className="mt-8 overflow-hidden rounded-2xl border border-border/60 bg-muted/20 p-4">
+                    <img
+                      src="/images/landing/feature-1.png"
+                      alt=""
+                      className="h-auto w-full"
+                      loading="lazy"
+                      onError={(e) => {
+                        e.currentTarget.onerror = null;
+                        e.currentTarget.src = '/images/landing/spreadsheet-placeholder.svg';
+                      }}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Tall feature tile (top right) */}
+              <div className="group md:col-span-5">
+                <div className="flex h-full flex-col justify-between rounded-3xl border border-border/60 bg-background/70 p-8 shadow-sm transition-transform duration-200 hover:-translate-y-0.5">
+                  <div>
+                    <div className="mb-6 inline-flex h-12 w-12 items-center justify-center rounded-2xl border border-border/60 bg-gradient-to-br from-muted/40 to-background">
+                      <FeatureTwoIcon className="h-6 w-6 text-foreground/80" />
+                    </div>
+                    <h3 className="text-xl font-semibold text-foreground">{featureTwo.title}</h3>
+                    <p className="mt-3 text-sm leading-relaxed text-muted-foreground">{featureTwo.description}</p>
+                  </div>
+                  <div className="mt-8 overflow-hidden rounded-2xl border border-border/60 bg-muted/20 p-4">
+                    <img
+                      src="/images/landing/feature-2.png"
+                      alt=""
+                      className="h-auto w-full"
+                      loading="lazy"
+                      onError={(e) => {
+                        e.currentTarget.onerror = null;
+                        e.currentTarget.src = '/images/landing/pain-2.svg';
+                      }}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Bottom left tile */}
+              <div className="group md:col-span-5">
+                <div className="flex h-full flex-col justify-between rounded-3xl border border-border/60 bg-background/70 p-8 shadow-sm transition-transform duration-200 hover:-translate-y-0.5">
+                  <div>
+                    <div className="mb-6 inline-flex h-12 w-12 items-center justify-center rounded-2xl border border-border/60 bg-gradient-to-br from-muted/40 to-background">
+                      <FeatureThreeIcon className="h-6 w-6 text-foreground/80" />
+                    </div>
+                    <h3 className="text-xl font-semibold text-foreground">{featureThree.title}</h3>
+                    <p className="mt-3 text-sm leading-relaxed text-muted-foreground">{featureThree.description}</p>
+                  </div>
+                  <div className="mt-8 overflow-hidden rounded-2xl border border-border/60 bg-muted/20 p-4">
+                    <img
+                      src="/images/landing/feature-3.png"
+                      alt=""
+                      className="h-auto w-full"
+                      loading="lazy"
+                      onError={(e) => {
+                        e.currentTarget.onerror = null;
+                        e.currentTarget.src = '/images/landing/pain-3.svg';
+                      }}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Bottom right tile (visual-only) */}
+              <div className="group md:col-span-7">
+                <div className="flex h-full flex-col justify-between rounded-3xl border border-border/60 bg-background/70 p-8 shadow-sm transition-transform duration-200 hover:-translate-y-0.5">
+                  <div>
+                    <div className="text-sm font-medium text-muted-foreground">Production-ready outputs</div>
+                    <div className="mt-2 h-2 w-16 rounded-full bg-[var(--color-sidebar-primary)] opacity-70" />
+                  </div>
+                  <div className="mt-8 overflow-hidden rounded-2xl border border-border/60 bg-muted/20 p-4">
+                    <img
+                      src="/images/landing/feature-4.png"
+                      alt=""
+                      className="h-auto w-full"
+                      loading="lazy"
+                      onError={(e) => {
+                        e.currentTarget.onerror = null;
+                        e.currentTarget.src = '/images/landing/pain-4.svg';
+                      }}
+                    />
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </section>
@@ -350,7 +436,7 @@ export default function Home() {
         </section>
 
         {/* SECTION 5: DESIGNER-FRIENDLY */}
-        <section className="py-20 sm:py-28">
+        <section id="benefits" className="py-20 sm:py-28">
           <div className="mx-auto max-w-7xl px-6">
             <div className="grid gap-10 lg:grid-cols-12 lg:items-start">
               <div className="lg:col-span-5">
@@ -416,53 +502,204 @@ export default function Home() {
           </div>
         </section>
 
-        {/* SECTION 7: CANVAS EDITOR */}
-        <section className="py-20 sm:py-28">
+        {/* SECTION 7: PRICING */}
+        <section id="pricing" className="bg-muted/20 py-20 sm:py-28">
           <div className="mx-auto max-w-7xl px-6">
             <div className="mx-auto max-w-2xl text-center">
-              <h2 className="text-balance text-3xl font-bold tracking-tight sm:text-4xl font-sans">
-                Make final tweaks without restarting production.
+              <p className="text-xs font-semibold uppercase tracking-[0.3em] text-muted-foreground">Pricing</p>
+              <h2 className="mt-4 text-balance text-3xl font-bold tracking-tight sm:text-4xl font-sans">
+                Simple plans for serious work
               </h2>
               <p className="mt-4 text-lg text-muted-foreground">
-                Adjust text, layout, or spacing directly in SnapDraft. No need to regenerate or jump between tools.
+                Choose the plan that matches your production volume.
               </p>
             </div>
 
-            <div className="mx-auto mt-14 max-w-5xl">
-              <div className="group overflow-hidden rounded-2xl border border-border/60 bg-gradient-to-br from-background to-muted/30 shadow-xl transition-transform duration-300 hover:-translate-y-0.5">
-                <div className="flex items-center justify-between border-b border-border/60 bg-background/50 px-4 py-3">
-                  <div className="flex items-center gap-3">
-                    <div className="grid h-9 w-9 place-items-center rounded-xl border border-border/60 bg-muted/30">
-                      <Paintbrush className="h-4 w-4 text-foreground/80" />
-                    </div>
-                    <div className="text-sm font-medium text-muted-foreground">Canvas Editor Demo</div>
-                  </div>
-                  <div className="hidden items-center gap-2 sm:flex">
-                    <div className="h-7 w-20 rounded-md border border-border/60 bg-background/40" />
-                    <div className="h-7 w-20 rounded-md border border-border/60 bg-background/40" />
-                  </div>
-                </div>
+            <div className="mx-auto mt-10 inline-flex items-center justify-center rounded-full border border-border/60 bg-background/80 p-1 text-xs font-medium text-muted-foreground shadow-sm">
+              <button
+                type="button"
+                onClick={() => setBillingCycle('annual')}
+                className={`rounded-full px-4 py-1.5 transition-colors ${
+                  billingCycle === 'annual'
+                    ? 'bg-background text-foreground shadow'
+                    : 'hover:text-foreground'
+                }`}
+              >
+                Annually
+              </button>
+              <button
+                type="button"
+                onClick={() => setBillingCycle('monthly')}
+                className={`rounded-full px-4 py-1.5 transition-colors ${
+                  billingCycle === 'monthly'
+                    ? 'bg-background text-foreground shadow'
+                    : 'hover:text-foreground'
+                }`}
+              >
+                Monthly
+              </button>
+            </div>
 
-                <div className="p-4 sm:p-6">
-                  <div className="relative overflow-hidden rounded-xl border border-border/60 bg-background/40 shadow-sm">
-                    <img
-                      src="/images/landing/canvas-editor-placeholder.svg"
-                      alt="Canvas editor interface placeholder"
-                      className="h-auto w-full"
-                      loading="lazy"
-                    />
-                    <div className="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-300 group-hover:opacity-100">
-                      <div className="absolute inset-0 bg-[radial-gradient(30rem_20rem_at_30%_10%,theme(colors.primary/12%),transparent)]" />
-                    </div>
-                  </div>
+            <div className="mx-auto mt-12 grid max-w-5xl gap-6 md:grid-cols-3">
+              {/* Plan 1 */}
+              <div className="rounded-3xl border border-border/60 bg-background/90 p-8 shadow-sm">
+                <div className="text-sm font-semibold text-muted-foreground">Starter</div>
+                <div className="mt-2 text-3xl font-bold text-foreground">$7</div>
+                <div className="text-sm text-muted-foreground">7-day trial</div>
+                <ul className="mt-6 space-y-3 text-sm text-muted-foreground">
+                  <li className="flex items-center gap-2"><Check className="h-4 w-4 text-foreground/60" />Brand analysis + style guide</li>
+                  <li className="flex items-center gap-2"><Check className="h-4 w-4 text-foreground/60" />CSV batch generation</li>
+                  <li className="flex items-center gap-2"><Check className="h-4 w-4 text-foreground/60" />Canvas editor access</li>
+                  <li className="flex items-center gap-2"><Check className="h-4 w-4 text-foreground/60" />Standard support</li>
+                </ul>
+                <Button asChild variant="ghost" className="mt-8 w-full rounded-full">
+                  <Link href={register().url}>Start your trial</Link>
+                </Button>
+              </div>
+
+              {/* Plan 2 (highlight) */}
+              <div className="rounded-3xl border-2 border-[var(--color-sidebar-primary)] bg-[var(--color-sidebar-primary)]/10 p-8 shadow-sm">
+                <div className="flex items-center justify-between">
+                  <div className="text-sm font-semibold text-foreground">Pro</div>
+                  {billingCycle === 'annual' && (
+                    <span className="rounded-full bg-[var(--color-sidebar-primary)] px-3 py-1 text-xs font-semibold text-white">Save 20%</span>
+                  )}
                 </div>
+                <div className="mt-2 text-3xl font-bold text-foreground">
+                  {billingCycle === 'annual' ? '$149/mo' : '$189/mo'}
+                </div>
+                <div className="text-sm text-muted-foreground">For high-volume agencies</div>
+                <ul className="mt-6 space-y-3 text-sm text-muted-foreground">
+                  <li className="flex items-center gap-2"><Check className="h-4 w-4 text-foreground/60" />Everything in Starter</li>
+                  <li className="flex items-center gap-2"><Check className="h-4 w-4 text-foreground/60" />Multi-brand workspaces</li>
+                  <li className="flex items-center gap-2"><Check className="h-4 w-4 text-foreground/60" />Priority queueing</li>
+                  <li className="flex items-center gap-2"><Check className="h-4 w-4 text-foreground/60" />Advanced exports</li>
+                </ul>
+                <Button asChild className="mt-8 w-full rounded-full bg-foreground text-background hover:bg-foreground/90">
+                  <Link href={register().url}>Start your trial</Link>
+                </Button>
+              </div>
+
+              {/* Plan 3 */}
+              <div className="rounded-3xl border border-border/60 bg-background/90 p-8 shadow-sm">
+                <div className="text-sm font-semibold text-muted-foreground">Enterprise</div>
+                <div className="mt-2 text-3xl font-bold text-foreground">Flexible</div>
+                <div className="text-sm text-muted-foreground">Custom workflows + SLAs</div>
+                <ul className="mt-6 space-y-3 text-sm text-muted-foreground">
+                  <li className="flex items-center gap-2"><Check className="h-4 w-4 text-foreground/60" />Everything in Pro</li>
+                  <li className="flex items-center gap-2"><Check className="h-4 w-4 text-foreground/60" />Custom onboarding</li>
+                  <li className="flex items-center gap-2"><Check className="h-4 w-4 text-foreground/60" />Dedicated support</li>
+                  <li className="flex items-center gap-2"><Check className="h-4 w-4 text-foreground/60" />Security review</li>
+                </ul>
+                <Button asChild variant="ghost" className="mt-8 w-full rounded-full">
+                  <Link href={register().url}>Contact sales</Link>
+                </Button>
               </div>
             </div>
           </div>
         </section>
 
+        {/* SECTION 8: BLOG */}
+        <section id="blog" className="bg-[#EAF2FB] py-20 sm:py-28">
+          <div className="mx-auto max-w-7xl px-6">
+            <div className="mx-auto max-w-2xl text-center">
+              <p className="text-xs font-semibold uppercase tracking-[0.3em] text-muted-foreground">Blog</p>
+              <h2 className="mt-4 text-balance text-3xl font-bold tracking-tight sm:text-4xl font-sans">
+                Ideas to level-up your creative output
+              </h2>
+            </div>
+
+            <div className="mx-auto mt-12 grid max-w-5xl gap-6 rounded-3xl bg-white p-6 shadow-sm md:grid-cols-[1.2fr_1fr] md:items-center">
+              <div className="overflow-hidden rounded-2xl bg-[#F7F4EF]">
+                <img
+                  src="/images/landing/blog-featured.png"
+                  alt="Featured article"
+                  className="h-auto w-full"
+                  loading="lazy"
+                  onError={(e) => {
+                    e.currentTarget.onerror = null;
+                    e.currentTarget.src = '/images/landing/blog-featured.svg';
+                  }}
+                />
+              </div>
+              <div className="space-y-4">
+                <span className="inline-flex items-center rounded-full bg-[var(--color-sidebar-primary)]/10 px-3 py-1 text-xs font-semibold text-[var(--color-sidebar-primary)]">
+                  MUST READ
+                </span>
+                <h3 className="text-2xl font-semibold text-foreground">
+                  How to build a reliable content production system in 2025
+                </h3>
+                <p className="text-sm text-muted-foreground">
+                  Learn how to ship high-volume social visuals with repeatable workflows and consistent brand output.
+                </p>
+                <div className="flex items-center justify-between pt-4">
+                  <div className="flex items-center gap-3">
+                    <img
+                      src="/images/landing/avatar-1.svg"
+                      alt=""
+                      className="h-10 w-10 rounded-full"
+                      loading="lazy"
+                    />
+                    <div className="text-xs text-muted-foreground">
+                      <div className="font-semibold text-foreground">SnapDraft Team</div>
+                      <div>Editorial</div>
+                    </div>
+                  </div>
+                  <span className="inline-flex items-center rounded-full bg-[var(--color-sidebar-primary)] px-3 py-1 text-xs font-semibold text-white">
+                    FEATURED
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <div className="mx-auto mt-8 grid max-w-5xl gap-6 md:grid-cols-3">
+              {[
+                {
+                  title: 'Top 10 workflows for batch social design',
+                  tag: 'TOOLS',
+                  image: '/images/landing/blog-1.png',
+                  fallback: '/images/landing/blog-1.svg',
+                },
+                {
+                  title: 'A complete guide to production timelines',
+                  tag: 'INSIGHT',
+                  image: '/images/landing/blog-2.png',
+                  fallback: '/images/landing/blog-2.svg',
+                },
+                {
+                  title: 'How to keep brand consistency at scale',
+                  tag: 'MANAGEMENT',
+                  image: '/images/landing/blog-3.png',
+                  fallback: '/images/landing/blog-3.svg',
+                },
+              ].map((post) => (
+                <div key={post.title} className="space-y-4">
+                  <div className="overflow-hidden rounded-2xl bg-white shadow-sm">
+                    <img
+                      src={post.image}
+                      alt=""
+                      className="h-auto w-full"
+                      loading="lazy"
+                      onError={(e) => {
+                        e.currentTarget.onerror = null;
+                        e.currentTarget.src = post.fallback;
+                      }}
+                    />
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm font-semibold text-foreground">{post.title}</p>
+                    <span className="inline-flex items-center rounded-full bg-[var(--color-sidebar-primary)]/15 px-3 py-1 text-[10px] font-semibold text-[var(--color-sidebar-primary)]">
+                      {post.tag}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
         {/* SECTION 8: DIFFERENTIATION */}
-        <section className="border-y border-border/50 bg-muted/20 py-20 sm:py-28">
+        <section id="faq" className="border-y border-border/50 bg-muted/20 py-20 sm:py-28">
           <div className="mx-auto max-w-7xl px-6">
             <div className="mx-auto max-w-2xl text-center">
               <h2 className="text-balance text-3xl font-bold tracking-tight sm:text-4xl font-sans">
@@ -491,7 +728,7 @@ export default function Home() {
         </section>
 
         {/* SECTION 9: PRICING / TRIAL CTA */}
-        <section className="py-20 sm:py-28">
+        <section id="contact" className="py-20 sm:py-28">
           <div className="mx-auto max-w-7xl px-6">
             <div className="mx-auto max-w-2xl text-center">
               <h2 className="text-balance text-3xl font-bold tracking-tight sm:text-4xl font-sans">

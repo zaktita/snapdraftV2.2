@@ -6,6 +6,8 @@ use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Schedule;
 use Illuminate\Support\Facades\Storage;
 use App\Services\AI\AIServiceManager;
+use App\Services\AI\OpenRouterImageTester;
+use App\Models\Project;
 
 Artisan::command('inspire', function () {
     $this->comment(Inspiring::quote());
@@ -89,3 +91,132 @@ Artisan::command('test:csv-wizard', function () {
     $this->info("View results: http://localhost/projects/{$project->id}");
     
 })->purpose('Test the CSV wizard generation flow');
+
+// Generate homepage images using OpenRouter seedream-4.5
+Artisan::command('home:generate-images {projectId? : Project ID for brand references} {--force : Overwrite existing images}', function () {
+    $projectId = $this->argument('projectId');
+    $force = (bool) $this->option('force');
+
+    $project = $projectId
+        ? Project::query()->find($projectId)
+        : Project::query()->whereHas('brandReferences')->first();
+
+    if (!$project) {
+        $this->error('No project with brand references found. Provide a projectId.');
+        return;
+    }
+
+    $brandReferences = $project->brandReferences()->orderBy('order')->get();
+    if ($brandReferences->isEmpty()) {
+        $this->error('Project has no brand references.');
+        return;
+    }
+
+    $referenceImagesBase64 = [];
+    foreach ($brandReferences as $ref) {
+        $path = str_replace('storage/', '', (string) $ref->url);
+        if (Storage::disk('public')->exists($path)) {
+            $mimeType = Storage::disk('public')->mimeType($path);
+            $content = Storage::disk('public')->get($path);
+            $referenceImagesBase64[] = [
+                'data' => base64_encode($content),
+                'mimeType' => $mimeType,
+            ];
+        }
+    }
+
+    if (empty($referenceImagesBase64)) {
+        $this->error('No reference images could be loaded from storage.');
+        return;
+    }
+
+    $targets = [
+        [
+            'file' => 'hero-reference.png',
+            'ratio' => '1:1',
+            'prompt' => 'Isometric illustration of a content production machine turning a content plan into on-brand social visuals. Clean white background, premium SaaS landing style, subtle orange accents, soft shadows, crisp lines.',
+        ],
+        [
+            'file' => 'feature-1.png',
+            'ratio' => '3:2',
+            'prompt' => 'Clean spreadsheet-like dashboard card with brand colors, premium SaaS illustration style, soft shadows, minimal layout, orange accents.',
+        ],
+        [
+            'file' => 'feature-2.png',
+            'ratio' => '3:2',
+            'prompt' => 'Minimal workflow pipeline illustration with cards and connectors, premium SaaS style, subtle orange accents, clean white background.',
+        ],
+        [
+            'file' => 'feature-3.png',
+            'ratio' => '3:2',
+            'prompt' => 'Team collaboration illustration with simple avatars and cards, premium SaaS style, clean layout, soft shadows, orange accents.',
+        ],
+        [
+            'file' => 'feature-4.png',
+            'ratio' => '3:2',
+            'prompt' => 'Grid of on-brand social visual tiles, premium SaaS illustration style, clean white background, orange accents.',
+        ],
+        [
+            'file' => 'blog-featured.png',
+            'ratio' => '3:2',
+            'prompt' => 'Editorial photo-style scene with framed artwork and soft warm lighting. Minimal, premium, soft depth of field, orange accent tone, clean aesthetic.',
+        ],
+        [
+            'file' => 'blog-1.png',
+            'ratio' => '3:2',
+            'prompt' => 'Minimal product studio scene with screens and devices, warm orange glow, clean background, premium SaaS blog thumbnail style.',
+        ],
+        [
+            'file' => 'blog-2.png',
+            'ratio' => '3:2',
+            'prompt' => 'Soft, minimal scene with a single cloud or abstract form on a light background, calm tones with a hint of orange, premium editorial style.',
+        ],
+        [
+            'file' => 'blog-3.png',
+            'ratio' => '3:2',
+            'prompt' => 'Minimal desk scene with a calculator or device, warm sunlight and orange accents, premium editorial blog thumbnail style.',
+        ],
+    ];
+
+    $tester = app(OpenRouterImageTester::class);
+    $outputDir = public_path('images/landing');
+    if (!is_dir($outputDir)) {
+        mkdir($outputDir, 0755, true);
+    }
+
+    foreach ($targets as $target) {
+        $outPath = $outputDir . DIRECTORY_SEPARATOR . $target['file'];
+        if (file_exists($outPath) && !$force) {
+            $this->info("Skipping {$target['file']} (exists). Use --force to overwrite.");
+            continue;
+        }
+
+        $prompt = $target['prompt'] . "\n\nOUTPUT FORMAT:\n- Compose for {$target['ratio']} aspect ratio.";
+        $this->info("Generating {$target['file']}...");
+
+        $results = $tester->generateForAllModels($referenceImagesBase64, $prompt);
+        $successful = null;
+        foreach ($results as $model => $result) {
+            if (!isset($result['error']) && isset($result['saved_path'])) {
+                $successful = $result;
+                break;
+            }
+        }
+
+        if (!$successful || empty($successful['saved_path'])) {
+            $this->error("Failed to generate {$target['file']}.");
+            continue;
+        }
+
+        $savedPath = $successful['saved_path'];
+        if (!Storage::disk('public')->exists($savedPath)) {
+            $this->error("Saved image not found for {$target['file']}: {$savedPath}");
+            continue;
+        }
+
+        $imageData = Storage::disk('public')->get($savedPath);
+        file_put_contents($outPath, $imageData);
+
+        $this->info("Saved {$target['file']} to public/images/landing.");
+    }
+})->purpose('Generate homepage images using OpenRouter seedream-4.5 and save to public/images/landing');
