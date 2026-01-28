@@ -64,3 +64,171 @@
   background-size: 200% 200%;
   animation: sd-shimmer 10s ease-in-out infinite;
 }
+
+/* ===== HERO - DARK WITH ORANGE ACCENTS ===== */
+@keyframes sd-glow-pulse {
+  0%, 100% {
+    opacity: 0.4;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.6;
+    transform: scale(1.05);
+  }
+}
+
+@keyframes sd-gradient-shift {
+  0%, 100% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+}
+
+.sd-hero-dark {
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(180deg, #0f0f0f 0%, #1a1a1a 50%, #0f0f0f 100%);
+}
+
+.sd-hero-dark::before {
+  content: '';
+  position: absolute;
+  top: -50%;
+  left: -25%;
+  width: 150%;
+  height: 150%;
+  background: radial-gradient(ellipse at 30% 20%, rgba(247,147,30,0.15) 0%, transparent 50%),
+              radial-gradient(ellipse at 70% 80%, rgba(255,107,53,0.1) 0%, transparent 40%);
+  animation: sd-glow-pulse 8s ease-in-out infinite;
+}
+
+.sd-hero-dark::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: url("data:image/svg+xml,%3Csvg viewBox='0 0 400 400' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+  opacity: 0.03;
+  pointer-events: none;
+}
+
+/* Subtle grid overlay */
+.sd-hero-grid {
+  position: absolute;
+  inset: 0;
+  background-image: 
+    linear-gradient(rgba(255,255,255,0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px);
+  background-size: 60px 60px;
+  mask-image: radial-gradient(ellipse 80% 50% at 50% 0%, black, transparent);
+}
+
+/* Orange accent line */
+.sd-accent-line {
+  height: 3px;
+  background: linear-gradient(90deg, transparent, #f7931e, transparent);
+  border-radius: 2px;
+}
+
+/* ===== REFINED CARDS ===== */
+.sd-card {
+  background: #ffffff;
+  border: 1px solid rgba(0,0,0,0.08);
+  border-radius: 1.25rem;
+  padding: 1.75rem;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+}
+
+.sd-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 32px -8px rgba(0,0,0,0.12), 0 4px 8px -2px rgba(0,0,0,0.06);
+  border-color: rgba(247,147,30,0.2);
+}
+
+/* Dark card variant for contrast sections */
+.sd-card-dark {
+  background: #1a1a1a;
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 1.25rem;
+  padding: 1.75rem;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.sd-card-dark:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 32px -8px rgba(247,147,30,0.2);
+  border-color: rgba(247,147,30,0.3);
+}
+
+/* ===== DARK ACCENT SECTION ===== */
+.sd-section-dark {
+  background: linear-gradient(180deg, #0f0f0f 0%, #1a1a1a 100%);
+  position: relative;
+}
+
+.sd-section-dark::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 60%;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(247,147,30,0.5), transparent);
+}
+
+/* ===== BUTTONS ===== */
+.sd-btn-primary {
+  background: #f7931e;
+  color: white;
+  border: none;
+  font-weight: 600;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 8px -2px rgba(247,147,30,0.4);
+}
+
+.sd-btn-primary:hover {
+  background: #e8850f;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px -2px rgba(247,147,30,0.5);
+}
+
+.sd-btn-secondary {
+  background: transparent;
+  color: #f7931e;
+  border: 2px solid #f7931e;
+  font-weight: 600;
+  transition: all 0.2s ease;
+}
+
+.sd-btn-secondary:hover {
+  background: rgba(247,147,30,0.1);
+}
+
+.sd-btn-white {
+  background: white;
+  color: #0f0f0f;
+  border: none;
+  font-weight: 600;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 8px -2px rgba(0,0,0,0.2);
+}
+
+.sd-btn-white:hover {
+  background: #f5f5f5;
+  transform: translateY(-1px);
+}
+
+/* ===== PRODUCT DEMO PLACEHOLDER ===== */
+.sd-demo-placeholder {
+  background: linear-gradient(145deg, #e5e7eb 0%, #d1d5db 100%);
+  border-radius: 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #6b7280;
+  font-weight: 500;
+  border: 2px dashed #9ca3af;
+}
