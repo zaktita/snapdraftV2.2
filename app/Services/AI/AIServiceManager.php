@@ -13,11 +13,11 @@ class AIServiceManager
         GoogleGeminiService $geminiService,
         OpenRouterService $openRouterService
     ) {
-        // Primary service: Google Gemini
-        $this->primaryService = $geminiService;
+        // Primary service: OpenRouter
+        $this->primaryService = $openRouterService;
 
-        // Fallback service: OpenRouter (if available)
-        $this->fallbackService = $openRouterService->isAvailable() ? $openRouterService : null;
+        // Fallback service: Google Gemini (if available)
+        $this->fallbackService = $geminiService->isAvailable() ? $geminiService : null;
     }
 
     /**

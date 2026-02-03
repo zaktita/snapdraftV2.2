@@ -5,15 +5,15 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Http;
-use App\Services\AI\GoogleGeminiService;
+use App\Services\AI\OpenRouterService;
 
 class ImageEditController extends Controller
 {
-    protected $geminiService;
+    protected $aiService;
 
-    public function __construct(GoogleGeminiService $geminiService)
+    public function __construct(OpenRouterService $aiService)
     {
-        $this->geminiService = $geminiService;
+        $this->aiService = $aiService;
     }
     /**
      * Simple inpainting using Gemini Flash Image model.
@@ -40,7 +40,7 @@ class ImageEditController extends Controller
             Log::info('[generate-with-mask] Calling Google Gemini');
 
             // Call GoogleGeminiService for inpainting
-            $resultBase64 = $this->geminiService->inpaint(
+            $resultBase64 = $this->aiService->inpaint(
                 $originalBase64,
                 $maskBase64,
                 $validated['prompt']
@@ -269,7 +269,7 @@ class ImageEditController extends Controller
             Log::info('[expand-image] Calling Google Gemini for outpainting');
 
             // Call GoogleGeminiService for outpainting
-            $resultBase64 = $this->geminiService->outpaint(
+            $resultBase64 = $this->aiService->outpaint(
                 $expandedBase64,
                 $maskBase64
             );
@@ -554,7 +554,7 @@ class ImageEditController extends Controller
             Log::info('[resize-canvas] Calling Google Gemini for outpainting', ['target' => $dstW . 'x' . $dstH]);
 
             // Call GoogleGeminiService for outpainting
-            $resultBase64 = $this->geminiService->outpaint(
+            $resultBase64 = $this->aiService->outpaint(
                 $expandedBase64,
                 $maskBase64
             );
@@ -806,7 +806,7 @@ class ImageEditController extends Controller
             Log::info('[generate-from-prompt] Calling Google Gemini');
 
             // Call GoogleGeminiService for prompt-based generation
-            $resultBase64 = $this->geminiService->generateFromPrompt(
+            $resultBase64 = $this->aiService->generateFromPrompt(
                 $imageBase64,
                 $maskBase64,
                 $validated['prompt']
@@ -857,7 +857,7 @@ class ImageEditController extends Controller
             ]);
 
             // Call Gemini service to erase green-highlighted areas
-            $generatedBase64 = $this->geminiService->eraseGreenHighlights($imageBase64);
+            $generatedBase64 = $this->aiService->eraseGreenHighlights($imageBase64);
 
             Log::info('[erase] Success');
 
@@ -893,7 +893,7 @@ class ImageEditController extends Controller
                 return response()->json(['message' => 'Invalid image data'], 422);
             }
 
-            $resultBase64 = $this->geminiService->editBase64($imageBase64, $prompt, null);
+            $resultBase64 = $this->aiService->editBase64($imageBase64, $prompt, null);
             $dataUrl = 'data:image/png;base64,' . $resultBase64;
 
             Log::info('[ai-edit-image] Success');

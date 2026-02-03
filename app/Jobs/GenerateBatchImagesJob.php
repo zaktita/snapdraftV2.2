@@ -109,7 +109,7 @@ class GenerateBatchImagesJob implements ShouldQueue
                         'user_id' => $this->project->user_id,
                         'project_id' => $this->project->id,
                         'prompt' => $this->buildPrompt($caption, $description),
-                        'ai_model' => $textAccurate ? 'gemini-3-pro-image-preview' : 'gemini-2.5-flash-image',
+                        'ai_model' => 'bytedance-seed/seedream-4.5',
                         'status' => 'failed',
                         'error_message' => 'Invalid format. Allowed: ' . implode(', ', self::FORMAT_PRESETS) . ' (or leave blank to let AI decide).',
                         'parameters' => [
@@ -138,7 +138,7 @@ class GenerateBatchImagesJob implements ShouldQueue
                         'user_id' => $this->project->user_id,
                         'project_id' => $this->project->id,
                         'prompt' => '',
-                        'ai_model' => $textAccurate ? 'gemini-3-pro-image-preview' : 'gemini-2.5-flash-image',
+                        'ai_model' => 'bytedance-seed/seedream-4.5',
                         'status' => 'failed',
                         'error_message' => 'Caption or description is required (at least one must be non-empty).',
                         'parameters' => [
@@ -166,7 +166,7 @@ class GenerateBatchImagesJob implements ShouldQueue
                 $format = $formatPreset ?? '';
 
                 // Determine AI model based on text accuracy flag
-                $aiModel = $textAccurate ? 'gemini-3-pro-image-preview' : 'gemini-2.5-flash-image';
+                $aiModel = 'bytedance-seed/seedream-4.5';
 
                 // Create generation history record for this item
                 $generation = GenerationHistory::create([
