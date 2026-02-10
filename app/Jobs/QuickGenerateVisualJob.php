@@ -5,7 +5,7 @@ namespace App\Jobs;
 use App\Models\BrandReference;
 use App\Models\Image;
 use App\Models\QuickGenerateSession;
-use App\Services\AI\OpenRouterImageTester;
+use App\Services\AI\AIServiceManager;
 use App\Services\AI\PromptGeneratorService;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -14,6 +14,7 @@ use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 
 class QuickGenerateVisualJob implements ShouldQueue
 {
@@ -35,7 +36,7 @@ class QuickGenerateVisualJob implements ShouldQueue
      */
     public function handle(
         PromptGeneratorService $promptGenerator,
-        OpenRouterImageTester $imageTester
+        AIServiceManager $aiService
     ): void {
         try {
             Log::info('QuickGenerateVisualJob: Starting', [
@@ -74,60 +75,58 @@ class QuickGenerateVisualJob implements ShouldQueue
                 ->orderBy('order')
                 ->get();
 
-            $referenceImagesBase64 = [];
+            $referenceImagePaths = [];
             foreach ($selectedIndices as $index) {
                 if (isset($brandReferences[$index])) {
                     $ref = $brandReferences[$index];
                     $path = str_replace('storage/', '', $ref->url);
                     
                     if (Storage::disk('public')->exists($path)) {
-                        $mimeType = Storage::disk('public')->mimeType($path);
-                        $content = Storage::disk('public')->get($path);
-                        $base64 = base64_encode($content);
-                        
-                        $referenceImagesBase64[] = [
-                            'data' => $base64,
-                            'mimeType' => $mimeType,
-                        ];
+                        $referenceImagePaths[] = $path;
                     }
                 }
             }
 
-            if (empty($referenceImagesBase64)) {
+            if (empty($referenceImagePaths)) {
                 throw new \RuntimeException('No reference images could be loaded');
             }
 
             Log::info('QuickGenerateVisualJob: Generating image', [
                 'session_id' => $this->session->id,
-                'reference_count' => count($referenceImagesBase64),
+                'reference_count' => count($referenceImagePaths),
+                'service' => $aiService->getServiceName(),
             ]);
 
+            $startTime = microtime(true);
+
             // Step 3: Generate image
-            $generationResults = $imageTester->generateForAllModels(
-                $referenceImagesBase64,
-                $promptResult['simple_prompt']
+            $result = $aiService->generateWithReferences(
+                $promptResult['simple_prompt'],
+                $referenceImagePaths,
+                [], 
+                $this->session->format ?? 'square'
             );
 
-            // Get first successful result
-            $successfulResult = null;
-            foreach ($generationResults as $model => $result) {
-                if (!isset($result['error']) && isset($result['saved_path'])) {
-                    $successfulResult = $result;
-                    break;
-                }
-            }
-
-            if (!$successfulResult) {
-                throw new \RuntimeException('Image generation failed for all models');
-            }
+            $durationMs = (int)((microtime(true) - $startTime) * 1000);
 
             // Step 4: Save to database as Image (using CSV wizard structure)
-            $savedPath = $successfulResult['saved_path'];
+            $imageData = base64_decode($result['image_base64']);
+            $randomName = Str::random(40);
+            $filename = 'generated/' . $randomName . '.png';
+            Storage::disk('public')->put($filename, $imageData);
             
+            $savedPath = 'storage/' . $filename;
+            
+            // Create a thumbnail as well (for now just copy, optimizing later)
+            // Ideally we should resize this, but for MVP strict replacement:
+            $thumbnailFilename = 'generated/thumbs/' . $randomName . '.png';
+            Storage::disk('public')->put($thumbnailFilename, $imageData);
+            $thumbnailPath = 'storage/' . $thumbnailFilename;
+
             $image = Image::create([
                 'project_id' => $this->session->project_id,
-                'url' => $savedPath, // Path relative to storage/app/public
-                'thumbnail_url' => $savedPath, // Same for now (CSV wizard creates thumbnails separately)
+                'url' => $savedPath,
+                'thumbnail_url' => $thumbnailPath,
                 'prompt' => $promptResult['simple_prompt'],
                 'metadata' => [
                     'ai_generated' => true,
@@ -136,8 +135,8 @@ class QuickGenerateVisualJob implements ShouldQueue
                     'description' => $promptResult['description'],
                     'cluster_id' => $promptResult['cluster_id'],
                     'selected_images' => $promptResult['selected_images'],
-                    'generation_duration_ms' => $successfulResult['duration_ms'] ?? 0,
-                    'model' => $successfulResult['model'] ?? 'unknown',
+                    'generation_duration_ms' => $durationMs,
+                    'model' => $aiService->getServiceName(),
                 ],
                 'order' => 0,
             ]);

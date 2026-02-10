@@ -5,6 +5,7 @@ namespace App\Jobs;
 use App\Models\CsvWizardSession;
 use App\Models\GenerationHistory;
 use App\Models\Project;
+use App\Services\AI\AIServiceManager;
 use Illuminate\Bus\Batch;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
@@ -166,7 +167,7 @@ class GenerateBatchImagesJob implements ShouldQueue
                 $format = $formatPreset ?? '';
 
                 // Determine AI model based on text accuracy flag
-                $aiModel = 'bytedance-seed/seedream-4.5';
+                $aiModel = app(AIServiceManager::class)->getActiveModelName($textAccurate);
 
                 // Create generation history record for this item
                 $generation = GenerationHistory::create([

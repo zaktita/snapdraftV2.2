@@ -11,8 +11,6 @@ use App\Http\Controllers\Wizards\ImagesWizardController;
 use App\Http\Controllers\Wizards\TextWizardController;
 use App\Http\Controllers\Wizards\BrandAnalysisWizardController;
 use App\Http\Controllers\SimpleTextWizardController;
-use App\Http\Controllers\BrandAnalysisTestController;
-use App\Http\Controllers\TestAiModelsController;
 use App\Http\Controllers\QuickGenerateController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
@@ -25,6 +23,11 @@ Route::get('/', function () {
     }
     return Inertia::render('website/home');
 })->name('home');
+
+// Startup landing page
+Route::get('/startup', function () {
+    return Inertia::render('website/startup');
+})->name('startup');
 
 Route::middleware(['auth', 'verified'])->group(function () {
     // Simple Wizard (Direct Generation)
@@ -202,19 +205,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::post('/downgrade', [\App\Http\Controllers\SubscriptionController::class, 'downgrade'])->name('downgrade');
         Route::post('/purchase-credits', [\App\Http\Controllers\SubscriptionController::class, 'purchaseCredits'])->name('purchase-credits');
     });
-
-    // Brand Analysis Test UI
-    Route::get('test/brand-analysis', [BrandAnalysisTestController::class, 'index'])->name('test.brand-analysis.index');
-    Route::post('test/brand-analysis', [BrandAnalysisTestController::class, 'store'])->name('test.brand-analysis.store');
-    Route::post('test/brand-analysis/caption', [BrandAnalysisTestController::class, 'testCaption'])->name('test.brand-analysis.caption');
-    Route::post('test/brand-analysis/generate-images', [BrandAnalysisTestController::class, 'generateImages'])->name('test.brand-analysis.generate-images');
-
-    // AI Models Testing
-    Route::get('test-ai-models', [TestAiModelsController::class, 'index'])->name('test-ai-models.index');
-    Route::post('test-ai-models/generate', [TestAiModelsController::class, 'generate'])->name('test-ai-models.generate');
 });
 
-// Stripe Webhook (outside auth middleware)
+// Stripe Webook (outside auth middleware)
 Route::post('/webhook/stripe', [\App\Http\Controllers\SubscriptionController::class, 'webhook'])->name('webhook.stripe');
 
 require __DIR__.'/admin.php';

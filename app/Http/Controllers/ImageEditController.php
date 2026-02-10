@@ -5,13 +5,13 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Http;
-use App\Services\AI\OpenRouterService;
+use App\Services\AI\AIServiceManager;
 
 class ImageEditController extends Controller
 {
     protected $aiService;
 
-    public function __construct(OpenRouterService $aiService)
+    public function __construct(AIServiceManager $aiService)
     {
         $this->aiService = $aiService;
     }

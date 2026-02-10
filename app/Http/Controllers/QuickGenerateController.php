@@ -45,7 +45,7 @@ class QuickGenerateController extends Controller
         Gate::authorize('create', Project::class);
 
         $validated = $request->validate([
-            'reference_images' => 'required|array|min:5|max:10',
+            'reference_images' => 'required|array|min:0|max:10',
             'reference_images.*' => 'required|image|mimes:jpeg,jpg,png,webp|max:10240',
             'caption' => 'required|string|min:3|max:500',
             'format' => 'required|string|in:1:1,4:5,3:4,2:3,9:16,3:2,4:3,5:4,16:9',

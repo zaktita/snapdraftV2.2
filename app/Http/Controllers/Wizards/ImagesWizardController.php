@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Wizards;
 use App\Http\Controllers\Controller;
 use App\Models\Project;
 use App\Services\AI\BrandReferenceAnalyzer;
+use App\Services\AI\AIServiceManager;
 use App\Services\FileUploadService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -14,7 +15,8 @@ class ImagesWizardController extends Controller
 {
     public function __construct(
         protected FileUploadService $fileUploadService,
-        protected BrandReferenceAnalyzer $brandAnalyzer
+        protected BrandReferenceAnalyzer $brandAnalyzer,
+        protected AIServiceManager $aiManager
     ) {}
 
     /**
@@ -75,7 +77,8 @@ class ImagesWizardController extends Controller
         $textAccurate = $validated['text_accurate'] ?? false;
 
         // Determine AI model based on text accuracy flag
-        $aiModel = $textAccurate ? 'gemini-3-pro-image-preview' : 'gemini-2.5-flash-image';
+        $textAccurate = $validated['text_accurate'] ?? false;
+        $aiModel = $this->aiManager->getActiveModelName($textAccurate);
 
         // Create generation history record (pending before job dispatch)
         $generation = $project->generationHistory()->create([

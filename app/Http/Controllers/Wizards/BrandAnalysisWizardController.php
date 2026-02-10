@@ -4,7 +4,6 @@ namespace App\Http\Controllers\Wizards;
 
 use App\Http\Controllers\Controller;
 use App\Services\AI\BrandReferenceAnalyzer;
-use App\Services\AI\FalBrandAnalyzer;
 use App\Services\AI\GoogleGeminiService;
 use App\Services\CaptionAnalyzer;
 use App\Services\IntelligentReferenceSelector;
@@ -17,7 +16,6 @@ class BrandAnalysisWizardController extends Controller
 {
     public function __construct(
         protected BrandReferenceAnalyzer $analyzer,
-        protected FalBrandAnalyzer $gpt52Analyzer,
         protected GoogleGeminiService $generator,
         protected CaptionAnalyzer $captionAnalyzer,
         protected IntelligentReferenceSelector $referenceSelector

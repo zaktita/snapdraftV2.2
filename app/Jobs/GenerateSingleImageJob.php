@@ -5,7 +5,7 @@ namespace App\Jobs;
 use App\Models\GenerationHistory;
 use App\Models\Image;
 use App\Models\Project;
-use App\Services\AI\OpenRouterImageTester;
+use App\Services\AI\AIServiceManager;
 use App\Services\AI\PromptGeneratorService;
 use Illuminate\Bus\Batchable;
 use Illuminate\Bus\Queueable;
@@ -15,6 +15,7 @@ use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 
 class GenerateSingleImageJob implements ShouldQueue
 {
@@ -38,7 +39,7 @@ class GenerateSingleImageJob implements ShouldQueue
 
     public function handle(
         PromptGeneratorService $promptGenerator,
-        OpenRouterImageTester $imageTester
+        AIServiceManager $aiService
     ): void {
         $generation = null;
         try {
@@ -119,14 +120,7 @@ class GenerateSingleImageJob implements ShouldQueue
                 $path = str_replace('storage/', '', (string) $ref->url);
                 
                 if (Storage::disk('public')->exists($path)) {
-                    $mimeType = Storage::disk('public')->mimeType($path);
-                    $content = Storage::disk('public')->get($path);
-                    $base64 = base64_encode($content);
-                    
-                    $referenceImagesBase64[] = [
-                        'data' => $base64,
-                        'mimeType' => $mimeType,
-                    ];
+                    $referenceImagePaths[] = $path;
 
                     $referenceCluster[] = [
                         'id' => $ref->id,
@@ -138,16 +132,15 @@ class GenerateSingleImageJob implements ShouldQueue
                 }
             }
 
-            if (empty($referenceImagesBase64)) {
-                throw new \RuntimeException('No reference images could be loaded');
-            }
+            // Reference images are optional (e.g., for text wizard without references)
 
             Log::info('GenerateSingleImageJob: Generating image', [
                 'project_id' => $this->project->id,
-                'reference_count' => count($referenceImagesBase64),
+                'reference_count' => count($referenceImagePaths),
                 'format_token' => $formatInfo['token'],
                 'format_ratio' => $formatInfo['ratio'],
                 'format_source' => $formatInfo['source'],
+                'service' => $aiService->getServiceName(),
             ]);
 
             if ($generation) {
@@ -163,27 +156,24 @@ class GenerateSingleImageJob implements ShouldQueue
                 ]);
             }
 
+            $startTime = microtime(true);
+
             // Generate image
-            $generationResults = $imageTester->generateForAllModels(
-                $referenceImagesBase64,
-                $finalPromptWithFormat
+            $result = $aiService->generateWithReferences(
+                $finalPromptWithFormat,
+                $referenceImagePaths,
+                [], 
+                $formatInfo['token'] ?? 'square'
             );
 
-            // Get first successful result
-            $successfulResult = null;
-            foreach ($generationResults as $model => $result) {
-                if (!isset($result['error']) && isset($result['saved_path'])) {
-                    $successfulResult = $result;
-                    break;
-                }
-            }
-
-            if (!$successfulResult) {
-                throw new \RuntimeException('Image generation failed for all models');
-            }
+            $durationMs = (int)((microtime(true) - $startTime) * 1000);
 
             // Save to database
-            $savedPath = $successfulResult['saved_path'];
+            $imageData = base64_decode($result['image_base64']);
+            $randomName = Str::random(40);
+            $filename = 'generated/' . $randomName . '.png';
+            Storage::disk('public')->put($filename, $imageData);
+            $savedPath = 'storage/' . $filename;
             
             $image = Image::create([
                 'project_id' => $this->project->id,
@@ -202,8 +192,8 @@ class GenerateSingleImageJob implements ShouldQueue
                     'cluster_id' => $promptResult['cluster_id'] ?? null,
                     'selected_images' => $promptResult['selected_images'] ?? null,
                     'reference_cluster' => $referenceCluster,
-                    'generation_duration_ms' => $successfulResult['duration_ms'] ?? 0,
-                    'model' => $successfulResult['model'] ?? 'bytedance-seed/seedream-4.5',
+                    'generation_duration_ms' => $durationMs,
+                    'model' => $aiService->getServiceName(),
                 ],
                 'order' => 0,
             ]);

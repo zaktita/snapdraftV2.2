@@ -6,7 +6,6 @@ use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Schedule;
 use Illuminate\Support\Facades\Storage;
 use App\Services\AI\AIServiceManager;
-use App\Services\AI\OpenRouterImageTester;
 use App\Models\Project;
 
 Artisan::command('inspire', function () {
@@ -112,20 +111,15 @@ Artisan::command('home:generate-images {projectId? : Project ID for brand refere
         return;
     }
 
-    $referenceImagesBase64 = [];
+    $referenceImagePaths = [];
     foreach ($brandReferences as $ref) {
         $path = str_replace('storage/', '', (string) $ref->url);
         if (Storage::disk('public')->exists($path)) {
-            $mimeType = Storage::disk('public')->mimeType($path);
-            $content = Storage::disk('public')->get($path);
-            $referenceImagesBase64[] = [
-                'data' => base64_encode($content),
-                'mimeType' => $mimeType,
-            ];
+            $referenceImagePaths[] = $path;
         }
     }
 
-    if (empty($referenceImagesBase64)) {
+    if (empty($referenceImagePaths)) {
         $this->error('No reference images could be loaded from storage.');
         return;
     }
@@ -178,7 +172,7 @@ Artisan::command('home:generate-images {projectId? : Project ID for brand refere
         ],
     ];
 
-    $tester = app(OpenRouterImageTester::class);
+    $ai = app(AIServiceManager::class);
     $outputDir = public_path('images/landing');
     if (!is_dir($outputDir)) {
         mkdir($outputDir, 0755, true);
@@ -194,29 +188,27 @@ Artisan::command('home:generate-images {projectId? : Project ID for brand refere
         $prompt = $target['prompt'] . "\n\nOUTPUT FORMAT:\n- Compose for {$target['ratio']} aspect ratio.";
         $this->info("Generating {$target['file']}...");
 
-        $results = $tester->generateForAllModels($referenceImagesBase64, $prompt);
-        $successful = null;
-        foreach ($results as $model => $result) {
-            if (!isset($result['error']) && isset($result['saved_path'])) {
-                $successful = $result;
-                break;
+        $format = match($target['ratio']) {
+            '1:1' => 'square',
+            '3:2', '16:9' => 'landscape',
+            '2:3', '9:16' => 'portrait',
+            default => 'square',
+        };
+
+        try {
+            $result = $ai->generateWithReferences($prompt, $referenceImagePaths, [], $format); // Default model (Seedream)
+
+            if (!isset($result['image_base64'])) {
+                $this->error("Failed to generate {$target['file']}: No image result.");
+                continue;
             }
+
+            $imageData = base64_decode($result['image_base64']);
+            file_put_contents($outPath, $imageData);
+
+            $this->info("Saved {$target['file']} to public/images/landing.");
+        } catch (\Throwable $e) {
+            $this->error("Error generating {$target['file']}: " . $e->getMessage());
         }
-
-        if (!$successful || empty($successful['saved_path'])) {
-            $this->error("Failed to generate {$target['file']}.");
-            continue;
-        }
-
-        $savedPath = $successful['saved_path'];
-        if (!Storage::disk('public')->exists($savedPath)) {
-            $this->error("Saved image not found for {$target['file']}: {$savedPath}");
-            continue;
-        }
-
-        $imageData = Storage::disk('public')->get($savedPath);
-        file_put_contents($outPath, $imageData);
-
-        $this->info("Saved {$target['file']} to public/images/landing.");
     }
 })->purpose('Generate homepage images using OpenRouter seedream-4.5 and save to public/images/landing');

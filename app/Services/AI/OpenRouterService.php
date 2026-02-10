@@ -161,21 +161,71 @@ class OpenRouterService implements AIServiceInterface
         }
 
         $json = $response->json();
+
+        // Check for direct data response (standard OpenAI image format)
+        if (isset($json['data'][0]['url'])) {
+             return $this->processImageUrl($json['data'][0]['url']);
+        }
+        if (isset($json['data'][0]['b64_json'])) {
+             $b64 = $json['data'][0]['b64_json'];
+             return [
+                 'image_data' => $b64, 
+                 'image_base64' => $b64, 
+                 'mime_type' => 'image/png'
+             ];
+        }
+
         $message = $json['choices'][0]['message'] ?? null;
         if (!$message) {
             throw new RuntimeException('Invalid response structure from OpenRouter');
         }
 
+        // Check OpenRouter specialized message.images format
+        if (isset($message['images'][0]['image_url']['url'])) {
+             return $this->processImageUrl($message['images'][0]['image_url']['url']);
+        }
+
         $content = $message['content'] ?? '';
         
+        // Check markdown image syntax
         if (preg_match('/!\[.*?\]\((.*?)\)/', $content, $matches)) {
             return $this->processImageUrl($matches[1]);
         }
+        
+        // Check if content is a raw URL
         if (filter_var(trim($content), FILTER_VALIDATE_URL)) {
              return $this->processImageUrl(trim($content));
         }
+
+        // Check if content is raw base64
+        if (strlen($content) > 1000 && preg_match('/^[A-Za-z0-9+\/=\s]+$/', trim($content))) {
+             $b64 = trim($content);
+             return [
+                 'image_data' => $b64, 
+                 'image_base64' => $b64, 
+                 'mime_type' => 'image/png'
+             ];
+        }
+
+        // Check reasoning_details for base64 (some experimental models)
+        $reasoningDetails = $message['reasoning_details'] ?? [];
+        if (is_array($reasoningDetails)) {
+            foreach ($reasoningDetails as $detail) {
+                 if (isset($detail['data']) && is_string($detail['data']) && strlen($detail['data']) > 1000) {
+                     // Check if not encrypted
+                     if (!str_starts_with($detail['data'], 'gAAAAA')) {
+                         $b64 = $detail['data'];
+                         return [
+                             'image_data' => $b64,
+                             'image_base64' => $b64,
+                             'mime_type' => 'image/png'
+                         ];
+                     }
+                 }
+            }
+        }
         
-        Log::error('OpenRouter: No image found in response content', ['content' => $content]);
+        Log::error('OpenRouter: No image found in response content', ['content' => Str::limit($content, 200)]);
         throw new RuntimeException("No image found in OpenRouter response. Content: " . Str::limit($content, 100));
     }
 
