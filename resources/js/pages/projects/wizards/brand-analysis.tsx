@@ -326,7 +326,7 @@ export default function BrandAnalysisWizard({
                                                             {/* Image Container */}
                                                             <div className="aspect-square overflow-hidden bg-black/10">
                                                                 <img
-                                                                    src={ref.url}
+                                                                    src={`/storage/${ref.url}`}
                                                                     alt={ref.name ?? 'Reference'}
                                                                     className="w-full h-full object-cover hover:scale-105 transition-transform"
                                                                 />

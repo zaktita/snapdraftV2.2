@@ -115,13 +115,13 @@ class QuickGenerateVisualJob implements ShouldQueue
             $filename = 'generated/' . $randomName . '.png';
             Storage::disk('public')->put($filename, $imageData);
             
-            $savedPath = 'storage/' . $filename;
+            $savedPath = $filename;
             
             // Create a thumbnail as well (for now just copy, optimizing later)
             // Ideally we should resize this, but for MVP strict replacement:
             $thumbnailFilename = 'generated/thumbs/' . $randomName . '.png';
             Storage::disk('public')->put($thumbnailFilename, $imageData);
-            $thumbnailPath = 'storage/' . $thumbnailFilename;
+            $thumbnailPath = $thumbnailFilename;
 
             $image = Image::create([
                 'project_id' => $this->session->project_id,

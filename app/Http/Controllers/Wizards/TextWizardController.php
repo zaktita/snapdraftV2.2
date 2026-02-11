@@ -98,7 +98,10 @@ class TextWizardController extends Controller
         $format = $validated['format'];
         
         // Pass the generation ID so the job updates this record instead of creating a new one
-        // Enable simple prompt logic since this is from Text Wizard
+        // Enable simple prompt logic ONLY if we have brand analysis (requires reference images)
+        $hasReferences = $request->hasFile('reference_images');
+        $useSimplePrompt = $hasReferences && !empty($referencePaths);
+        
         if (app()->environment('local')) {
             \App\Jobs\GenerateSingleImageJob::dispatchSync(
                 project: $project, 
@@ -108,7 +111,7 @@ class TextWizardController extends Controller
                 generationId: $generation->id,
                 title: null,  // AI will extract from prompt
                 description: null,  // AI will extract from prompt
-                useSimplePrompt: true
+                useSimplePrompt: $useSimplePrompt
             );
         } else {
             \App\Jobs\GenerateSingleImageJob::dispatch(
@@ -119,7 +122,7 @@ class TextWizardController extends Controller
                 generationId: $generation->id,
                 title: null,  // AI will extract from prompt
                 description: null,  // AI will extract from prompt
-                useSimplePrompt: true
+                useSimplePrompt: $useSimplePrompt
             );
         }
 

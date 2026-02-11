@@ -196,9 +196,6 @@ class AIServiceManager
     }
 
     /**
-     * Get the name of the currently active service.
-     */
-    /**
      * Get the name of the active model that WILL be used for generation.
      * Centralizes logic for UI display and history tracking.
      */
@@ -213,6 +210,15 @@ class AIServiceManager
 
         // 2. Default is Primary (OpenRouter)
         return config('services.openrouter.image_model', 'bytedance-seed/seedream-4.5');
+    }
+
+    /**
+     * Get the service name for the currently active service.
+     * @deprecated Use getActiveModelName() instead
+     */
+    public function getServiceName(): string
+    {
+        return $this->primaryService->getServiceName();
     }
 
     /**

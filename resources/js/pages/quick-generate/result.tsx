@@ -149,7 +149,7 @@ export default function QuickGenerateResult({ session, project, image, reference
                                     return ref ? (
                                         <div key={index} className="aspect-square overflow-hidden rounded-md border">
                                             <img
-                                                src={`/${ref.url}`}
+                                                src={`/storage/${ref.url}`}
                                                 alt={`Reference ${index + 1}`}
                                                 className="h-full w-full object-cover"
                                             />

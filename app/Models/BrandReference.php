@@ -62,10 +62,10 @@ class BrandReference extends Model
         // Delete the actual files from storage when deleted
         static::deleted(function (BrandReference $reference) {
             if ($reference->url) {
-                Storage::delete($reference->url);
+                Storage::disk('public')->delete($reference->url);
             }
             if ($reference->thumbnail_url) {
-                Storage::delete($reference->thumbnail_url);
+                Storage::disk('public')->delete($reference->thumbnail_url);
             }
         });
     }

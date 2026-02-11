@@ -79,12 +79,20 @@ class GenerateSingleImageJob implements ShouldQueue
 
             $brandAnalysis = $this->project->settings['brand_analysis'] ?? null;
             if ($this->useSimplePrompt && $brandAnalysis) {
-                $promptResult = $promptGenerator->generateSimplePrompt($brandAnalysis, $primaryText);
-                $finalPrompt = (string) ($promptResult['simple_prompt'] ?? $primaryText);
+                try {
+                    $promptResult = $promptGenerator->generateSimplePrompt($brandAnalysis, $primaryText);
+                    $finalPrompt = (string) ($promptResult['simple_prompt'] ?? $primaryText);
 
-                // Backfill extracted fields if not explicitly provided
-                $this->title = $this->title ?: ($promptResult['title'] ?? null);
-                $this->description = $this->description ?: ($promptResult['description'] ?? null);
+                    // Backfill extracted fields if not explicitly provided
+                    $this->title = $this->title ?: ($promptResult['title'] ?? null);
+                    $this->description = $this->description ?: ($promptResult['description'] ?? null);
+                } catch (\Exception $e) {
+                    Log::warning('GenerateSingleImageJob: Simple prompt generation failed, using raw caption', [
+                        'error' => $e->getMessage()
+                    ]);
+                    // Fall back to using the caption directly
+                    $finalPrompt = $primaryText;
+                }
             }
 
             Log::info('GenerateSingleImageJob: Prompt prepared', [
@@ -99,6 +107,7 @@ class GenerateSingleImageJob implements ShouldQueue
             $brandReferences = $this->project->brandReferences()->orderBy('order')->get();
             $referenceImagesBase64 = [];
             $referenceCluster = [];
+            $referenceImagePaths = [];
 
             $selectedIndices = null;
             if (is_array($promptResult) && isset($promptResult['selected_images']) && is_array($promptResult['selected_images'])) {
@@ -134,13 +143,16 @@ class GenerateSingleImageJob implements ShouldQueue
 
             // Reference images are optional (e.g., for text wizard without references)
 
+            $activeModel = $aiService->getActiveModelName($this->textAccurate);
+            
             Log::info('GenerateSingleImageJob: Generating image', [
                 'project_id' => $this->project->id,
                 'reference_count' => count($referenceImagePaths),
                 'format_token' => $formatInfo['token'],
                 'format_ratio' => $formatInfo['ratio'],
                 'format_source' => $formatInfo['source'],
-                'service' => $aiService->getServiceName(),
+                'ai_model' => $activeModel,
+                'text_accurate' => $this->textAccurate,
             ]);
 
             if ($generation) {
@@ -163,7 +175,8 @@ class GenerateSingleImageJob implements ShouldQueue
                 $finalPromptWithFormat,
                 $referenceImagePaths,
                 [], 
-                $formatInfo['token'] ?? 'square'
+                $formatInfo['token'] ?? 'square',
+                $this->textAccurate
             );
 
             $durationMs = (int)((microtime(true) - $startTime) * 1000);
@@ -173,7 +186,7 @@ class GenerateSingleImageJob implements ShouldQueue
             $randomName = Str::random(40);
             $filename = 'generated/' . $randomName . '.png';
             Storage::disk('public')->put($filename, $imageData);
-            $savedPath = 'storage/' . $filename;
+            $savedPath = $filename;
             
             $image = Image::create([
                 'project_id' => $this->project->id,
@@ -193,7 +206,7 @@ class GenerateSingleImageJob implements ShouldQueue
                     'selected_images' => $promptResult['selected_images'] ?? null,
                     'reference_cluster' => $referenceCluster,
                     'generation_duration_ms' => $durationMs,
-                    'model' => $aiService->getServiceName(),
+                    'model' => $result['metadata']['model'] ?? $activeModel,
                 ],
                 'order' => 0,
             ]);
@@ -212,15 +225,16 @@ class GenerateSingleImageJob implements ShouldQueue
             if ($generation) {
                 $generation->update([
                     'image_id' => $image->id,
-                    'ai_model' => $successfulResult['model'] ?? ($generation->ai_model ?? 'bytedance-seed/seedream-4.5'),
+                    'ai_model' => $result['metadata']['model'] ?? ($generation->ai_model ?? $activeModel),
                     'status' => 'completed',
                     'response_data' => [
                         'saved_path' => $savedPath,
-                        'duration_ms' => $successfulResult['duration_ms'] ?? null,
-                        'model' => $successfulResult['model'] ?? null,
+                        'duration_ms' => $durationMs,
+                        'model' => $result['metadata']['model'] ?? $activeModel,
                         'format_token' => $formatInfo['token'],
                         'format_ratio' => $formatInfo['ratio'],
                         'format_source' => $formatInfo['source'],
+                        'generation_time_ms' => $result['metadata']['generation_time_ms'] ?? $durationMs,
                     ],
                 ]);
             }

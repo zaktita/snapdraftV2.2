@@ -222,7 +222,7 @@ export default function Search() {
                                                         <Card className="overflow-hidden cursor-pointer hover:opacity-90 transition-opacity">
                                                             <div className="aspect-square bg-muted overflow-hidden">
                                                                 <img
-                                                                    src={image.url}
+                                                                    src={`/storage/${image.url}`}
                                                                     alt={image.prompt}
                                                                     className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                                                                 />

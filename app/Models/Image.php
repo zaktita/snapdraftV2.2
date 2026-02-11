@@ -86,10 +86,10 @@ class Image extends Model
             
             // Delete the actual files from storage
             if ($image->url) {
-                Storage::delete($image->url);
+                Storage::disk('public')->delete($image->url);
             }
             if ($image->thumbnail_url) {
-                Storage::delete($image->thumbnail_url);
+                Storage::disk('public')->delete($image->thumbnail_url);
             }
         });
     }

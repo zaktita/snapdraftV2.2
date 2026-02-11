@@ -1205,7 +1205,7 @@ export default function ProjectShow({ project, justCreated = false, expectedImag
                                     const promises = selectedImages.map(async (index) => {
                                         const image = project.images[index];
                                         try {
-                                            const response = await fetch(image.url);
+                                            const response = await fetch(`/storage/${image.url}`);
                                             const blob = await response.blob();
                                             const filename = `${project.title}_image_${index + 1}.jpg`;
                                             zip.file(filename, blob);
@@ -1321,7 +1321,7 @@ export default function ProjectShow({ project, justCreated = false, expectedImag
                                         }}
                                     >
                                         <img
-                                            src={image.thumbnail_url}
+                                            src={`/storage/${image.thumbnail_url || image.url}`}
                                             alt={image.prompt || `${project.title} - Image ${index + 1}`}
                                             className="h-full w-full object-cover"
                                         />
@@ -1402,7 +1402,7 @@ export default function ProjectShow({ project, justCreated = false, expectedImag
                                                 e.stopPropagation();
                                                 // Handle download
                                                 try {
-                                                    const response = await fetch(image.url);
+                                                    const response = await fetch(`/storage/${image.url}`);
                                                     const blob = await response.blob();
                                                     const url = URL.createObjectURL(blob);
                                                     const link = document.createElement('a');
@@ -1494,7 +1494,7 @@ export default function ProjectShow({ project, justCreated = false, expectedImag
                         onClick={(e) => e.stopPropagation()}
                     >
                         <img
-                            src={project.images[lightboxImageIndex].url}
+                            src={`/storage/${project.images[lightboxImageIndex].url}`}
                             alt={project.images[lightboxImageIndex].prompt || `${project.title} - Image ${lightboxImageIndex + 1}`}
                             className="max-h-[90vh] max-w-[90vw] object-contain"
                         />
@@ -1520,7 +1520,7 @@ export default function ProjectShow({ project, justCreated = false, expectedImag
                                 onClick={async () => {
                                     const image = project.images[lightboxImageIndex];
                                     try {
-                                        const response = await fetch(image.url);
+                                        const response = await fetch(`/storage/${image.url}`);
                                         const blob = await response.blob();
                                         const url = URL.createObjectURL(blob);
                                         const link = document.createElement('a');
