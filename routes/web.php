@@ -47,7 +47,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     })->name('projects.wizards.csv');
 
     Route::post('projects/wizards/csv', [CSVWizardController::class, 'store'])
-        ->middleware('has.credits')
+        ->middleware(['has.credits', 'check.csv.limit', 'check.project.limit'])
         ->name('projects.wizards.csv.store');
 
     // CSV Wizard Session Routes (processing + result)

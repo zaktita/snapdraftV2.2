@@ -53,9 +53,11 @@ export default function PortalPage({ subscription, invoices, auth }: PortalPageP
 
     const getTierColor = (tier: string) => {
         switch (tier) {
-            case 'pro':
+            case 'launch':
                 return 'bg-blue-500';
-            case 'enterprise':
+            case 'growth':
+                return 'bg-orange-500';
+            case 'scale':
                 return 'bg-purple-500';
             default:
                 return 'bg-gray-500';

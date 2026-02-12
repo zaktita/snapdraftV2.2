@@ -171,7 +171,7 @@ export default function Search() {
                                                             <div className="aspect-[4/3] bg-muted relative overflow-hidden">
                                                                 {project.featured_image ? (
                                                                     <img 
-                                                                        src={project.featured_image} 
+                                                                        src={`/storage/${project.featured_image}`} 
                                                                         alt={project.title || project.name}
                                                                         className="size-full object-cover transition-transform duration-300 group-hover:scale-105"
                                                                     />

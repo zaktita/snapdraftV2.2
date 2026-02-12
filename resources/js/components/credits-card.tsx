@@ -27,7 +27,7 @@ export function CreditsCard() {
                 <div className="flex items-center gap-1 text-muted-foreground">
                     <Info className="h-4 w-4" />
                     <p className="text-sm font-medium">
-                        {(tier === 'enterprise' ? 'Enterprise' : tier === 'pro' ? 'Pro' : 'Free')} Plan
+                        {tier === 'scale' ? 'Scale' : tier === 'growth' ? 'Growth' : tier === 'launch' ? 'Launch' : 'Free'} Plan
                     </p>
                 </div>
             </div>

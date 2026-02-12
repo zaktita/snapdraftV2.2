@@ -22,11 +22,12 @@ Added 12 new columns to `users` table:
 
 ## Subscription Tiers
 
-| Tier       | Credits/Month | Price  | Features                                      |
-|------------|---------------|--------|-----------------------------------------------|
-| Free       | 10            | $0     | Basic features, limited generations           |
-| Pro        | 100           | $29/mo | Priority support, batch processing, templates |
-| Enterprise | Unlimited     | $99/mo | Dedicated support, API access, custom models  |
+| Tier   | Credits/Month | Price   | Features                                                                                    |
+|--------|---------------|---------|---------------------------------------------------------------------------------------------|
+| Free   | 10            | €0      | Basic features, limited generations                                                         |
+| Launch | 100           | €39/mo  | 1 Brand Project, CSV up to 50 rows, Basic Canvas Editor, Standard processing               |
+| Growth | 350           | €89/mo  | 3 Brand Projects, CSV up to 300 rows, Brand DNA extraction, Advanced Canvas, Version history |
+| Scale  | 900           | €199/mo | 10 Brand Projects, CSV up to 1,500 rows, Team access (3 seats), Priority processing        |
 
 ## Backend Components
 

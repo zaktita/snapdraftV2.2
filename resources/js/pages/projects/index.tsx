@@ -547,7 +547,7 @@ function ProjectCard({ project, formatDate, onToggleFavorite, onDelete, onRename
                 <div className="aspect-[4/3] bg-muted relative overflow-hidden">
                     {project.featured_image ? (
                         <img 
-                            src={project.featured_image} 
+                            src={`/storage/${project.featured_image}`} 
                             alt={project.title}
                             className="h-full w-full object-cover"
                         />
@@ -748,7 +748,7 @@ function ProjectListItem({ project, formatDate, onToggleFavorite, onDelete, onRe
                     <div className="h-16 w-24 shrink-0 overflow-hidden rounded-lg bg-muted relative">
                         {project.featured_image ? (
                             <img 
-                                src={project.featured_image} 
+                                src={`/storage/${project.featured_image}`} 
                                 alt={project.title}
                                 className="h-full w-full object-cover"
                             />

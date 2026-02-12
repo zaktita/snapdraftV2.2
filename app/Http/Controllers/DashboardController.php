@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Project;
 use App\Models\GenerationHistory;
+use App\Services\SubscriptionService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
@@ -38,9 +39,7 @@ class DashboardController extends Controller
                     'description' => $project->description,
                     'is_favorite' => $project->is_favorite,
                     'images_count' => $project->images_count, // Use cached count from withCount
-                    'thumbnail' => $latestImage && $latestImage->thumbnail_url 
-                        ? Storage::url($latestImage->thumbnail_url) 
-                        : null,
+                    'thumbnail' => $latestImage?->thumbnail_url,
                     'created_at' => $project->created_at->diffForHumans(),
                 ];
             });
@@ -72,10 +71,13 @@ class DashboardController extends Controller
         $creditsTotal = $user->credits_total ?? 10;
         $creditsUsed = $creditsTotal - $creditsRemaining;
         $creditsPercentage = $creditsTotal > 0 ? round(($creditsRemaining / $creditsTotal) * 100) : 0;
-
         // Get subscription info
         $subscriptionTier = $user->subscription_tier ?? 'free';
-        $isLowCredits = $creditsPercentage < 20 && $subscriptionTier !== 'enterprise';
+        $isLowCredits = $creditsPercentage < 20;
+
+        // Get tier limits
+        $tierLimits = SubscriptionService::getTierLimits($subscriptionTier);
+        $remainingProjectSlots = SubscriptionService::getRemainingProjectSlots($user);
 
         return Inertia::render('dashboard', [
             'stats' => [
@@ -91,6 +93,9 @@ class DashboardController extends Controller
                 'credits_percentage' => $creditsPercentage,
                 'subscription_tier' => $subscriptionTier,
                 'is_low_credits' => $isLowCredits,
+                'max_projects' => $tierLimits['max_projects'],
+                'remaining_project_slots' => $remainingProjectSlots,
+                'csv_max_rows' => $tierLimits['csv_max_rows'],
             ],
             'recent_projects' => $recentProjects,
         ]);

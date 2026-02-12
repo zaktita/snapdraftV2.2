@@ -55,7 +55,7 @@ class SearchController extends Controller
                     'created_at' => $project->created_at,
                     'is_favorite' => $project->is_favorite,
                     'images_count' => $project->images_count,
-                    'featured_image' => $featuredImage ? \Storage::url($featuredImage->url) : null,
+                    'featured_image' => $featuredImage?->url,
                 ];
             });
 
@@ -72,7 +72,7 @@ class SearchController extends Controller
                     'id' => $image->id,
                     'project_id' => $image->project_id,
                     'prompt' => $image->prompt,
-                    'url' => \Storage::url($image->url),
+                    'url' => $image->url,
                     'created_at' => $image->created_at,
                 ];
             });

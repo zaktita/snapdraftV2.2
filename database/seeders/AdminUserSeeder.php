@@ -20,7 +20,7 @@ class AdminUserSeeder extends Seeder
                 'name' => 'Admin User',
                 'password' => Hash::make('password'),
                 'is_admin' => true,
-                'subscription_tier' => 'enterprise',
+                'subscription_tier' => 'scale',
                 'credits_remaining' => 999999,
                 'credits_total' => 999999,
                 'email_verified_at' => now(),

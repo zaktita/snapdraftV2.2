@@ -85,7 +85,7 @@ class ProjectController extends Controller
                 'name' => $project->name,
                 'title' => $project->title,
                 'format' => $project->format,
-                'featured_image' => $project->featured_image ? asset('storage/' . $project->featured_image) : null,
+                'featured_image' => $project->featured_image,
                 'created_at' => $project->created_at->toISOString(),
                 'updated_at' => $project->updated_at->toISOString(),
                 'images_count' => $project->images_count,
@@ -184,12 +184,12 @@ class ProjectController extends Controller
                 'updated_at' => $project->updated_at->toISOString(),
                 'images_count' => $project->images_count,
                 'is_favorite' => $project->is_favorite,
-                'featured_image' => $project->featured_image ? asset('storage/' . $project->featured_image) : null,
+                'featured_image' => $project->featured_image,
                 'images' => $project->images->map(function ($image) {
                     return [
                         'id' => $image->id,
-                        'url' => asset('storage/' . $image->url),
-                        'thumbnail_url' => $image->thumbnail_url ? asset('storage/' . $image->thumbnail_url) : asset('storage/' . $image->url),
+                        'url' => $image->url,
+                        'thumbnail_url' => $image->thumbnail_url ?: $image->url,
                         'prompt' => $image->prompt,
                         'is_favorite' => $image->is_favorite,
                     ];

@@ -48,13 +48,12 @@ class SimpleTextWizardController extends Controller
             // Save to public storage
             $filename = 'generated/simple_' . Str::random(20) . '.png';
             Storage::disk('public')->put($filename, $imageData);
-            $url = Storage::url($filename);
 
-            Log::info('SimpleWizard: Generation successful', ['url' => $url]);
+            Log::info('SimpleWizard: Generation successful', ['filename' => $filename]);
 
             // 3. Return to frontend with the image URL
             return Inertia::render('simple-wizard/index', [
-                'generatedImage' => $url,
+                'generatedImage' => $filename,
                 'prompt' => $request->prompt,
                 'success' => 'Image generated successfully!',
             ]);

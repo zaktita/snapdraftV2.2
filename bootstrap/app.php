@@ -33,6 +33,8 @@ return Application::configure(basePath: dirname(__DIR__))
             'throttle.user' => \App\Http\Middleware\ThrottlePerUser::class,
             'admin' => \App\Http\Middleware\EnsureUserIsAdmin::class,
             'has.credits' => \App\Http\Middleware\EnsureUserHasCredits::class,
+            'check.project.limit' => \App\Http\Middleware\CheckProjectLimit::class,
+            'check.csv.limit' => \App\Http\Middleware\CheckCsvRowLimit::class,
         ]);
 
         // Throttle API endpoints

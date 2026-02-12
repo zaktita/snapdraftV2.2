@@ -139,7 +139,7 @@ class AdminDashboardController extends Controller
     public function updateUserTier(Request $request, string $id)
     {
         $request->validate([
-            'tier' => 'required|in:free,pro,enterprise',
+            'tier' => 'required|in:free,launch,growth,scale',
         ]);
 
         $user = User::findOrFail($id);

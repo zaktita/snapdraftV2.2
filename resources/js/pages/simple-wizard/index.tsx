@@ -93,7 +93,7 @@ export default function SimpleWizard({ generatedImage, error, success, prompt: i
                         <CardContent className="p-0">
                             <div className="relative aspect-square w-full bg-muted/20 flex items-center justify-center">
                                 <img 
-                                    src={generatedImage} 
+                                    src={`/storage/${generatedImage}`} 
                                     alt="Generated Result" 
                                     className="w-full h-full object-contain" 
                                 />

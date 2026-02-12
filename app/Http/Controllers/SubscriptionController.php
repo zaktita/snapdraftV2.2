@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Services\SubscriptionService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Inertia\Inertia;
@@ -18,58 +19,87 @@ class SubscriptionController extends Controller
 
             $plans = [
                 [
-                    'id' => 'starter',
-                    'name' => 'Starter',
-                    'subtitle' => 'The Decoy',
-                    'price' => 29,
-                    'credits' => 200,
+                    'id' => 'launch',
+                    'name' => 'Launch Plan',
+                    'subtitle' => 'Entry / Freelancer / Testing',
+                    'price' => 39, // Monthly price (yearly: €31/mo with 20% discount)
+                    'credits' => 100,
+                    'max_projects' => 1,
+                    'csv_max_rows' => 50,
                     'features' => [
-                        '200 credits/month',
-                        '~50 high-precision posts',
-                        '1 active project',
-                        'Free Brand DNA / Setup (Unlimited)',
-                        '30 rows per CSV batch',
-                        'Basic canvas editor',
+                        '100 Production Credits / month',
+                        '1 Brand Project',
+                        'CSV upload up to 50 rows',
+                        'Image + Text generation',
+                        'Basic Canvas Editor',
+                        'Standard processing speed',
+                    ],
+                    'bestFor' => [
+                        'Freelancers',
+                        'Solo founders',
+                        'Testing campaigns',
                     ],
                 ],
                 [
                     'id' => 'growth',
-                    'name' => 'Growth',
-                    'subtitle' => 'The Anchor',
-                    'price' => 59,
-                    'credits' => 650,
+                    'name' => 'Growth Plan',
+                    'subtitle' => 'Most Popular',
+                    'price' => 89, // Monthly price (yearly: €71/mo with 20% discount)
+                    'credits' => 350,
+                    'max_projects' => 3,
+                    'csv_max_rows' => 300,
                     'popular' => true,
                     'features' => [
-                        '650 credits/month (3.2x more)',
-                        '~160 high-precision posts',
-                        '10 active projects',
-                        'Free Brand DNA / Setup (Unlimited)',
-                        'Unlimited CSV batching',
-                        'Full canvas editor + Versioning',
+                        '350 Production Credits / month',
+                        '3 Brand Projects',
+                        'CSV upload up to 300 rows',
+                        'Full Batch Generation',
+                        'Brand DNA extraction',
+                        'Advanced Canvas Editor + Version history',
+                        'Faster processing speed',
+                    ],
+                    'bestFor' => [
+                        'Marketing teams',
+                        'E-commerce brands',
+                        'Weekly campaign production',
                     ],
                 ],
                 [
-                    'id' => 'agency',
-                    'name' => 'Agency',
-                    'subtitle' => 'The Pro',
-                    'price' => 149,
-                    'credits' => 1800,
+                    'id' => 'scale',
+                    'name' => 'Scale Plan',
+                    'subtitle' => 'For Agencies & Teams',
+                    'price' => 199, // Monthly price (yearly: €159/mo with 20% discount)
+                    'credits' => 900,
+                    'max_projects' => 10,
+                    'csv_max_rows' => 1500,
                     'features' => [
-                        '1,800 credits/month (9x more)',
-                        '~450 high-precision posts',
-                        'Unlimited active projects',
-                        'Free Brand DNA / Setup (Unlimited)',
-                        'Priority queue CSV batching',
-                        'Full canvas editor + Teams',
+                        '900 Production Credits / month',
+                        '10 Brand Projects',
+                        'CSV upload up to 1,500 rows',
+                        'Team access (3 seats included)',
+                        'Priority processing',
+                        'Batch regeneration',
+                        'Full Canvas capabilities',
+                    ],
+                    'bestFor' => [
+                        'Agencies',
+                        'Multi-market brands',
+                        'Content ops teams',
                     ],
                 ],
             ];
+
+        // Add current user's limits
+        $currentLimits = SubscriptionService::getTierLimits($user->subscription_tier);
+        $remainingSlots = SubscriptionService::getRemainingProjectSlots($user);
 
         return Inertia::render('subscription/plans', [
             'plans' => $plans,
             'current_tier' => $user->subscription_tier,
             'credits_remaining' => $user->credits_remaining,
             'credits_total' => $user->credits_total,
+            'current_limits' => $currentLimits,
+            'remaining_project_slots' => $remainingSlots,
         ]);
     }
 
@@ -100,27 +130,41 @@ class SubscriptionController extends Controller
     }
 
     /**
-     * Upgrade subscription (Stripe integration placeholder).
+     * Upgrade subscription (Paddle integration placeholder).
      */
     public function upgrade(Request $request)
     {
         $request->validate([
-              'tier' => 'required|in:pro,enterprise',
+              'tier' => 'required|in:launch,growth,scale',
+              'billing_period' => 'sometimes|in:monthly,yearly',
         ]);
 
         $user = Auth::user();
+        $newTier = $request->tier;
+        $billingPeriod = $request->billing_period ?? 'monthly';
 
-        // TODO: Integrate with Stripe
+        // Calculate proration
+        $proration = SubscriptionService::calculateProration($user, $newTier, $billingPeriod);
+
+        // Get pricing
+        $pricing = SubscriptionService::getTierPricing($newTier);
+        $amount = $billingPeriod === 'monthly' ? $pricing['monthly_price'] : $pricing['yearly_price'];
+
+        // TODO: Integrate with Paddle
+        // - Create checkout session with calculated amount
+        // - Handle proration credits
+        // - Process payment
+
         // For now, just update the database
         $user->update([
-              'subscription_tier' => $request->tier,
+              'subscription_tier' => $newTier,
             'subscription_started_at' => now(),
-            'subscription_ends_at' => now()->addMonth(),
+            'subscription_ends_at' => $billingPeriod === 'monthly' ? now()->addMonth() : now()->addYear(),
         ]);
 
         $user->resetMonthlyCredits();
 
-        return back()->with('success', 'Subscription upgraded successfully!');
+        return back()->with('success', "Successfully upgraded to {$newTier}! Amount due: €{$amount}");
     }
 
     /**

@@ -109,8 +109,9 @@ class User extends Authenticatable
     {
         $credits = match($this->subscription_tier) {
             'free' => 10,
-            'pro' => 100,
-            'enterprise' => 999999,
+            'launch' => 100,
+            'growth' => 350,
+            'scale' => 900,
             default => 10,
         };
 

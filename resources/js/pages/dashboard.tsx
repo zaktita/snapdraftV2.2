@@ -52,6 +52,9 @@ interface Stats {
     credits_percentage: number;
     subscription_tier: string;
     is_low_credits: boolean;
+    max_projects?: number;
+    remaining_project_slots?: number;
+    csv_max_rows?: number;
 }
 
 interface DashboardProps {
@@ -62,10 +65,12 @@ interface DashboardProps {
 export default function Dashboard({ stats, recent_projects }: DashboardProps) {
     const getTierBadge = (tier: string) => {
         switch (tier) {
-            case 'pro':
-                return <Badge className="bg-blue-500 hover:bg-blue-600">Pro</Badge>;
-            case 'enterprise':
-                return <Badge className="bg-purple-500 hover:bg-purple-600">Enterprise</Badge>;
+            case 'launch':
+                return <Badge className="bg-blue-500 hover:bg-blue-600">Launch</Badge>;
+            case 'growth':
+                return <Badge className="bg-orange-500 hover:bg-orange-600">Growth</Badge>;
+            case 'scale':
+                return <Badge className="bg-purple-500 hover:bg-purple-600">Scale</Badge>;
             default:
                 return <Badge variant="secondary">Free</Badge>;
         }
@@ -194,7 +199,7 @@ export default function Dashboard({ stats, recent_projects }: DashboardProps) {
                                                 {project.thumbnail ? (
                                                     <div className="aspect-video overflow-hidden bg-muted">
                                                         <img
-                                                            src={project.thumbnail}
+                                                            src={`/storage/${project.thumbnail}`}
                                                             alt={project.title}
                                                             className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
                                                         />

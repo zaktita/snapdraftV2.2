@@ -114,10 +114,12 @@ export default function UsersPage({ users, filters }: UsersPageProps) {
 
     const getTierBadge = (tier: string) => {
         switch (tier) {
-            case 'pro':
-                return <Badge className="bg-blue-500">Pro</Badge>;
-            case 'enterprise':
-                return <Badge className="bg-purple-500">Enterprise</Badge>;
+            case 'launch':
+                return <Badge className="bg-blue-500">Launch</Badge>;
+            case 'growth':
+                return <Badge className="bg-orange-500">Growth</Badge>;
+            case 'scale':
+                return <Badge className="bg-purple-500">Scale</Badge>;
             default:
                 return <Badge variant="outline">Free</Badge>;
         }
@@ -155,8 +157,9 @@ export default function UsersPage({ users, filters }: UsersPageProps) {
                                 <SelectContent>
                                     <SelectItem value="all">All Tiers</SelectItem>
                                     <SelectItem value="free">Free</SelectItem>
-                                    <SelectItem value="pro">Pro</SelectItem>
-                                    <SelectItem value="enterprise">Enterprise</SelectItem>
+                                    <SelectItem value="launch">Launch</SelectItem>
+                                    <SelectItem value="growth">Growth</SelectItem>
+                                    <SelectItem value="scale">Scale</SelectItem>
                                 </SelectContent>
                             </Select>
 
@@ -384,8 +387,9 @@ export default function UsersPage({ users, filters }: UsersPageProps) {
                             </SelectTrigger>
                             <SelectContent>
                                 <SelectItem value="free">Free (10 credits)</SelectItem>
-                                <SelectItem value="pro">Pro (100 credits)</SelectItem>
-                                <SelectItem value="enterprise">Enterprise (Unlimited)</SelectItem>
+                                <SelectItem value="launch">Launch (100 credits)</SelectItem>
+                                <SelectItem value="growth">Growth (350 credits)</SelectItem>
+                                <SelectItem value="scale">Scale (900 credits)</SelectItem>
                             </SelectContent>
                         </Select>
                     </div>

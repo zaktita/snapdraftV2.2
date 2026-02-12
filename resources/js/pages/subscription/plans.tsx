@@ -14,12 +14,22 @@ interface Plan {
     subtitle?: string;
     price: number;
     credits: number;
+    max_projects?: number;
+    csv_max_rows?: number;
     features: string[];
     popular?: boolean;
+    bestFor?: string[];
 }
 
 interface PlansPageProps {
     plans: Plan[];
+    current_limits?: {
+        credits_per_month: number;
+        max_projects: number;
+        csv_max_rows: number;
+        features: Record<string, boolean>;
+    };
+    remaining_project_slots?: number;
     auth: {
         user: User & {
             subscription_tier: string;
@@ -28,18 +38,23 @@ interface PlansPageProps {
     };
 }
 
-export default function PlansPage({ plans, auth }: PlansPageProps) {
+export default function PlansPage({ plans, auth, current_limits, remaining_project_slots }: PlansPageProps) {
     const [billingPeriod, setBillingPeriod] = useState<'monthly' | 'annually'>('monthly');
     
     const handleUpgrade = (tier: string) => {
-        router.post('/subscription/upgrade', { tier });
+        router.post('/subscription/upgrade', { 
+            tier,
+            billing_period: billingPeriod === 'annually' ? 'yearly' : 'monthly'
+        });
     };
 
     const getPlanIcon = (planId: string) => {
         switch (planId) {
+            case 'launch':
+                return <Sparkles className="h-6 w-6" />;
             case 'growth':
                 return <Zap className="h-6 w-6" />;
-            case 'agency':
+            case 'scale':
                 return <Crown className="h-6 w-6" />;
             default:
                 return <Sparkles className="h-6 w-6" />;
@@ -113,17 +128,10 @@ export default function PlansPage({ plans, auth }: PlansPageProps) {
                             const isPopular = plan.popular;
                             const isCurrent = auth.user.subscription_tier === plan.id;
                             
-                            // Calculate prices: stored price is yearly, monthly is 20% higher
-                            const yearlyPrice = plan.price;
-                            const monthlyPrice = Math.round(plan.price * 1.2);
+                            // Calculate prices: stored price is monthly, yearly gets 20% discount
+                            const monthlyPrice = plan.price;
+                            const yearlyPrice = Math.round(plan.price * 0.8);
                             const displayPrice = billingPeriod === 'monthly' ? monthlyPrice : yearlyPrice;
-                            
-                            // Map plan IDs to target audiences
-                            const targetAudience = {
-                                'starter': 'For Freelancers',
-                                'growth': 'For Small Teams',
-                                'agency': 'For Agencies'
-                            }[plan.id];
                             
                             return (
                                 <div
@@ -139,8 +147,8 @@ export default function PlansPage({ plans, auth }: PlansPageProps) {
                                         <h3 className="text-2xl font-bold text-white mb-1">
                                             {plan.name}
                                         </h3>
-                                        {targetAudience && (
-                                            <p className="text-sm text-gray-400">{targetAudience}</p>
+                                        {plan.subtitle && (
+                                            <p className="text-sm text-gray-400">{plan.subtitle}</p>
                                         )}
                                     </div>
 
@@ -148,13 +156,13 @@ export default function PlansPage({ plans, auth }: PlansPageProps) {
                                     <div className="mb-6">
                                         <div className="flex items-baseline gap-2">
                                             <span className="text-5xl font-bold text-white">
-                                                ${displayPrice}
+                                                €{displayPrice}
                                             </span>
-                                            <span className="text-gray-400">per month</span>
+                                            <span className="text-gray-400">/ month</span>
                                         </div>
                                         {billingPeriod === 'annually' && (
                                             <p className="text-sm text-orange-400 mt-1">
-                                                Save ${(monthlyPrice - yearlyPrice) * 12}/year
+                                                Save €{(monthlyPrice - yearlyPrice) * 12}/year
                                             </p>
                                         )}
                                         <p className="text-sm text-gray-500 mt-2">
@@ -180,12 +188,12 @@ export default function PlansPage({ plans, auth }: PlansPageProps) {
                                     {/* Plan Includes Label */}
                                     <div className="mb-4">
                                         <p className="text-sm font-semibold text-white">
-                                            {isPopular ? 'All Free plan features, plus' : plan.id === 'starter' ? 'Free Plan Includes' : 'All Pro features, plus'}
+                                            Includes:
                                         </p>
                                     </div>
 
                                     {/* Features List */}
-                                    <ul className="space-y-3">
+                                    <ul className="space-y-3 mb-6">
                                         {plan.features.map((feature, index) => (
                                             <li key={index} className="flex items-start gap-3">
                                                 <div className="mt-0.5">
@@ -197,6 +205,22 @@ export default function PlansPage({ plans, auth }: PlansPageProps) {
                                             </li>
                                         ))}
                                     </ul>
+
+                                    {/* Best For Section */}
+                                    {plan.bestFor && plan.bestFor.length > 0 && (
+                                        <div className="mt-6 pt-6 border-t border-gray-800">
+                                            <p className="text-sm font-semibold text-white mb-3">
+                                                Best for:
+                                            </p>
+                                            <ul className="space-y-2">
+                                                {plan.bestFor.map((item, index) => (
+                                                    <li key={index} className="text-sm text-gray-400">
+                                                        • {item}
+                                                    </li>
+                                                ))}
+                                            </ul>
+                                        </div>
+                                    )}
                                 </div>
                             );
                         })}
