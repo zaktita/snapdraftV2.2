@@ -25,8 +25,7 @@ class OpenRouterService implements AIServiceInterface
         string $prompt,
         array $referencePaths,
         array $productImagePaths = [],
-        string $format = 'square',
-        bool $textAccurate = false
+        string $format = 'square'
     ): array {
         $aspectRatioInstruction = $this->getAspectRatioInstruction($format);
         $enhancedPrompt = $aspectRatioInstruction . "\n\n---\n\n" . $prompt;

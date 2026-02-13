@@ -81,7 +81,6 @@ export default function CSVWizard() {
     const [editableHeaders, setEditableHeaders] = useState<string[]>(['title', 'caption', 'description', 'format']);
     const [showError, setShowError] = useState(false);
     const [localError, setLocalError] = useState<string | null>(null);
-    const [textAccurate, setTextAccurate] = useState(false);
     
     const csvInputRef = useRef<HTMLInputElement>(null);
     const imageInputRef = useRef<HTMLInputElement>(null);
@@ -171,7 +170,6 @@ export default function CSVWizard() {
             csvRowsPreview: csvData.length,
             selectedRowCount: selectedRows.size,
             styleRefCount: styleImageFiles.length,
-            textAccurate,
             uploadMode,
         });
     }, [currentStep]);
@@ -457,7 +455,6 @@ export default function CSVWizard() {
             csvPreviewRows: csvData.length,
             selectedRowCount: selectedRows.size,
             styleRefCount: styleImageFiles.length,
-            textAccurate,
         });
 
         if (!csvFile) return;
@@ -481,7 +478,6 @@ export default function CSVWizard() {
         const fd = new FormData();
         fd.append('project_name', name);
         fd.append('csv_file', csvFile);
-        fd.append('text_accurate', textAccurate ? '1' : '0');
         
         // Add reference images (required: 5-10)
         styleImageFiles.slice(0, 10).forEach((f) => fd.append('reference_images[]', f));
@@ -1479,73 +1475,9 @@ export default function CSVWizard() {
                                         <div style={{ flex: 1 }}>
                                             <div style={{ fontSize: '13px', color: 'var(--color-muted-foreground)', marginBottom: '4px' }}>Credit Cost</div>
                                             <div style={{ fontSize: '16px', fontWeight: 500, color: 'var(--color-foreground)' }}>
-                                                This will use {textAccurate ? selectedRows.size * 4 : selectedRows.size} of your 1,250 available credits
+                                                This will use {selectedRows.size} of your 1,250 available credits
                                             </div>
                                         </div>
-                                    </div>
-
-                                    {/* Text Accuracy Toggle */}
-                                    <div style={{
-                                        marginTop: '24px',
-                                        padding: '20px',
-                                        background: 'var(--color-card)',
-                                        border: `2px solid ${textAccurate ? 'hsl(var(--primary))' : 'var(--color-border)'}`,
-                                        borderRadius: '12px',
-                                        transition: 'all 0.2s ease',
-                                    }}>
-                                        <label style={{
-                                            display: 'flex',
-                                            alignItems: 'flex-start',
-                                            gap: '16px',
-                                            cursor: 'pointer',
-                                        }}>
-                                            <input
-                                                type="checkbox"
-                                                checked={textAccurate}
-                                                onChange={(e) => setTextAccurate(e.target.checked)}
-                                                style={{
-                                                    marginTop: '2px',
-                                                    width: '18px',
-                                                    height: '18px',
-                                                    cursor: 'pointer',
-                                                    accentColor: 'hsl(var(--primary))',
-                                                }}
-                                            />
-                                            <div style={{ flex: 1 }}>
-                                                <div style={{
-                                                    display: 'flex',
-                                                    alignItems: 'center',
-                                                    gap: '8px',
-                                                    marginBottom: '6px',
-                                                }}>
-                                                    <span style={{
-                                                        fontSize: '15px',
-                                                        fontWeight: 600,
-                                                        color: 'var(--color-foreground)',
-                                                    }}>
-                                                        Increase Text Accuracy
-                                                    </span>
-                                                    <span style={{
-                                                        fontSize: '11px',
-                                                        fontWeight: 600,
-                                                        padding: '2px 8px',
-                                                        borderRadius: '12px',
-                                                        background: 'hsl(var(--primary) / 0.1)',
-                                                        color: 'hsl(var(--primary))',
-                                                    }}>
-                                                        4× CREDITS
-                                                    </span>
-                                                </div>
-                                                <p style={{
-                                                    margin: 0,
-                                                    fontSize: '13px',
-                                                    lineHeight: 1.5,
-                                                    color: 'var(--color-muted-foreground)',
-                                                }}>
-                                                    Enable superior text rendering and accuracy for images with headlines, product labels, or precise typography.
-                                                </p>
-                                            </div>
-                                        </label>
                                     </div>
                                 </div>
                             </div>
@@ -1620,7 +1552,7 @@ export default function CSVWizard() {
                                 </>
                             ) : currentStep === 5 ? (
                                 <>
-                                    Generate ({textAccurate ? selectedRows.size * 4 : selectedRows.size} credits)
+                                    Generate ({selectedRows.size} credits)
                                     <Zap size={16} />
                                 </>
                             ) : (

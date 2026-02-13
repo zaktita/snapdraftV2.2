@@ -29,7 +29,6 @@ export default function ImagesWizard() {
     const [dragOver, setDragOver] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [showError, setShowError] = useState(false);
-    const [textAccurate, setTextAccurate] = useState(false);
     
     const imageInputRef = useRef<HTMLInputElement>(null);
 
@@ -106,7 +105,6 @@ export default function ImagesWizard() {
         fd.append('project_name', projectName.trim());
         fd.append('content_description', contentDescription.trim());
         fd.append('format', selectedFormat || '1:1');
-        fd.append('text_accurate', textAccurate ? '1' : '0');
         // format optional; default handled server-side; leave out or send 'square'
         // fd.append('format', 'square');
         styleImageFiles.slice(0, 10).forEach((f) => fd.append('reference_images[]', f));
@@ -558,71 +556,6 @@ export default function ImagesWizard() {
                                     </div>
                                 </div>
 
-                                {/* Text Accuracy Toggle */}
-                                <div style={{
-                                    marginTop: '20px',
-                                    padding: '24px',
-                                    background: 'var(--color-card)',
-                                    border: `2px solid ${textAccurate ? 'hsl(var(--primary))' : 'var(--color-border)'}`,
-                                    borderRadius: '12px',
-                                    transition: 'all 0.2s ease',
-                                }}>
-                                    <label style={{
-                                        display: 'flex',
-                                        alignItems: 'flex-start',
-                                        gap: '16px',
-                                        cursor: 'pointer',
-                                    }}>
-                                        <input
-                                            type="checkbox"
-                                            checked={textAccurate}
-                                            onChange={(e) => setTextAccurate(e.target.checked)}
-                                            style={{
-                                                marginTop: '4px',
-                                                width: '20px',
-                                                height: '20px',
-                                                cursor: 'pointer',
-                                                accentColor: 'hsl(var(--primary))',
-                                            }}
-                                        />
-                                        <div style={{ flex: 1 }}>
-                                            <div style={{
-                                                display: 'flex',
-                                                alignItems: 'center',
-                                                gap: '10px',
-                                                marginBottom: '8px',
-                                            }}>
-                                                <span style={{
-                                                    fontSize: '16px',
-                                                    fontWeight: 600,
-                                                    color: 'var(--color-foreground)',
-                                                }}>
-                                                    Enable High-Accuracy Text Rendering
-                                                </span>
-                                                <span style={{
-                                                    fontSize: '12px',
-                                                    fontWeight: 700,
-                                                    padding: '4px 10px',
-                                                    borderRadius: '14px',
-                                                    background: 'hsl(var(--primary) / 0.15)',
-                                                    color: 'hsl(var(--primary))',
-                                                    letterSpacing: '0.3px',
-                                                }}>
-                                                    4× CREDITS
-                                                </span>
-                                            </div>
-                                            <p style={{
-                                                margin: 0,
-                                                fontSize: '14px',
-                                                lineHeight: 1.6,
-                                                color: 'var(--color-muted-foreground)',
-                                            }}>
-                                                Superior text rendering and precision for designs with headlines, product labels, or detailed typography.
-                                            </p>
-                                        </div>
-                                    </label>
-                                </div>
-
                                 <div style={{
                                     background: 'var(--color-muted)',
                                     border: '1px solid var(--color-border)',
@@ -693,7 +626,7 @@ export default function ImagesWizard() {
                         >
                             {currentStep === 3 ? (
                                 <>
-                                    {isSubmitting ? 'Starting Generation...' : `Generate (${textAccurate ? '4' : '1'} credit${textAccurate ? 's' : ''})`}
+                                    {isSubmitting ? 'Starting Generation...' : 'Generate (1 credit)'}
                                     <Zap size={16} />
                                 </>
                             ) : (

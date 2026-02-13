@@ -28,7 +28,6 @@ class GenerateSingleImageJob implements ShouldQueue
         public Project $project,
         public string $prompt = '',
         public string $format = '1:1',
-        public bool $textAccurate = false,
         public ?int $generationId = null,
         public ?string $caption = null,
         public ?string $title = null,
@@ -57,7 +56,6 @@ class GenerateSingleImageJob implements ShouldQueue
                 'caption' => $this->caption,
                 'format' => $this->format,
                 'generation_id' => $this->generationId,
-                'text_accurate' => $this->textAccurate,
                 'use_simple_prompt' => $this->useSimplePrompt,
             ]);
 
@@ -143,7 +141,7 @@ class GenerateSingleImageJob implements ShouldQueue
 
             // Reference images are optional (e.g., for text wizard without references)
 
-            $activeModel = $aiService->getActiveModelName($this->textAccurate);
+            $activeModel = $aiService->getActiveModelName();
             
             Log::info('GenerateSingleImageJob: Generating image', [
                 'project_id' => $this->project->id,
@@ -152,7 +150,6 @@ class GenerateSingleImageJob implements ShouldQueue
                 'format_ratio' => $formatInfo['ratio'],
                 'format_source' => $formatInfo['source'],
                 'ai_model' => $activeModel,
-                'text_accurate' => $this->textAccurate,
             ]);
 
             if ($generation) {
@@ -175,8 +172,7 @@ class GenerateSingleImageJob implements ShouldQueue
                 $finalPromptWithFormat,
                 $referenceImagePaths,
                 [], 
-                $formatInfo['token'] ?? 'square',
-                $this->textAccurate
+                $formatInfo['token'] ?? 'square'
             );
 
             $durationMs = (int)((microtime(true) - $startTime) * 1000);
@@ -201,7 +197,6 @@ class GenerateSingleImageJob implements ShouldQueue
                     'title' => $this->title,
                     'caption' => $this->caption,
                     'description' => $this->description,
-                    'text_accurate' => $this->textAccurate,
                     'cluster_id' => $promptResult['cluster_id'] ?? null,
                     'selected_images' => $promptResult['selected_images'] ?? null,
                     'reference_cluster' => $referenceCluster,

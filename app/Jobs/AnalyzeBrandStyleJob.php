@@ -80,8 +80,6 @@ class AnalyzeBrandStyleJob implements ShouldQueue
                 $format = (string) (($this->project->settings['format'] ?? null)
                     ?: ($this->project->format ?? '1:1'));
 
-                $textAccurate = (bool) ($this->project->settings['text_accurate'] ?? false);
-
                 if (trim($prompt) === '') {
                     Log::warning('AnalyzeBrandStyleJob: No prompt available for single generation', [
                         'project_id' => $this->project->id,
@@ -90,7 +88,7 @@ class AnalyzeBrandStyleJob implements ShouldQueue
                     return;
                 }
 
-                GenerateSingleImageJob::dispatch($this->project, $prompt, $format, $textAccurate);
+                GenerateSingleImageJob::dispatch($this->project, $prompt, $format);
             }
 
         } catch (\Exception $e) {

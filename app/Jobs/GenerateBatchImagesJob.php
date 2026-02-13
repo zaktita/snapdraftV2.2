@@ -81,11 +81,9 @@ class GenerateBatchImagesJob implements ShouldQueue
         try {
             // Get CSV data from project settings
             $csvData = $this->project->settings['csv_data'] ?? [];
-            $textAccurate = $this->project->settings['text_accurate'] ?? false;
             
-            Log::info('📊 CSV data loaded', [
+            Log::info('📋 CSV data loaded', [
                 'total_rows' => count($csvData),
-                'text_accurate' => $textAccurate,
             ]);
 
             if (empty($csvData)) {
@@ -110,13 +108,12 @@ class GenerateBatchImagesJob implements ShouldQueue
                         'user_id' => $this->project->user_id,
                         'project_id' => $this->project->id,
                         'prompt' => $this->buildPrompt($caption, $description),
-                        'ai_model' => 'bytedance-seed/seedream-4.5',
+                        'ai_model' => 'gemini-3-pro-image-preview',
                         'status' => 'failed',
                         'error_message' => 'Invalid format. Allowed: ' . implode(', ', self::FORMAT_PRESETS) . ' (or leave blank to let AI decide).',
                         'parameters' => [
                             'format' => $formatRaw,
                             'format_source' => $formatRaw === '' ? 'ai' : 'user',
-                            'text_accurate' => $textAccurate,
                             'wizard_type' => 'csv',
                             'csv_row_index' => $rowIndex,
                             'caption' => $caption,
@@ -139,13 +136,12 @@ class GenerateBatchImagesJob implements ShouldQueue
                         'user_id' => $this->project->user_id,
                         'project_id' => $this->project->id,
                         'prompt' => '',
-                        'ai_model' => 'bytedance-seed/seedream-4.5',
+                        'ai_model' => 'gemini-3-pro-image-preview',
                         'status' => 'failed',
                         'error_message' => 'Caption or description is required (at least one must be non-empty).',
                         'parameters' => [
                             'format' => $formatPreset,
                             'format_source' => $formatPreset ? 'user' : 'ai',
-                            'text_accurate' => $textAccurate,
                             'wizard_type' => 'csv',
                             'csv_row_index' => $rowIndex,
                             'caption' => $caption,
@@ -166,8 +162,8 @@ class GenerateBatchImagesJob implements ShouldQueue
                 // If format is blank, let the AI decide (we'll instruct the model in the prompt).
                 $format = $formatPreset ?? '';
 
-                // Determine AI model based on text accuracy flag
-                $aiModel = app(AIServiceManager::class)->getActiveModelName($textAccurate);
+                // Get AI model name
+                $aiModel = app(AIServiceManager::class)->getActiveModelName();
 
                 // Create generation history record for this item
                 $generation = GenerationHistory::create([
@@ -179,7 +175,6 @@ class GenerateBatchImagesJob implements ShouldQueue
                     'parameters' => [
                         'format' => $formatPreset,
                         'format_source' => $formatPreset ? 'user' : 'ai',
-                        'text_accurate' => $textAccurate,
                         'wizard_type' => 'csv',
                         'csv_row_index' => $rowIndex,
                         'caption' => $caption,
@@ -194,7 +189,6 @@ class GenerateBatchImagesJob implements ShouldQueue
                     project: $this->project, 
                     prompt: $prompt, 
                     format: $format, 
-                    textAccurate: $textAccurate, 
                     generationId: $generation->id,
                     caption: $caption ?: null,
                     title: $title ?: null,

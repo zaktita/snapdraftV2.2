@@ -70,7 +70,6 @@ export default function ProjectShow({ project, justCreated = false, expectedImag
     const [fileName, setFileName] = useState('');
     const [editableData, setEditableData] = useState<CSVRow[]>([]);
     const [editableHeaders, setEditableHeaders] = useState<string[]>(['title', 'description', 'format']);
-    const [textAccurate, setTextAccurate] = useState(false);
     const [csvSubmitting, setCsvSubmitting] = useState(false);
     const [csvDragOver, setCsvDragOver] = useState(false);
     const [isEditingTitle, setIsEditingTitle] = useState(false);
@@ -364,7 +363,6 @@ export default function ProjectShow({ project, justCreated = false, expectedImag
         setFileName('');
         setEditableHeaders(['title', 'description', 'format']);
         setEditableData([]);
-        setTextAccurate(false);
         setCsvSubmitting(false);
         setCsvDragOver(false);
         setCsvModalOpen(true);
@@ -402,7 +400,7 @@ export default function ProjectShow({ project, justCreated = false, expectedImag
         setCsvSubmitting(true);
         setShowGeneratingBanner(true);
 
-        router.post(`/projects/${project.id}/csv`, { csv_file: csvFile, text_accurate: textAccurate ? '1' : '0' }, {
+        router.post(`/projects/${project.id}/csv`, { csv_file: csvFile }, {
             forceFormData: true,
             preserveScroll: true,
             onFinish: () => {
@@ -970,37 +968,8 @@ export default function ProjectShow({ project, justCreated = false, expectedImag
                                             <AlertCircle size={24} color="var(--color-muted-foreground)" />
                                             <div style={{ flex: 1 }}>
                                                 <div style={{ fontSize: '13px', color: 'var(--color-muted-foreground)', marginBottom: '4px' }}>Credit Cost</div>
-                                                <div style={{ fontSize: '16px', fontWeight: 500, color: 'var(--color-foreground)' }}>This will use {textAccurate ? selectedRows.size * 4 : selectedRows.size} credits</div>
+                                                <div style={{ fontSize: '16px', fontWeight: 500, color: 'var(--color-foreground)' }}>This will use {selectedRows.size} credits</div>
                                             </div>
-                                        </div>
-
-                                        <div
-                                            style={{
-                                                marginTop: '24px',
-                                                padding: '20px',
-                                                background: 'var(--color-card)',
-                                                border: `2px solid ${textAccurate ? 'hsl(var(--primary))' : 'var(--color-border)'}`,
-                                                borderRadius: '12px',
-                                                transition: 'all 0.2s ease',
-                                            }}
-                                        >
-                                            <label style={{ display: 'flex', alignItems: 'flex-start', gap: '16px', cursor: 'pointer' }}>
-                                                <input
-                                                    type="checkbox"
-                                                    checked={textAccurate}
-                                                    onChange={(e) => setTextAccurate(e.target.checked)}
-                                                    style={{ marginTop: '2px', width: '18px', height: '18px', cursor: 'pointer', accentColor: 'hsl(var(--primary))' }}
-                                                />
-                                                <div style={{ flex: 1 }}>
-                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
-                                                        <span style={{ fontSize: '15px', fontWeight: 600, color: 'var(--color-foreground)' }}>Increase Text Accuracy</span>
-                                                        <span style={{ fontSize: '11px', fontWeight: 600, padding: '2px 8px', borderRadius: '12px', background: 'hsl(var(--primary) / 0.1)', color: 'hsl(var(--primary))' }}>4× CREDITS</span>
-                                                    </div>
-                                                    <p style={{ margin: 0, fontSize: '13px', lineHeight: 1.5, color: 'var(--color-muted-foreground)' }}>
-                                                        Enable superior text rendering and accuracy for images with headlines, product labels, or precise typography.
-                                                    </p>
-                                                </div>
-                                            </label>
                                         </div>
                                     </div>
                                 </div>
@@ -1103,7 +1072,7 @@ export default function ProjectShow({ project, justCreated = false, expectedImag
                                             </>
                                         ) : (
                                             <>
-                                                Generate ({textAccurate ? selectedRows.size * 4 : selectedRows.size} credits)
+                                                Generate ({selectedRows.size} credits)
                                                 <Zap size={16} />
                                             </>
                                         )}

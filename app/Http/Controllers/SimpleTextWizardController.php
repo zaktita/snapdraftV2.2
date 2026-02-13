@@ -31,8 +31,7 @@ class SimpleTextWizardController extends Controller
                 $request->prompt,
                 [], // No references
                 [], // No product images
-                'square',
-                true // Text accurate (Gemini 3 Pro)
+                'square'
             );
 
             // 2. Process Image

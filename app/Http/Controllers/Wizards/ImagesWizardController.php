@@ -32,7 +32,6 @@ class ImagesWizardController extends Controller
             'reference_images.*' => 'required|image|mimes:jpeg,jpg,png,webp|max:10240',
             'content_description' => 'required|string|max:5000',
             'format' => 'nullable|string|in:1:1,2:3,3:2,3:4,4:3,4:5,5:4,2:1,16:9,21:9,9:16,4:1,square,portrait,landscape,instagram-post,instagram-story,facebook-post,facebook-ad,linkedin-post,linkedin-banner,twitter-post,youtube-thumbnail',
-            'text_accurate' => 'nullable|boolean',
         ]);
 
         // Create the project
@@ -42,7 +41,6 @@ class ImagesWizardController extends Controller
             'settings' => [
                 'wizard_type' => 'images',
                 'format' => $validated['format'] ?? '1:1',
-                'text_accurate' => $validated['text_accurate'] ?? false,
             ],
         ]);
 
@@ -74,11 +72,9 @@ class ImagesWizardController extends Controller
         // Queue AI processing job with the description as the prompt
         $prompt = $validated['content_description'];
         $format = $validated['format'] ?? '1:1';
-        $textAccurate = $validated['text_accurate'] ?? false;
 
-        // Determine AI model based on text accuracy flag
-        $textAccurate = $validated['text_accurate'] ?? false;
-        $aiModel = $this->aiManager->getActiveModelName($textAccurate);
+        // Get AI model name
+        $aiModel = $this->aiManager->getActiveModelName();
 
         // Create generation history record (pending before job dispatch)
         $generation = $project->generationHistory()->create([
@@ -88,7 +84,6 @@ class ImagesWizardController extends Controller
             'status' => 'pending',
             'parameters' => [
                 'format' => $format,
-                'text_accurate' => $textAccurate,
                 'wizard_type' => 'images',
             ],
         ]);
@@ -98,7 +93,6 @@ class ImagesWizardController extends Controller
                 project: $project, 
                 prompt: $prompt, 
                 format: $format, 
-                textAccurate: $textAccurate, 
                 generationId: $generation->id,
                 title: null,  // AI will extract from prompt
                 description: null,  // AI will extract from prompt
@@ -109,7 +103,6 @@ class ImagesWizardController extends Controller
                 project: $project, 
                 prompt: $prompt, 
                 format: $format, 
-                textAccurate: $textAccurate, 
                 generationId: $generation->id,
                 title: null,  // AI will extract from prompt
                 description: null,  // AI will extract from prompt

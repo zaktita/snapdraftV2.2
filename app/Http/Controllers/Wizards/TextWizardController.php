@@ -32,7 +32,6 @@ class TextWizardController extends Controller
             'format' => 'required|string|in:1:1,2:3,3:2,3:4,4:3,4:5,5:4,2:1,16:9,21:9,9:16,4:1,square,portrait,landscape,instagram-post,instagram-story,facebook-post,facebook-ad,linkedin-post,linkedin-banner,twitter-post,youtube-thumbnail',
             'reference_images' => 'nullable|array|max:5',
             'reference_images.*' => 'nullable|image|mimes:jpeg,jpg,png,webp|max:10240',
-            'text_accurate' => 'nullable|boolean',
         ]);
 
         // Create the project
@@ -45,7 +44,6 @@ class TextWizardController extends Controller
                 'wizard_type' => 'text',
                 'format' => $validated['format'],
                 'has_references' => $request->hasFile('reference_images'),
-                'text_accurate' => $validated['text_accurate'] ?? false,
             ],
         ]);
 
@@ -76,9 +74,8 @@ class TextWizardController extends Controller
             }
         }
 
-        // Determine AI model based on text accuracy flag
-        $textAccurate = $validated['text_accurate'] ?? false;
-        $aiModel = $this->aiManager->getActiveModelName($textAccurate);
+        // Get AI model name
+        $aiModel = $this->aiManager->getActiveModelName();
 
         // Create generation history record (pending before job dispatch)
         $generation = $project->generationHistory()->create([
@@ -88,7 +85,6 @@ class TextWizardController extends Controller
             'status' => 'pending',
             'parameters' => [
                 'format' => $validated['format'],
-                'text_accurate' => $textAccurate,
                 'wizard_type' => 'text',
             ],
         ]);
@@ -107,7 +103,6 @@ class TextWizardController extends Controller
                 project: $project, 
                 prompt: $prompt, 
                 format: $format, 
-                textAccurate: $textAccurate, 
                 generationId: $generation->id,
                 title: null,  // AI will extract from prompt
                 description: null,  // AI will extract from prompt
@@ -118,7 +113,6 @@ class TextWizardController extends Controller
                 project: $project, 
                 prompt: $prompt, 
                 format: $format, 
-                textAccurate: $textAccurate, 
                 generationId: $generation->id,
                 title: null,  // AI will extract from prompt
                 description: null,  // AI will extract from prompt

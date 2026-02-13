@@ -39,7 +39,6 @@ class CSVWizardController extends Controller
             'reference_images.*' => 'required|image|mimes:jpeg,jpg,png,webp|max:10240',
             'product_images' => 'nullable|array|max:5',
             'product_images.*' => 'nullable|image|mimes:jpeg,jpg,png,webp|max:10240',
-            'text_accurate' => 'nullable|boolean', // Text accuracy toggle
         ]);
 
         $project = null;
@@ -54,7 +53,6 @@ class CSVWizardController extends Controller
                     'wizard_type' => 'csv',
                     'has_reference_images' => $request->hasFile('reference_images'),
                     'has_product_images' => $request->hasFile('product_images'),
-                    'text_accurate' => $validated['text_accurate'] ?? false,
                 ],
             ]);
 
@@ -340,7 +338,6 @@ class CSVWizardController extends Controller
 
         $validated = $request->validate([
             'csv_file' => 'required|file|mimes:csv,txt|max:10240', // Max 10MB
-            'text_accurate' => 'nullable|boolean', // Text accuracy toggle
         ]);
 
         // Store CSV file
@@ -358,7 +355,6 @@ class CSVWizardController extends Controller
                 'csv_path' => $csvPath,
                 'csv_rows' => count($csvData),
                 'csv_data' => $csvData,
-                'text_accurate' => $validated['text_accurate'] ?? ($project->settings['text_accurate'] ?? false),
             ]),
         ]);
 

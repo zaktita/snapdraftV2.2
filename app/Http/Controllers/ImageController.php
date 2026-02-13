@@ -188,8 +188,7 @@ class ImageController extends Controller
             $format = 'square';
         }
 
-        $textAccurate = (bool) data_get($image->metadata, 'text_accurate', false);
-        $aiModel = $textAccurate ? 'gemini-3-pro-image-preview' : 'gemini-2.5-flash-image';
+        $aiModel = app(AIServiceManager::class)->getActiveModelName();
 
         $generation = $project->generationHistory()->create([
             'user_id' => Auth::id(),
@@ -198,16 +197,15 @@ class ImageController extends Controller
             'status' => 'pending',
             'parameters' => [
                 'format' => $format,
-                'text_accurate' => $textAccurate,
                 'source_image_id' => $image->id,
                 'action' => 'regenerate',
             ],
         ]);
 
         if (app()->environment('local')) {
-            GenerateSingleImageJob::dispatchSync($project, $prompt, $format, $textAccurate, $generation->id);
+            GenerateSingleImageJob::dispatchSync($project, $prompt, $format, $generation->id);
         } else {
-            GenerateSingleImageJob::dispatch($project, $prompt, $format, $textAccurate, $generation->id);
+            GenerateSingleImageJob::dispatch($project, $prompt, $format, $generation->id);
         }
 
         return back()

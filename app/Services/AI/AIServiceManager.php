@@ -13,11 +13,11 @@ class AIServiceManager
         GoogleGeminiService $geminiService,
         OpenRouterService $openRouterService
     ) {
-        // Primary service: OpenRouter
-        $this->primaryService = $openRouterService;
+        // Primary service: Google Gemini (gemini-3-pro-image-preview)
+        $this->primaryService = $geminiService;
 
-        // Fallback service: Google Gemini (if available)
-        $this->fallbackService = $geminiService->isAvailable() ? $geminiService : null;
+        // Fallback service: OpenRouter (if available)
+        $this->fallbackService = $openRouterService->isAvailable() ? $openRouterService : null;
     }
 
     /**
@@ -83,36 +83,14 @@ class AIServiceManager
      * @param array $referenceImagePaths Paths to brand reference images
      * @param array $productImagePaths Paths to product overlay images
      * @param string $format Image format (square, portrait, landscape, story)
-     * @param bool $textAccurate Use text-accurate model (4x credits)
      * @return array Generation result
      */
     public function generateWithReferences(
         string $prompt,
         array $referenceImagePaths,
         array $productImagePaths = [],
-        string $format = 'square',
-        bool $textAccurate = false
+        string $format = 'square'
     ): array {
-        // Priority Override: Text Accurate requests prefer Gemini Service (specifically for Gemini 3 Pro)
-        if ($textAccurate && $this->fallbackService instanceof GoogleGeminiService && $this->fallbackService->isAvailable()) {
-            try {
-                Log::info('AIServiceManager: Text Accurate requested - switching to Gemini Service (Fallback Override)');
-                
-                return $this->fallbackService->generateWithReferences(
-                    $prompt,
-                    $referenceImagePaths,
-                    $productImagePaths,
-                    $format,
-                    $textAccurate
-                );
-            } catch (\Exception $e) {
-                Log::warning('AIServiceManager: Gemini (Text Accurate) failed, falling back to Primary', [
-                    'error' => $e->getMessage()
-                ]);
-                // Continued execution allows falling back to Primary (Seedream)
-            }
-        }
-
         try {
             Log::info('AIServiceManager: Attempting Style Mirror generation with primary service');
             
@@ -122,8 +100,7 @@ class AIServiceManager
                     $prompt,
                     $referenceImagePaths,
                     $productImagePaths,
-                    $format,
-                    $textAccurate
+                    $format
                 );
             }
 
@@ -199,17 +176,10 @@ class AIServiceManager
      * Get the name of the active model that WILL be used for generation.
      * Centralizes logic for UI display and history tracking.
      */
-    public function getActiveModelName(bool $textAccurate = false): string
+    public function getActiveModelName(): string
     {
-        // 1. If Text Accurate, we force override to Gemini Service
-        if ($textAccurate) {
-             // Access configured model directly to avoid hardcoding "gemini-3-pro..."
-             // This corresponds to GoogleGeminiService::$textAccurateModel
-             return config('services.gemini.text_accurate_model', 'gemini-3-pro-image-preview');
-        }
-
-        // 2. Default is Primary (OpenRouter)
-        return config('services.openrouter.image_model', 'bytedance-seed/seedream-4.5');
+        // Always use Gemini 3 Pro Image Preview
+        return config('services.gemini.text_accurate_model', 'gemini-3-pro-image-preview');
     }
 
     /**

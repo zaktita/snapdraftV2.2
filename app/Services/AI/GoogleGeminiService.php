@@ -11,15 +11,13 @@ class GoogleGeminiService implements AIServiceInterface
 {
     protected string $baseUrl = 'https://generativelanguage.googleapis.com/v1beta';
     protected ?string $apiKey;
-    protected string $model = 'gemini-2.5-flash-image';
-    protected string $textAccurateModel = 'gemini-3-pro-image-preview';
+    protected string $model = 'gemini-3-pro-image-preview';
     protected ?string $currentFormat = null;
 
     public function __construct()
     {
         $this->apiKey = config('services.gemini.api_key');
-        $this->model = config('services.gemini.image_model', 'gemini-2.5-flash-image');
-        $this->textAccurateModel = config('services.gemini.text_accurate_model', 'gemini-3-pro-image-preview');
+        $this->model = config('services.gemini.text_accurate_model', 'gemini-3-pro-image-preview');
     }
 
     /**
@@ -30,15 +28,13 @@ class GoogleGeminiService implements AIServiceInterface
      * @param array $referencePaths Paths to brand reference images
      * @param array $productImagePaths Paths to product overlay images
      * @param string $format Image format (square, portrait, landscape, story)
-     * @param bool $textAccurate Use text-accurate model (4x credits)
      * @return array Generation result with image_data, mime_type, model, metadata
      */
     public function generateWithReferences(
         string $prompt,
         array $referencePaths,
         array $productImagePaths = [],
-        string $format = 'square',
-        bool $textAccurate = false
+        string $format = 'square'
     ): array {
         // Prepend aspect ratio instruction at the beginning for highest priority
         $aspectRatioInstruction = $this->getAspectRatioInstruction($format);
@@ -47,7 +43,7 @@ class GoogleGeminiService implements AIServiceInterface
         // Pass format through for context in logging
         $this->currentFormat = $format;
         
-        return $this->generate($enhancedPrompt, array_merge($referencePaths, $productImagePaths), $textAccurate, $format);
+        return $this->generate($enhancedPrompt, array_merge($referencePaths, $productImagePaths), $format);
     }
 
     /**
@@ -70,14 +66,13 @@ class GoogleGeminiService implements AIServiceInterface
     public function generate(
         string $prompt,
         array $referencePaths = [],
-        bool $textAccurate = false,
         string $format = 'square'
     ): array {
         $this->ensureConfigured();
         $this->currentFormat = $format;
 
-        // Select model based on text accuracy requirement
-        $selectedModel = $textAccurate ? $this->textAccurateModel : $this->model;
+        // Always use gemini-3-pro-image-preview for best quality
+        $selectedModel = $this->model;
 
         // 1. Build the request parts
         // Text prompt goes first
@@ -96,8 +91,6 @@ class GoogleGeminiService implements AIServiceInterface
         Log::info('Gemini Direct Generation', [
             'model' => $selectedModel,
             'references' => count($referencePaths),
-            'text_accurate' => $textAccurate,
-            'credits_multiplier' => $textAccurate ? 4 : 1,
         ]);
 
         // 3. Fire the request
@@ -124,12 +117,6 @@ class GoogleGeminiService implements AIServiceInterface
             ]
         ];
 
-        // If textAccurate is true, we are using the configured text accurate model (e.g. gemini-2.0-flash-exp)
-        // We ensure responseModalities is set to IMAGE to force image generation.
-        if ($textAccurate) {
-             $payload['generationConfig']['responseModalities'] = ['IMAGE'];
-        }
-
         $response = $this->http()->post(
             "{$this->baseUrl}/models/{$selectedModel}:generateContent?key={$this->apiKey}",
             $payload
@@ -138,11 +125,9 @@ class GoogleGeminiService implements AIServiceInterface
 
         $result = $this->parseResponse($response);
         
-        // Add metadata for credits tracking and debugging
+        // Add metadata for debugging
         $result['metadata'] = [
             'model' => $selectedModel,
-            'text_accurate' => $textAccurate,
-            'credits_multiplier' => $textAccurate ? 4 : 1,
             'generation_time_ms' => round($generationTime),
             'generated_at' => now()->toIso8601String(),
         ];
