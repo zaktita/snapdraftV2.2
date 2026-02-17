@@ -48,7 +48,7 @@ export function UserMenuContent({ user }: UserMenuContentProps) {
                 <DropdownMenuItem asChild>
                     <Link
                         className="block w-full"
-                        href="/subscription/portal"
+                        href="/subscription"
                         as="button"
                         prefetch
                         onClick={cleanup}

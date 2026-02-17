@@ -1,383 +1,384 @@
-import { Card } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Progress } from '@/components/ui/progress';
+import { Separator } from '@/components/ui/separator';
 import AppLayout from '@/layouts/app-layout';
-import { H1, Subtext } from '@/components/ds/typography';
+import { type BreadcrumbItem } from '@/types';
 import { Head, router } from '@inertiajs/react';
-import { Check, Sparkles, Zap, Crown } from 'lucide-react';
-import { useState } from 'react';
-import { type User } from '@/types';
+import { 
+    Crown,
+    Check,
+    Zap,
+    TrendingUp,
+    Sparkles,
+    Rocket
+} from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { useState, useEffect } from 'react';
+
+const breadcrumbs: BreadcrumbItem[] = [
+    {
+        title: 'Subscription',
+        href: '/subscription/plans',
+    },
+    {
+        title: 'Plans',
+        href: '/subscription/plans',
+    },
+];
 
 interface Plan {
     id: string;
     name: string;
-    subtitle?: string;
+    subtitle: string;
     price: number;
+    yearly_price: number;
+    currency: string;
     credits: number;
-    max_projects?: number;
-    csv_max_rows?: number;
+    max_projects: number;
+    csv_max_rows: number;
+    popular: boolean;
     features: string[];
-    popular?: boolean;
-    bestFor?: string[];
+    bestFor: string[];
 }
 
-interface PlansPageProps {
+interface SubscriptionPlansProps {
     plans: Plan[];
-    current_limits?: {
-        credits_per_month: number;
-        max_projects: number;
-        csv_max_rows: number;
-        features: Record<string, boolean>;
-    };
-    remaining_project_slots?: number;
-    auth: {
-        user: User & {
-            subscription_tier: string;
-            credits_remaining: number;
-        };
-    };
+    current_tier: string | null;
+    credits_remaining: number;
+    credits_total: number;
+    remaining_project_slots: number;
 }
 
-export default function PlansPage({ plans, auth, current_limits, remaining_project_slots }: PlansPageProps) {
-    const [billingPeriod, setBillingPeriod] = useState<'monthly' | 'annually'>('monthly');
-    
-    const handleUpgrade = (tier: string) => {
-        router.post('/subscription/upgrade', { 
-            tier,
-            billing_period: billingPeriod === 'annually' ? 'yearly' : 'monthly'
+export default function SubscriptionPlans({ 
+    plans, 
+    current_tier, 
+    credits_remaining, 
+    credits_total,
+    remaining_project_slots 
+}: SubscriptionPlansProps) {
+    const [billingPeriod, setBillingPeriod] = useState<'monthly' | 'yearly'>('monthly');
+
+    useEffect(() => {
+        console.log('📦 Subscription Plans Component Loaded');
+        console.log('Plans received:', plans);
+        console.log('Current tier:', current_tier);
+        console.log('Credits:', { remaining: credits_remaining, total: credits_total });
+        console.log('Remaining project slots:', remaining_project_slots);
+    }, []);
+
+    const handleUpgrade = (planId: string) => {
+        console.log('🚀 Upgrade button clicked!');
+        console.log('Plan ID:', planId);
+        console.log('Billing Period:', billingPeriod);
+        console.log('Current Tier:', current_tier);
+        
+        const payload = {
+            tier: planId,
+            billing_period: billingPeriod,
+        };
+        
+        console.log('Sending POST to /subscription/upgrade with payload:', payload);
+        
+        router.post('/subscription/upgrade', payload, {
+            onStart: () => console.log('⏳ Request started...'),
+            onProgress: (progress) => console.log('📊 Progress:', progress),
+            onSuccess: (page) => {
+                console.log('✅ Request successful!', page);
+            },
+            onError: (errors) => {
+                console.error('❌ Request failed with errors:', errors);
+            },
+            onFinish: () => console.log('🏁 Request finished'),
         });
+    };
+
+    const getPrice = (plan: Plan) => {
+        return billingPeriod === 'yearly' ? plan.yearly_price : plan.price;
+    };
+
+    const getYearlySavings = (plan: Plan) => {
+        const monthlyCost = plan.price * 12;
+        const yearlyCost = plan.yearly_price;
+        const savings = monthlyCost - yearlyCost;
+        const savingsPercent = Math.round((savings / monthlyCost) * 100);
+        return { savings, savingsPercent };
     };
 
     const getPlanIcon = (planId: string) => {
         switch (planId) {
             case 'launch':
-                return <Sparkles className="h-6 w-6" />;
+                return <Rocket className="h-5 w-5" />;
             case 'growth':
-                return <Zap className="h-6 w-6" />;
+                return <TrendingUp className="h-5 w-5" />;
             case 'scale':
-                return <Crown className="h-6 w-6" />;
+                return <Crown className="h-5 w-5" />;
             default:
-                return <Sparkles className="h-6 w-6" />;
+                return <Sparkles className="h-5 w-5" />;
         }
     };
 
-    return (
-        <AppLayout>
-            <Head title="Subscription Plans" />
+    const getPlanColor = (planId: string) => {
+        switch (planId) {
+            case 'launch':
+                return 'from-blue-500/10 to-blue-500/5 text-blue-600';
+            case 'growth':
+                return 'from-orange-500/10 to-orange-500/5 text-orange-600';
+            case 'scale':
+                return 'from-purple-500/10 to-purple-500/5 text-purple-600';
+            default:
+                return 'from-primary/10 to-primary/5 text-primary';
+        }
+    };
 
-            <div className="min-h-screen bg-[#0a0b0f] p-8">
-                <div className="mx-auto max-w-7xl">
-                    {/* Header */}
-                    <div className="text-center mb-8">
-                        <Badge className="mb-4 bg-orange-500/10 text-orange-500 border-orange-500/20 hover:bg-orange-500/20">
-                            Pricing
-                        </Badge>
-                        <h1 className="text-4xl md:text-5xl font-bold text-white mb-4">
-                            Choose the Perfect<br />Plan for Your Business
-                        </h1>
-                        <p className="text-gray-400 text-lg">
-                            Whether you're just starting or scaling up, SnapDraft has a plan that fits your need.
-                        </p>
+    const creditsPercentage = credits_total > 0 
+        ? Math.round((credits_remaining / credits_total) * 100) 
+        : 0;
+
+    return (
+        <AppLayout breadcrumbs={breadcrumbs}>
+            <Head title="Subscription Plans" />
+            
+            <div className="p-6 md:p-8 max-w-[1400px] mx-auto">
+                {/* Header */}
+                <div className="mb-8">
+                    <div className="flex items-center gap-3 mb-4">
+                        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gradient-to-br from-primary/10 to-primary/5">
+                            <Crown className="h-5 w-5 text-primary" />
+                        </div>
+                        <div>
+                            <h1 className="text-3xl font-bold tracking-tight">Choose Your Plan</h1>
+                            <p className="text-sm text-muted-foreground mt-0.5">
+                                Scale your visual content production with AI
+                            </p>
+                        </div>
                     </div>
 
-                    {/* Billing Toggle */}
-                    <div className="flex justify-center items-center gap-4 mb-12">
+                    {/* Current Usage Overview */}
+                    {current_tier && (
+                        <Card className="mb-6">
+                            <CardContent className="pt-6">
+                                <div className="grid gap-6 md:grid-cols-3">
+                                    <div>
+                                        <div className="flex items-center gap-2 mb-2">
+                                            <span className="text-sm font-medium">Current Plan</span>
+                                            <Badge variant="secondary" className="capitalize">
+                                                {current_tier}
+                                            </Badge>
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <div className="text-sm font-medium mb-2">Credits Remaining</div>
+                                        <div className="flex items-baseline gap-2 mb-2">
+                                            <span className="text-2xl font-bold">{credits_remaining}</span>
+                                            <span className="text-sm text-muted-foreground">/ {credits_total}</span>
+                                        </div>
+                                        <Progress value={creditsPercentage} className="h-2" />
+                                    </div>
+                                    <div>
+                                        <div className="text-sm font-medium mb-2">Project Slots</div>
+                                        <div className="flex items-baseline gap-2">
+                                            <span className="text-2xl font-bold">{remaining_project_slots}</span>
+                                            <span className="text-sm text-muted-foreground">remaining</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </CardContent>
+                        </Card>
+                    )}
+
+                    {/* Billing Period Toggle */}
+                    <div className="flex items-center justify-center gap-4 mb-8">
                         <button
                             onClick={() => setBillingPeriod('monthly')}
-                            className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all ${
+                            className={cn(
+                                "px-4 py-2 rounded-lg font-medium transition-colors",
                                 billingPeriod === 'monthly'
-                                    ? 'bg-orange-500 text-white'
-                                    : 'bg-transparent text-gray-400 hover:text-white'
-                            }`}
+                                    ? "bg-primary text-primary-foreground"
+                                    : "bg-muted text-muted-foreground hover:bg-muted/80"
+                            )}
                         >
-                            <span className={`w-2 h-2 rounded-full ${
-                                billingPeriod === 'monthly' ? 'bg-white' : 'bg-gray-600'
-                            }`} />
                             Monthly
                         </button>
                         <button
-                            onClick={() => setBillingPeriod('annually')}
-                            className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all ${
-                                billingPeriod === 'annually'
-                                    ? 'bg-orange-500 text-white'
-                                    : 'bg-transparent text-gray-400 hover:text-white'
-                            }`}
+                            onClick={() => setBillingPeriod('yearly')}
+                            className={cn(
+                                "px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2",
+                                billingPeriod === 'yearly'
+                                    ? "bg-primary text-primary-foreground"
+                                    : "bg-muted text-muted-foreground hover:bg-muted/80"
+                            )}
                         >
-                            Annually
-                        </button>
-                        <Badge className="bg-orange-500/10 text-orange-500 border-orange-500/20">
-                            Save 20%
-                        </Badge>
-                    </div>
-
-                    {/* Current Plan Status */}
-                    {auth.user.subscription_tier && (
-                        <div className="text-center mb-8">
-                            <Badge className="text-sm px-4 py-2 bg-orange-500/10 text-orange-500 border-orange-500/20">
-                                Current Plan: {auth.user.subscription_tier.charAt(0).toUpperCase() + auth.user.subscription_tier.slice(1)}
+                            Yearly
+                            <Badge variant="secondary" className="bg-green-500/10 text-green-700 border-green-500/20">
+                                Save 20%
                             </Badge>
-                            <p className="text-sm text-gray-400 mt-2">
-                                {auth.user.credits_remaining} credits remaining
-                            </p>
-                        </div>
-                    )}
+                        </button>
+                    </div>
+                </div>
 
-                    {/* Plans Grid */}
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
-                        {plans.map((plan) => {
-                            const isPopular = plan.popular;
-                            const isCurrent = auth.user.subscription_tier === plan.id;
-                            
-                            // Calculate prices: stored price is monthly, yearly gets 20% discount
-                            const monthlyPrice = plan.price;
-                            const yearlyPrice = Math.round(plan.price * 0.8);
-                            const displayPrice = billingPeriod === 'monthly' ? monthlyPrice : yearlyPrice;
-                            
-                            return (
-                                <div
-                                    key={plan.id}
-                                    className={`relative rounded-2xl p-8 backdrop-blur-sm transition-all hover:scale-[1.02] ${
-                                        isPopular
-                                            ? 'bg-orange-500/10 border border-orange-500/30'
-                                            : 'bg-[#1a1d29]/80 border border-gray-800'
-                                    }`}
-                                >
-                                    {/* Plan Header */}
-                                    <div className="mb-6">
-                                        <h3 className="text-2xl font-bold text-white mb-1">
-                                            {plan.name}
-                                        </h3>
-                                        {plan.subtitle && (
-                                            <p className="text-sm text-gray-400">{plan.subtitle}</p>
-                                        )}
+                {/* Plans Grid */}
+                <div className="grid gap-6 md:grid-cols-3 mb-8">
+                    {plans.map((plan) => {
+                        const isCurrentPlan = current_tier?.toLowerCase() === plan.id.toLowerCase();
+                        const price = getPrice(plan);
+                        const { savingsPercent } = getYearlySavings(plan);
+
+                        return (
+                            <Card 
+                                key={plan.id} 
+                                className={cn(
+                                    "relative overflow-hidden transition-all hover:shadow-lg",
+                                    plan.popular && "border-primary shadow-md",
+                                    isCurrentPlan && "ring-2 ring-primary"
+                                )}
+                            >
+                                {plan.popular && (
+                                    <div className="absolute top-0 right-0 bg-primary text-primary-foreground px-3 py-1 text-xs font-medium rounded-bl-lg">
+                                        Most Popular
                                     </div>
-
-                                    {/* Price */}
-                                    <div className="mb-6">
-                                        <div className="flex items-baseline gap-2">
-                                            <span className="text-5xl font-bold text-white">
-                                                €{displayPrice}
-                                            </span>
-                                            <span className="text-gray-400">/ month</span>
+                                )}
+                                
+                                <CardHeader>
+                                    <div className="flex items-center gap-3 mb-2">
+                                        <div className={cn(
+                                            "flex h-10 w-10 items-center justify-center rounded-lg bg-gradient-to-br",
+                                            getPlanColor(plan.id)
+                                        )}>
+                                            {getPlanIcon(plan.id)}
                                         </div>
-                                        {billingPeriod === 'annually' && (
-                                            <p className="text-sm text-orange-400 mt-1">
-                                                Save €{(monthlyPrice - yearlyPrice) * 12}/year
+                                        <div>
+                                            <CardTitle className="text-xl">{plan.name}</CardTitle>
+                                            <CardDescription className="text-xs">{plan.subtitle}</CardDescription>
+                                        </div>
+                                    </div>
+                                    
+                                    <div className="mt-4">
+                                        <div className="flex items-baseline gap-1">
+                                            <span className="text-3xl font-bold">€{price}</span>
+                                            <span className="text-muted-foreground text-sm">
+                                                /{billingPeriod === 'yearly' ? 'year' : 'month'}
+                                            </span>
+                                        </div>
+                                        {billingPeriod === 'yearly' && (
+                                            <p className="text-xs text-green-600 mt-1">
+                                                Save {savingsPercent}% with yearly billing
                                             </p>
                                         )}
-                                        <p className="text-sm text-gray-500 mt-2">
-                                            {plan.credits.toLocaleString()} credits/month
-                                        </p>
+                                    </div>
+                                </CardHeader>
+
+                                <CardContent>
+                                    <Separator className="mb-4" />
+                                    
+                                    {/* Key Metrics */}
+                                    <div className="space-y-2 mb-4">
+                                        <div className="flex items-center gap-2 text-sm">
+                                            <Zap className="h-4 w-4 text-yellow-500" />
+                                            <span className="font-medium">{plan.credits.toLocaleString()} credits/month</span>
+                                        </div>
+                                        <div className="flex items-center gap-2 text-sm">
+                                            <Check className="h-4 w-4 text-green-500" />
+                                            <span>{plan.max_projects} Brand Projects</span>
+                                        </div>
                                     </div>
 
-                                    {/* CTA Button */}
-                                    <Button
-                                        className={`w-full mb-8 ${
-                                            isPopular
-                                                ? 'bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white'
-                                                : isCurrent
-                                                ? 'bg-gray-800 text-gray-400'
-                                                : 'bg-white hover:bg-gray-100 text-black'
-                                        }`}
-                                        disabled={isCurrent}
-                                        onClick={() => handleUpgrade(plan.id)}
-                                    >
-                                        {isCurrent ? 'Current Plan' : 'Upgrade'}
-                                    </Button>
+                                    <Separator className="mb-4" />
 
-                                    {/* Plan Includes Label */}
-                                    <div className="mb-4">
-                                        <p className="text-sm font-semibold text-white">
-                                            Includes:
-                                        </p>
-                                    </div>
-
-                                    {/* Features List */}
-                                    <ul className="space-y-3 mb-6">
+                                    {/* Features */}
+                                    <ul className="space-y-2 mb-4">
                                         {plan.features.map((feature, index) => (
-                                            <li key={index} className="flex items-start gap-3">
-                                                <div className="mt-0.5">
-                                                    <Check className={`h-5 w-5 ${
-                                                        isPopular ? 'text-orange-400' : 'text-gray-400'
-                                                    }`} />
-                                                </div>
-                                                <span className="text-sm text-gray-300">{feature}</span>
+                                            <li key={index} className="flex items-start gap-2 text-sm">
+                                                <Check className="h-4 w-4 text-muted-foreground mt-0.5 flex-shrink-0" />
+                                                <span className="text-muted-foreground">{feature}</span>
                                             </li>
                                         ))}
                                     </ul>
 
-                                    {/* Best For Section */}
-                                    {plan.bestFor && plan.bestFor.length > 0 && (
-                                        <div className="mt-6 pt-6 border-t border-gray-800">
-                                            <p className="text-sm font-semibold text-white mb-3">
-                                                Best for:
-                                            </p>
-                                            <ul className="space-y-2">
-                                                {plan.bestFor.map((item, index) => (
-                                                    <li key={index} className="text-sm text-gray-400">
-                                                        • {item}
-                                                    </li>
-                                                ))}
-                                            </ul>
-                                        </div>
+                                    {/* Best For */}
+                                    {plan.bestFor.length > 0 && (
+                                        <>
+                                            <Separator className="mb-4" />
+                                            <div>
+                                                <p className="text-xs font-medium text-muted-foreground mb-2">Best for:</p>
+                                                <ul className="space-y-1">
+                                                    {plan.bestFor.map((item, index) => (
+                                                        <li key={index} className="text-xs text-muted-foreground">
+                                                            • {item}
+                                                        </li>
+                                                    ))}
+                                                </ul>
+                                            </div>
+                                        </>
                                     )}
-                                </div>
-                            );
-                        })}
-                    </div>
+                                </CardContent>
 
-                    {/* Credit Packs */}
-                    <div className="mb-12">
-                        <div className="text-center mb-8">
-                            <h2 className="text-3xl font-bold text-white mb-2">Need More Credits?</h2>
-                            <p className="text-gray-400">Purchase additional credits anytime</p>
-                        </div>
-                        
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl mx-auto">
-                            {/* Credit Pack 1 */}
-                            <div className="relative rounded-2xl p-8 bg-[#1a1d29]/80 border border-gray-800 backdrop-blur-sm transition-all hover:scale-[1.02]">
-                                <div className="mb-6">
-                                    <h3 className="text-2xl font-bold text-white mb-1">500 Credits</h3>
-                                    <p className="text-sm text-gray-400">One-time purchase</p>
-                                </div>
-                                
-                                <div className="mb-6">
-                                    <div className="flex items-baseline gap-2">
-                                        <span className="text-5xl font-bold text-white">$49</span>
-                                    </div>
-                                    <p className="text-sm text-gray-500 mt-2">~125 high-precision posts</p>
-                                </div>
-                                
-                                <Button
-                                    className="w-full mb-6 bg-white hover:bg-gray-100 text-black"
-                                    onClick={() => router.post('/credits/purchase', { amount: 500 })}
-                                >
-                                    Buy Credits
-                                </Button>
-                                
-                                <ul className="space-y-3">
-                                    <li className="flex items-start gap-3">
-                                        <Check className="h-5 w-5 text-gray-400 mt-0.5" />
-                                        <span className="text-sm text-gray-300">Never expires</span>
-                                    </li>
-                                    <li className="flex items-start gap-3">
-                                        <Check className="h-5 w-5 text-gray-400 mt-0.5" />
-                                        <span className="text-sm text-gray-300">Works with any plan</span>
-                                    </li>
-                                    <li className="flex items-start gap-3">
-                                        <Check className="h-5 w-5 text-gray-400 mt-0.5" />
-                                        <span className="text-sm text-gray-300">Instant delivery</span>
-                                    </li>
-                                </ul>
-                            </div>
-                            
-                            {/* Credit Pack 2 */}
-                            <div className="relative rounded-2xl p-8 bg-[#1a1d29]/80 border border-gray-800 backdrop-blur-sm transition-all hover:scale-[1.02]">
-                                <Badge className="absolute -top-3 left-1/2 -translate-x-1/2 bg-orange-500 text-white border-0">
-                                    Best Value
-                                </Badge>
-                                
-                                <div className="mb-6">
-                                    <h3 className="text-2xl font-bold text-white mb-1">1,200 Credits</h3>
-                                    <p className="text-sm text-gray-400">One-time purchase</p>
-                                </div>
-                                
-                                <div className="mb-6">
-                                    <div className="flex items-baseline gap-2">
-                                        <span className="text-5xl font-bold text-white">$99</span>
-                                    </div>
-                                    <p className="text-sm text-orange-400 mt-1">Save $19 vs 500 pack</p>
-                                    <p className="text-sm text-gray-500 mt-1">~300 high-precision posts</p>
-                                </div>
-                                
-                                <Button
-                                    className="w-full mb-6 bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white"
-                                    onClick={() => router.post('/credits/purchase', { amount: 1200 })}
-                                >
-                                    Buy Credits
-                                </Button>
-                                
-                                <ul className="space-y-3">
-                                    <li className="flex items-start gap-3">
-                                        <Check className="h-5 w-5 text-orange-400 mt-0.5" />
-                                        <span className="text-sm text-gray-300">Never expires</span>
-                                    </li>
-                                    <li className="flex items-start gap-3">
-                                        <Check className="h-5 w-5 text-orange-400 mt-0.5" />
-                                        <span className="text-sm text-gray-300">Works with any plan</span>
-                                    </li>
-                                    <li className="flex items-start gap-3">
-                                        <Check className="h-5 w-5 text-orange-400 mt-0.5" />
-                                        <span className="text-sm text-gray-300">Instant delivery</span>
-                                    </li>
-                                    <li className="flex items-start gap-3">
-                                        <Check className="h-5 w-5 text-orange-400 mt-0.5" />
-                                        <span className="text-sm text-gray-300">16% discount included</span>
-                                    </li>
-                                </ul>
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* FAQ Section */}
-                    <div className="rounded-2xl bg-[#1a1d29]/80 border border-gray-800 p-8">
-                        <h3 className="text-2xl font-bold text-white text-center mb-8">
-                            Frequently Asked Questions
-                        </h3>
-
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                            <div>
-                                <h4 className="font-semibold text-white mb-2">
-                                    What happens if I run out of credits?
-                                </h4>
-                                <p className="text-gray-400 text-sm">
-                                    You can purchase additional credits or upgrade to a higher tier.
-                                    Your credits reset monthly based on your subscription tier.
-                                </p>
-                            </div>
-
-                            <div>
-                                <h4 className="font-semibold text-white mb-2">
-                                    Can I change plans anytime?
-                                </h4>
-                                <p className="text-gray-400 text-sm">
-                                    Yes! You can upgrade or downgrade at any time. When upgrading,
-                                    changes take effect immediately. When downgrading, changes apply
-                                    at the end of your billing period.
-                                </p>
-                            </div>
-
-                            <div>
-                                <h4 className="font-semibold text-white mb-2">
-                                    Do unused credits roll over?
-                                </h4>
-                                <p className="text-gray-400 text-sm">
-                                    No, credits reset monthly and do not roll over. Make sure to use
-                                    your credits before the end of your billing cycle.
-                                </p>
-                            </div>
-
-                            <div>
-                                <h4 className="font-semibold text-white mb-2">
-                                    What payment methods do you accept?
-                                </h4>
-                                <p className="text-gray-400 text-sm">
-                                    We accept all major credit cards through our secure payment processor, Paddle.
-                                </p>
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* CTA */}
-                    <div className="text-center mt-12">
-                        <p className="text-gray-400 mb-4">
-                            Need help choosing the right plan?
-                        </p>
-                        <Button variant="outline" size="lg" className="border-gray-700 text-white hover:bg-gray-800">
-                            Contact Sales
-                        </Button>
-                    </div>
+                                <CardFooter>
+                                    <Button
+                                        onClick={() => {
+                                            console.log(`🔘 Button clicked for plan: ${plan.id}`, { 
+                                                isCurrentPlan, 
+                                                planName: plan.name,
+                                                disabled: isCurrentPlan 
+                                            });
+                                            handleUpgrade(plan.id);
+                                        }}
+                                        disabled={isCurrentPlan}
+                                        className="w-full"
+                                        variant={plan.popular ? "default" : "outline"}
+                                    >
+                                        {isCurrentPlan ? 'Current Plan' : `Upgrade to ${plan.name}`}
+                                    </Button>
+                                </CardFooter>
+                            </Card>
+                        );
+                    })}
                 </div>
+
+                {/* Additional Info */}
+                <Card className="bg-muted/50">
+                    <CardContent className="pt-6">
+                        <div className="grid gap-6 md:grid-cols-3 text-sm">
+                            <div>
+                                <div className="font-medium mb-2 flex items-center gap-2">
+                                    <Check className="h-4 w-4 text-green-500" />
+                                    All Plans Include
+                                </div>
+                                <ul className="space-y-1 text-muted-foreground">
+                                    <li>• Brand DNA extraction</li>
+                                    <li>• CSV batch generation</li>
+                                    <li>• Canvas editor</li>
+                                    <li>• Version history</li>
+                                </ul>
+                            </div>
+                            <div>
+                                <div className="font-medium mb-2 flex items-center gap-2">
+                                    <Zap className="h-4 w-4 text-yellow-500" />
+                                    Flexible Billing
+                                </div>
+                                <ul className="space-y-1 text-muted-foreground">
+                                    <li>• Cancel anytime</li>
+                                    <li>• Upgrade/downgrade anytime</li>
+                                    <li>• Pro-rated credits</li>
+                                    <li>• Secure payments via Lemon Squeezy</li>
+                                </ul>
+                            </div>
+                            <div>
+                                <div className="font-medium mb-2 flex items-center gap-2">
+                                    <Sparkles className="h-4 w-4 text-purple-500" />
+                                    Need More?
+                                </div>
+                                <p className="text-muted-foreground mb-2">
+                                    For enterprise needs, custom models, or dedicated support:
+                                </p>
+                                <Button variant="link" className="p-0 h-auto">
+                                    Contact Sales →
+                                </Button>
+                            </div>
+                        </div>
+                    </CardContent>
+                </Card>
             </div>
         </AppLayout>
     );

@@ -124,7 +124,7 @@ GET    /admin/usage                    → AdminDashboardController@usage
 #### Subscription Routes (`routes/web.php`)
 ```
 GET    /subscription/plans             → SubscriptionController@index
-GET    /subscription/portal            → SubscriptionController@portal
+GET    /subscription            → SubscriptionController@portal
 POST   /subscription/upgrade           → SubscriptionController@upgrade
 POST   /subscription/downgrade         → SubscriptionController@downgrade
 POST   /subscription/purchase-credits  → SubscriptionController@purchaseCredits
@@ -185,7 +185,7 @@ POST   /webhook/stripe                 → SubscriptionController@webhook (outsi
 - FAQ section (4 common questions)
 - Contact Sales CTA
 
-#### Billing Portal (`resources/js/pages/subscription/portal.tsx`)
+#### Billing Portal (`resources/js/pages/subscription.tsx`)
 - Current plan overview
   - Tier badge (color-coded)
   - Monthly credits
@@ -221,7 +221,7 @@ POST   /webhook/stripe                 → SubscriptionController@webhook (outsi
 - Low credits warning (< 20%)
 - Smart CTA button:
   - Free: "Upgrade Plan" → `/subscription/plans`
-  - Pro/Enterprise: "Manage Billing" → `/subscription/portal`
+  - Pro/Enterprise: "Manage Billing" → `/subscription`
 
 ## Default Values
 
@@ -381,7 +381,7 @@ UPDATE users SET is_admin = 1 WHERE email = 'user@example.com';
 - `resources/js/pages/admin/dashboard.tsx`
 - `resources/js/pages/admin/users.tsx`
 - `resources/js/pages/subscription/plans.tsx`
-- `resources/js/pages/subscription/portal.tsx`
+- `resources/js/pages/subscription.tsx`
 
 ### Modified
 - `app/Models/User.php` - Added subscription fields and methods

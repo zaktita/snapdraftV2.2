@@ -205,11 +205,16 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::post('/downgrade', [\App\Http\Controllers\SubscriptionController::class, 'downgrade'])->name('downgrade');
         Route::post('/purchase-credits', [\App\Http\Controllers\SubscriptionController::class, 'purchaseCredits'])->name('purchase-credits');
     });
-});
 
-// Stripe Webook (outside auth middleware)
-Route::post('/webhook/stripe', [\App\Http\Controllers\SubscriptionController::class, 'webhook'])->name('webhook.stripe');
+    // Invoices
+    Route::prefix('billing')->name('billing.')->group(function () {
+        Route::get('/invoices', [\App\Http\Controllers\BillingController::class, 'index'])->name('invoices');
+        Route::get('/invoices/{id}', [\App\Http\Controllers\BillingController::class, 'show'])->name('invoices.show');
+        Route::get('/invoices/{id}/download', [\App\Http\Controllers\BillingController::class, 'downloadPdf'])->name('invoices.download');
+    });
+});
 
 require __DIR__.'/admin.php';
 require __DIR__.'/settings.php';
 require __DIR__.'/website.php';
+require __DIR__.'/webhooks.php';

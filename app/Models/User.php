@@ -23,9 +23,8 @@ class User extends Authenticatable
         'name',
         'email',
         'password',
-        'subscription_tier',
-        'credits_remaining',
-        'credits_total',
+        'last_generation_at',
+        'total_generations',
     ];
 
     /**
@@ -38,8 +37,6 @@ class User extends Authenticatable
         'two_factor_secret',
         'two_factor_recovery_codes',
         'remember_token',
-        'stripe_customer_id',
-        'stripe_subscription_id',
     ];
 
     /**
@@ -55,8 +52,6 @@ class User extends Authenticatable
             'two_factor_confirmed_at' => 'datetime',
             'is_admin' => 'boolean',
             'is_suspended' => 'boolean',
-            'subscription_started_at' => 'datetime',
-            'subscription_ends_at' => 'datetime',
             'last_generation_at' => 'datetime',
         ];
     }
@@ -74,51 +69,68 @@ class User extends Authenticatable
      */
     public function hasCredits(int $amount = 1): bool
     {
-        return $this->credits_remaining >= $amount;
+        $subscription = $this->subscription();
+        return $subscription && $subscription->hasCredits($amount);
     }
 
     /**
-     * Decrement user credits.
+     * Decrement user credits via subscription.
      * 
      * @param int $amount Number of credits to deduct (default 1, or 4 for text-accurate)
      */
     public function useCredit(int $amount = 1): void
     {
-        if ($this->credits_remaining >= $amount) {
-            $this->decrement('credits_remaining', $amount);
-            $this->increment('total_generations');
-            $this->update(['last_generation_at' => now()]);
+        $subscription = $this->subscription();
+        if (!$subscription) {
+            throw new \RuntimeException('No active subscription found');
         }
+
+        $subscription->useCredits($amount);
     }
 
     /**
-     * Refund user credits.
+     * Refund user credits via subscription.
      * 
      * @param int $amount Number of credits to refund
      */
     public function refundCredit(int $amount = 1): void
     {
-        $this->increment('credits_remaining', $amount);
-        $this->decrement('total_generations');
+        $subscription = $this->subscription();
+        if (!$subscription) {
+            throw new \RuntimeException('No active subscription found');
+        }
+
+        $subscription->refundCredits($amount);
     }
 
     /**
-     * Reset monthly credits based on subscription tier.
+     * Reset monthly credits based on subscription.
+     * This is called by scheduled jobs for billing cycle renewal.
      */
     public function resetMonthlyCredits(): void
     {
-        $credits = match($this->subscription_tier) {
-            'free' => 10,
-            'launch' => 100,
-            'growth' => 350,
-            'scale' => 900,
-            default => 10,
-        };
+        $subscription = $this->subscription();
+        if ($subscription) {
+            $subscription->resetMonthlyCredits();
+        }
+    }
 
-        $this->update([
-            'credits_remaining' => $credits,
-            'credits_total' => $credits,
-        ]);
+    /**
+     * Get user's credits remaining from active subscription.
+     */
+    public function creditsRemaining(): int
+    {
+        $subscription = $this->subscription();
+        return $subscription ? $subscription->creditsRemaining() : 0;
+    }
+
+    /**
+     * Get user's total credits limit from active subscription.
+     */
+    public function creditsTotal(): int
+    {
+        $subscription = $this->subscription();
+        return $subscription ? $subscription->creditsLimit() : 0;
     }
 
     /**
@@ -135,5 +147,70 @@ class User extends Authenticatable
     public function generationHistory(): HasMany
     {
         return $this->hasMany(GenerationHistory::class);
+    }
+
+    /**
+     * Get the user's subscriptions.
+     */
+    public function subscriptions(): HasMany
+    {
+        return $this->hasMany(Subscription::class);
+    }
+
+    /**
+     * Get the user's transactions.
+     */
+    public function transactions(): HasMany
+    {
+        return $this->hasMany(Transaction::class);
+    }
+
+    /**
+     * Get the user's invoices.
+     */
+    public function invoices(): HasMany
+    {
+        return $this->hasMany(Invoice::class);
+    }
+
+    /**
+     * Get the user's subscription usage records.
+     */
+    public function subscriptionUsages(): HasMany
+    {
+        return $this->hasMany(SubscriptionUsage::class);
+    }
+
+    /**
+     * Get the user's active subscription.
+     */
+    public function subscription()
+    {
+        return $this->subscriptions()->where('status', 'active')->latest()->first();
+    }
+
+    /**
+     * Check if user has an active subscription.
+     */
+    public function hasActiveSubscription(): bool
+    {
+        return $this->subscription() !== null;
+    }
+
+    /**
+     * Get the current subscription tier from active subscription.
+     * Returns null if no active subscription.
+     */
+    public function currentTier(): ?string
+    {
+        return $this->subscription()?->name;
+    }
+
+    /**
+     * Get the current plan from active subscription.
+     */
+    public function currentPlan(): ?\App\Models\Plan
+    {
+        return $this->subscription()?->plan;
     }
 }

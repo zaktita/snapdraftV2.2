@@ -390,7 +390,7 @@ const handleUpgrade = async (tier: string) => {
 
 ## Step 6: Update Frontend - Billing Portal
 
-Update `resources/js/pages/subscription/portal.tsx`:
+Update `resources/js/pages/subscription.tsx`:
 
 ```tsx
 const handlePurchaseCredits = async () => {

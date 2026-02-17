@@ -8,7 +8,7 @@
 - **Account Section** - Always visible:
   - "Subscription" link (dynamically changes based on tier)
     - Free users → Links to `/subscription/plans` with Crown icon
-    - Pro/Enterprise users → Links to `/subscription/portal` with CreditCard icon
+    - Pro/Enterprise users → Links to `/subscription` with CreditCard icon
 
 - **Admin Section** - Only visible to admins:
   - "Dashboard" → `/admin/dashboard` (Shield icon)
@@ -89,7 +89,7 @@
    - Credits usage with progress bar
    - Dynamic CTA button:
      - Free: "Upgrade Plan" → `/subscription/plans`
-     - Paid: "Manage Billing" → `/subscription/portal`
+     - Paid: "Manage Billing" → `/subscription`
 
 2. **Generation Stats Card**
    - Successful generations (green check)

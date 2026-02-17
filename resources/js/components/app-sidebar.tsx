@@ -141,7 +141,7 @@ export function AppSidebar() {
             items: [
                 {
                     title: 'Subscription',
-                    href: user.subscription_tier === 'free' ? subscriptionPlans().url : subscriptionPortal().url,
+                    href: "/subscription",
                     icon: user.subscription_tier === 'free' ? Crown : CreditCard,
                 },
             ],

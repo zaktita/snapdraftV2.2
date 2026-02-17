@@ -54,7 +54,7 @@ export function CreditsCard() {
                     size="sm"
                     className="w-full bg-sidebar-primary text-sidebar-primary-foreground hover:bg-neutral-900 hover:text-sidebar-primary-foreground/90 transition-colors duration-150"
                 >
-                    <Link href={tier === 'free' ? '/subscription/plans' : '/subscription/portal'} prefetch>
+                    <Link href={tier === 'free' ? '/subscription/plans' : '/subscription'} prefetch>
                         {tier === 'free' ? 'Upgrade Plan' : 'Manage Billing'}
                     </Link>
                 </Button>

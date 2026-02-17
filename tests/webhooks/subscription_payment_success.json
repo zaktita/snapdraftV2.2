@@ -1,0 +1,42 @@
+{
+  "meta": {
+    "test_mode": true,
+    "event_name": "subscription_payment_success",
+    "custom_data": {
+      "user_id": "1"
+    }
+  },
+  "data": {
+    "type": "subscription-invoices",
+    "id": "55555",
+    "attributes": {
+      "store_id": 12345,
+      "subscription_id": "sub_abc123",
+      "customer_id": 67890,
+      "billing_reason": "renewal",
+      "card_brand": "visa",
+      "card_last_four": "4242",
+      "currency": "EUR",
+      "currency_rate": "1.00000000",
+      "status": "paid",
+      "status_formatted": "Paid",
+      "refunded": false,
+      "refunded_at": null,
+      "subtotal": 8900,
+      "discount_total": 0,
+      "tax": 0,
+      "total": 8900,
+      "subtotal_usd": 8900,
+      "discount_total_usd": 0,
+      "tax_usd": 0,
+      "total_usd": 8900,
+      "subtotal_formatted": "€89.00",
+      "discount_total_formatted": "€0.00",
+      "tax_formatted": "€0.00",
+      "total_formatted": "€89.00",
+      "created_at": "2026-03-16T12:00:00.000000Z",
+      "updated_at": "2026-03-16T12:00:00.000000Z",
+      "test_mode": true
+    }
+  }
+}

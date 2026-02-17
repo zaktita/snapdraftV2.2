@@ -310,7 +310,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 
 ### Subscription Pages
 **Severity:** 🟡 MEDIUM  
-**Files:** `subscription/plans.tsx`, `subscription/portal.tsx`
+**Files:** `subscription/plans.tsx`, `subscription.tsx`
 
 ```tsx
 // ❌ BROKEN

@@ -1,0 +1,42 @@
+{
+  "meta": {
+    "test_mode": true,
+    "event_name": "subscription_created",
+    "custom_data": {
+      "user_id": "1"
+    }
+  },
+  "data": {
+    "type": "subscriptions",
+    "id": "12345",
+    "attributes": {
+      "store_id": 12345,
+      "customer_id": 67890,
+      "order_id": 11111,
+      "identifier": "sub_abc123",
+      "variant_id": 22222,
+      "product_id": 33333,
+      "product_name": "SnapDraft Growth Plan",
+      "variant_name": "Monthly",
+      "user_name": "John Doe",
+      "user_email": "john@example.com",
+      "status": "active",
+      "status_formatted": "Active",
+      "card_brand": "visa",
+      "card_last_four": "4242",
+      "pause": null,
+      "cancelled": false,
+      "trial_ends_at": null,
+      "billing_anchor": 1,
+      "urls": {
+        "update_payment_method": "https://my-store.lemonsqueezy.com/subscription/sub_abc123/update-payment",
+        "customer_portal": "https://my-store.lemonsqueezy.com/subscription/sub_abc123"
+      },
+      "renews_at": "2026-03-16T12:00:00.000000Z",
+      "ends_at": null,
+      "created_at": "2026-02-16T12:00:00.000000Z",
+      "updated_at": "2026-02-16T12:00:00.000000Z",
+      "test_mode": true
+    }
+  }
+}

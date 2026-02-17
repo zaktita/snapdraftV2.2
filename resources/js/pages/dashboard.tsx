@@ -283,7 +283,7 @@ export default function Dashboard({ stats, recent_projects }: DashboardProps) {
                                 )}
 
                                 <Button asChild className="w-full" size="sm">
-                                    <Link href={stats.subscription_tier === 'free' ? '/subscription/plans' : '/subscription/portal'}>
+                                    <Link href={stats.subscription_tier === 'free' ? '/subscription/plans' : '/subscription'}>
                                         {stats.subscription_tier === 'free' ? (
                                             <>
                                                 <Crown className="h-4 w-4 mr-2" />
