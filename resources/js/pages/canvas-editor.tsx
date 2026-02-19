@@ -1847,21 +1847,44 @@ export default function CanvasEditor(props: CanvasEditorProps) {
         debug.log('[AI Edit] Starting', { prompt: userPrompt });
 
         try {
-            let originalImage = '';
-            try {
-                originalImage = imageToDataUrl(selectedObject.image);
-            } catch (e) {
-                console.error(
-                    '[AI Edit] toDataURL failed for original image, likely CORS taint',
-                    e,
-                );
-                showAlert(
-                    'Image Security Error',
-                    'Cannot read the original image due to browser security (CORS). Try uploading a local image or ensure the image URL allows cross-origin access.',
-                    'error',
-                );
-                return;
+            // If the user painted strokes on this object, use green-highlight composite
+            // for area-specific editing; otherwise send the plain image for full editing.
+            const hasStrokes = lines.some((l) => l.objectId === selectedObject.id);
+            let imageToSend = '';
+
+            if (hasStrokes) {
+                debug.log('[AI Edit] Strokes detected — using green-highlighted composite for area edit');
+                const compositeCanvas = createGreenHighlightedImage(selectedObject);
+                if (!compositeCanvas) throw new Error('Failed to create green-highlighted composite');
+                try {
+                    imageToSend = compositeCanvas.toDataURL('image/png');
+                } catch (e) {
+                    console.error('[AI Edit] toDataURL failed for composite, likely CORS taint', e);
+                    showAlert(
+                        'Image Security Error',
+                        'Cannot read the image due to browser security (CORS). Try uploading a local image.',
+                        'error',
+                    );
+                    return;
+                }
+            } else {
+                debug.log('[AI Edit] No strokes — sending full image for global edit');
+                try {
+                    imageToSend = imageToDataUrl(selectedObject.image);
+                } catch (e) {
+                    console.error('[AI Edit] toDataURL failed for original image, likely CORS taint', e);
+                    showAlert(
+                        'Image Security Error',
+                        'Cannot read the original image due to browser security (CORS). Try uploading a local image or ensure the image URL allows cross-origin access.',
+                        'error',
+                    );
+                    return;
+                }
             }
+
+            const prompt = hasStrokes
+                ? `The bright green (RGB 0,255,0) brush strokes in this image mark the exact area to edit. Apply the following change ONLY inside the green zone: ${userPrompt}. Rules: (1) remove all green from the output, (2) leave every pixel outside the green zone completely unchanged, (3) output must be the same pixel dimensions as the input.`
+                : userPrompt;
 
             const response = await fetch('/api/ai-edit-image', {
                 method: 'POST',
@@ -1873,8 +1896,8 @@ export default function CanvasEditor(props: CanvasEditorProps) {
                             ?.getAttribute('content') || '',
                 },
                 body: JSON.stringify({
-                    image: originalImage,
-                    prompt: userPrompt,
+                    image: imageToSend,
+                    prompt,
                 }),
             });
 
@@ -1919,6 +1942,10 @@ export default function CanvasEditor(props: CanvasEditorProps) {
 
                     setCanvasObjects((prev) => [...prev, generatedObj]);
                     setSelectedObject(generatedObj);
+                    // Clear brush strokes if area-specific edit
+                    if (hasStrokes) {
+                        setLines((prev) => prev.filter((l) => l.objectId !== sourceObject.id));
+                    }
                 };
                 newImage.src = result.generatedImage;
             } else {
@@ -1961,10 +1988,10 @@ export default function CanvasEditor(props: CanvasEditorProps) {
 
         try {
             const textToReplace = await showPrompt(
-                'Text Replacement',
-                'Enter the text you want to replace the selected area with:',
-                'Your text here...',
-                'Your text here',
+                'Replace Text',
+                'Type the new text to place in the painted area (e.g. if the image says "Hello", type "Goodbye"):',
+                'e.g. New York, Sale 50%, Grand Opening...',
+                '',
             );
 
             if (!textToReplace) {
@@ -1979,15 +2006,25 @@ export default function CanvasEditor(props: CanvasEditorProps) {
                 strokeCount: relevant.length,
             });
 
-            // Create mask
-            const maskCanvas = createMaskCanvas(selectedObject);
-            if (!maskCanvas) throw new Error('Failed to create mask');
-            const stats = computeMaskStats(maskCanvas);
-            debug.log('[ReplaceText] Mask stats', stats);
+            // Build green-highlighted composite (same as Erase)
+            const compositeCanvas = createGreenHighlightedImage(selectedObject);
+            if (!compositeCanvas) throw new Error('Failed to create green-highlighted composite');
 
-            // Convert images to base64
-            const originalImage = imageToDataUrl(selectedObject.image);
-            const maskImage = maskCanvas.toDataURL('image/png');
+            let compositeImage = '';
+            try {
+                compositeImage = compositeCanvas.toDataURL('image/png');
+            } catch (e) {
+                console.error('[ReplaceText] toDataURL failed, likely CORS taint', e);
+                showAlert(
+                    'Image Security Error',
+                    'Cannot read the image due to browser security (CORS). Try uploading a local image.',
+                    'error',
+                );
+                setIsGenerating(false);
+                return;
+            }
+
+            const prompt = `The bright green (RGB 0,255,0) brush strokes in this image mark the exact area to edit. Replace ONLY the green-highlighted area with the text "${textToReplace}". Rules: (1) remove all green colour from the output, (2) match the surrounding font style, size, color, and spacing exactly, (3) leave every pixel outside the green zone completely unchanged, (4) output must be the same pixel dimensions as the input.`;
 
             // Make API call
             debug.log('[ReplaceText] Sending API request...');
@@ -2003,14 +2040,8 @@ export default function CanvasEditor(props: CanvasEditorProps) {
                                 ?.getAttribute('content') || '',
                     },
                     body: JSON.stringify({
-                        originalImage,
-                        mask: maskImage,
-                        prompt: `inpaint the masked area with "${textToReplace}" make sure it's spelled correctly`,
-                        brushStrokes: relevant,
-                        imageSize: {
-                            width: selectedObject.image.width,
-                            height: selectedObject.image.height,
-                        },
+                        image: compositeImage,
+                        prompt,
                     }),
                 });
             } catch (fetchError) {
@@ -3359,55 +3390,61 @@ export default function CanvasEditor(props: CanvasEditorProps) {
                                 </div>
                             )}
 
-                            {/* Enhancement Tools Section */}
+                            {/* AI Tools Section — always visible */}
                             <div style={{ marginBottom: '24px' }}>
                                 {!sidebarCollapsed && (
                                     <div
                                         style={{
-                                            fontSize: '13px',
-                                            fontWeight: 500,
+                                            fontSize: '11px',
+                                            fontWeight: 600,
                                             color: 'var(--color-muted-foreground)',
-                                            marginBottom: '12px',
-                                            textTransform: 'uppercase',
-                                            letterSpacing: '0.5px',
+                                            marginBottom: '6px',
+                                            padding: '0 4px',
                                         }}
                                     >
-                                        Enhancements
+                                        AI Tools
                                     </div>
                                 )}
                                 <div
                                     style={{
                                         display: 'flex',
                                         flexDirection: 'column',
-                                        gap: '8px',
+                                        gap: '2px',
+                                        alignItems: sidebarCollapsed ? 'center' : 'stretch',
                                     }}
                                 >
                                     <ToolButton
-                                        icon={<Maximize2 size={18} />}
-                                        label="Expand"
-                                        active={generatingType === 'expand'}
-                                        onClick={handleExpandImage}
+                                        icon={<Eraser size={18} />}
+                                        label="Erase"
+                                        active={false}
+                                        onClick={handleErase}
                                         collapsed={sidebarCollapsed}
-                                        disabled={isGenerating}
-                                        shortcut="X"
+                                        disabled={
+                                            isGenerating ||
+                                            !(selectedObject && lines.some((l) => l.objectId === selectedObject.id))
+                                        }
+                                        shortcut="E"
                                     />
                                     <ToolButton
-                                        icon={<ZoomIn size={18} />}
-                                        label="Upscale"
-                                        active={generatingType === 'upscale'}
-                                        onClick={handleUpscaleImage}
+                                        icon={<Wand2 size={18} />}
+                                        label="AI Edit"
+                                        active={false}
+                                        onClick={handleAiEdit}
                                         collapsed={sidebarCollapsed}
-                                        disabled={isGenerating}
-                                        shortcut="S"
+                                        disabled={isGenerating || !selectedObject}
+                                        shortcut="A"
                                     />
                                     <ToolButton
-                                        icon={<Scissors size={18} />}
-                                        label="Remove BG"
-                                        active={generatingType === 'remove-bg'}
-                                        onClick={handleRemoveBackground}
+                                        icon={<Type size={18} />}
+                                        label="Replace Text"
+                                        active={false}
+                                        onClick={handleReplaceText}
                                         collapsed={sidebarCollapsed}
-                                        disabled={isGenerating}
-                                        shortcut="B"
+                                        disabled={
+                                            isGenerating ||
+                                            !(selectedObject && lines.some((l) => l.objectId === selectedObject.id))
+                                        }
+                                        shortcut="T"
                                     />
                                 </div>
                             </div>
@@ -3722,101 +3759,6 @@ export default function CanvasEditor(props: CanvasEditorProps) {
                                     </div>
                                 </div>
                             )}
-
-                            {/* Floating Actions */}
-                            {currentTool === 'retouch' &&
-                                selectedObject &&
-                                !showUploadZone && (
-                                    <div
-                                        style={{
-                                            position: 'absolute',
-                                            bottom: '24px',
-                                            right: '24px',
-                                            background: 'var(--color-card)',
-                                            border: '1px solid var(--color-border)',
-                                            borderRadius: '8px',
-                                            padding: '4px',
-                                            boxShadow: 'var(--shadow-sm)',
-                                            display: 'flex',
-                                            flexDirection: 'column',
-                                            gap: '2px',
-                                            minWidth: '220px',
-                                        }}
-                                    >
-                                        <FloatingActionButton
-                                            icon={<Eraser size={16} />}
-                                            label="Erase"
-                                            onClick={() => {
-                                                debug.log(
-                                                    '[UI] Floating Erase clicked',
-                                                );
-                                                handleErase();
-                                            }}
-                                            disabled={
-                                                isGenerating ||
-                                                !(
-                                                    selectedObject &&
-                                                    lines.some(
-                                                        (l) =>
-                                                            l.objectId ===
-                                                            selectedObject.id,
-                                                    )
-                                                )
-                                            }
-                                        />
-                                        <FloatingActionButton
-                                            icon={<Wand2 size={16} />}
-                                            label="AI Edit"
-                                            onClick={() => {
-                                                debug.log('[UI] Floating AI Edit clicked');
-                                                handleAiEdit();
-                                            }}
-                                            disabled={isGenerating || !selectedObject}
-                                        />
-                                        <FloatingActionButton
-                                            icon={<Type size={16} />}
-                                            label="Replace Text"
-                                            onClick={() => {
-                                                debug.log(
-                                                    '[UI] Floating Replace Text clicked',
-                                                );
-                                                handleReplaceText();
-                                            }}
-                                            disabled={
-                                                isGenerating ||
-                                                !(
-                                                    selectedObject &&
-                                                    lines.some(
-                                                        (l) =>
-                                                            l.objectId ===
-                                                            selectedObject.id,
-                                                    )
-                                                )
-                                            }
-                                        />
-                                        <FloatingActionButton
-                                            icon={<Download size={16} />}
-                                            label="Download Mask"
-                                            onClick={() => {
-                                                debug.log(
-                                                    '[UI] Floating Download Mask clicked',
-                                                );
-                                                downloadMask();
-                                            }}
-                                            disabled={
-                                                isGenerating ||
-                                                !(
-                                                    selectedObject &&
-                                                    lines.some(
-                                                        (l) =>
-                                                            l.objectId ===
-                                                            selectedObject.id,
-                                                    )
-                                                )
-                                            }
-                                        />
-                                    </div>
-                                )}
                         </div>
                     </div>
 

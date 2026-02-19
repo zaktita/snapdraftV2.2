@@ -98,31 +98,27 @@ class OpenRouterService implements AIServiceInterface
     public function editBase64(string $imageBase64, string $prompt, ?string $maskBase64 = null): string
     {
         $this->ensureConfigured();
+
         $content = [];
+
+        // Include source image for image-to-image editing
         $content[] = [
             'type' => 'image_url',
             'image_url' => ['url' => "data:image/png;base64,{$imageBase64}"]
         ];
         $content[] = ['type' => 'text', 'text' => $prompt];
-        
-        if ($maskBase64) {
-             $content[] = [
-                'type' => 'image_url',
-                'image_url' => ['url' => "data:image/png;base64,{$maskBase64}"]
-            ];
-             $content[] = ['type' => 'text', 'text' => "Use the second image as a mask for inpainting."];
-        }
 
-        Log::info('OpenRouter Base64 Edit', [
-            'has_mask' => !is_null($maskBase64),
+        Log::info('OpenRouter SeedDream Image Edit', [
+            'model' => $this->model,
             'prompt' => substr($prompt, 0, 100),
         ]);
 
         $response = $this->http()->post(
             "{$this->baseUrl}/chat/completions",
             [
-                'model' => $this->model,
-                'messages' => [['role' => 'user', 'content' => $content]]
+                'model'      => $this->model,
+                'messages'   => [['role' => 'user', 'content' => $content]],
+                'modalities' => ['image'],
             ]
         );
 
@@ -149,7 +145,11 @@ class OpenRouterService implements AIServiceInterface
 
     public function eraseGreenHighlights(string $imageBase64): string
     {
-        $prompt = "Remove all green-highlighted areas from this image and fill them naturally with appropriate content. The green highlights (bright green color RGB 0,255,0) indicate areas that should be erased and seamlessly replaced with background that fits the image style, perspective, colors, and lighting. Do not leave any green color or artifacts in the final result.";
+        $prompt = "This image contains bright green (RGB 0,255,0) highlighted areas marking regions to erase. "
+                . "Remove ALL green-highlighted areas and fill them seamlessly with natural background content "
+                . "that matches the surrounding style, colors, lighting, and perspective. "
+                . "Preserve the exact same image dimensions and aspect ratio as the input. "
+                . "Do not leave any green color, artifacts, or seams in the final result.";
         return $this->editBase64($imageBase64, $prompt);
     }
 
@@ -161,7 +161,20 @@ class OpenRouterService implements AIServiceInterface
 
         $json = $response->json();
 
-        // Check for direct data response (standard OpenAI image format)
+        // Primary path: SeedDream 4.5 / image-generation models return images in message.images
+        $message = $json['choices'][0]['message'] ?? null;
+        if ($message && isset($message['images'][0]['image_url']['url'])) {
+            $url = $message['images'][0]['image_url']['url'];
+            // May already be a base64 data URL
+            if (str_starts_with($url, 'data:')) {
+                if (preg_match('/^data:[^;]+;base64,(.+)$/', $url, $m)) {
+                    return ['image_data' => $m[1], 'image_base64' => $m[1], 'mime_type' => 'image/png'];
+                }
+            }
+            return $this->processImageUrl($url);
+        }
+
+        // Fallback: standard OpenAI images/generations format
         if (isset($json['data'][0]['url'])) {
              return $this->processImageUrl($json['data'][0]['url']);
         }
@@ -174,14 +187,8 @@ class OpenRouterService implements AIServiceInterface
              ];
         }
 
-        $message = $json['choices'][0]['message'] ?? null;
         if (!$message) {
             throw new RuntimeException('Invalid response structure from OpenRouter');
-        }
-
-        // Check OpenRouter specialized message.images format
-        if (isset($message['images'][0]['image_url']['url'])) {
-             return $this->processImageUrl($message['images'][0]['image_url']['url']);
         }
 
         $content = $message['content'] ?? '';

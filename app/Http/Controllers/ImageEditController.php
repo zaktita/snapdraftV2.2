@@ -16,50 +16,58 @@ class ImageEditController extends Controller
         $this->aiService = $aiService;
     }
     /**
-     * Simple inpainting using Gemini Flash Image model.
+     * Replace text: accepts a green-highlighted composite image + text prompt.
+     * Sends to Gemini then resizes the result back to the original dimensions.
      */
     public function generateWithMask(Request $request)
     {
         $validated = $request->validate([
-            'originalImage' => 'required|string',
-            'mask' => 'required|string',
+            'image'  => 'required|string',
             'prompt' => 'required|string',
         ]);
 
         try {
-            Log::info('[generate-with-mask] Starting', ['prompt' => $validated['prompt']]);
+            Log::info('[replace-text] Starting', ['prompt' => $validated['prompt']]);
 
-            // Extract base64 from data URLs (strip the data:image/png;base64, prefix)
-            $originalBase64 = self::extractBase64FromDataUrl($validated['originalImage']);
-            $maskBase64 = self::extractBase64FromDataUrl($validated['mask']);
-
-            if (!$originalBase64 || !$maskBase64) {
+            $imageBase64 = self::extractBase64FromDataUrl($validated['image']);
+            if (!$imageBase64) {
                 return response()->json(['message' => 'Invalid image data'], 422);
             }
 
-            Log::info('[generate-with-mask] Calling Google Gemini');
+            // Record original dimensions so we can restore them after AI generation
+            $originalData = base64_decode($imageBase64);
+            $originalImg  = imagecreatefromstring($originalData);
+            if (!$originalImg) {
+                return response()->json(['message' => 'Could not read image dimensions'], 422);
+            }
+            $originalW = imagesx($originalImg);
+            $originalH = imagesy($originalImg);
+            imagedestroy($originalImg);
 
-            // Call GoogleGeminiService for inpainting
-            $resultBase64 = $this->aiService->inpaint(
-                $originalBase64,
-                $maskBase64,
-                $validated['prompt']
+            Log::info('[replace-text] Original dimensions', ['w' => $originalW, 'h' => $originalH]);
+            Log::info('[replace-text] Calling Gemini via editBase64');
+
+            $resultBase64 = $this->aiService->editBase64(
+                $imageBase64,
+                $validated['prompt'],
+                null
             );
 
-            $dataUrl = 'data:image/png;base64,' . $resultBase64;
+            // Resize result back to original dimensions if they differ
+            $resultBase64 = self::resizeToOriginal($resultBase64, $originalW, $originalH);
 
-            Log::info('[generate-with-mask] Success');
+            Log::info('[replace-text] Success');
 
             return response()->json([
-                'generatedImage' => $dataUrl,
-                'prompt' => $validated['prompt'],
+                'generatedImage' => 'data:image/png;base64,' . $resultBase64,
+                'prompt'         => $validated['prompt'],
             ]);
 
         } catch (\Throwable $e) {
-            Log::error('[generate-with-mask] Error: ' . $e->getMessage());
+            Log::error('[replace-text] Error: ' . $e->getMessage());
             return response()->json([
-                'message' => 'Generation failed',
-                'error' => $e->getMessage()
+                'message' => 'Replace text failed',
+                'error'   => $e->getMessage(),
             ], 500);
         }
     }
@@ -838,6 +846,9 @@ class ImageEditController extends Controller
      */
     public function erase(Request $request)
     {
+        // SeedDream 4.5 can take 60-90 seconds — lift PHP's 30s limit for this action
+        set_time_limit(180);
+
         $validated = $request->validate([
             'image' => 'required|string',
         ]);
@@ -856,8 +867,20 @@ class ImageEditController extends Controller
                 'image_head' => substr($imageBase64,0,60),
             ]);
 
-            // Call Gemini service to erase green-highlighted areas
+            // Capture original dimensions before calling AI
+            $originalImg = @imagecreatefromstring(base64_decode($imageBase64));
+            $originalW = $originalImg ? imagesx($originalImg) : null;
+            $originalH = $originalImg ? imagesy($originalImg) : null;
+            if ($originalImg) imagedestroy($originalImg);
+            if ($originalW) Log::info('[erase] Original dimensions', ['w' => $originalW, 'h' => $originalH]);
+
+            // Call Gemini to erase green-highlighted areas
             $generatedBase64 = $this->aiService->eraseGreenHighlights($imageBase64);
+
+            // Resize result back to original dimensions if Gemini changed them
+            if ($originalW && $originalH) {
+                $generatedBase64 = self::resizeToOriginal($generatedBase64, $originalW, $originalH);
+            }
 
             Log::info('[erase] Success');
 
@@ -874,13 +897,14 @@ class ImageEditController extends Controller
     }
 
     /**
-     * AI Edit: Apply a prompt to an image (no mask).
-     * Returns a generated image as a data URL.
+     * AI Edit: Apply a prompt to an image (Gemini).
+     * Accepts either a plain image (full edit) or a green-highlighted composite (area edit).
+     * Returns a generated image resized to the original dimensions.
      */
     public function aiEditImage(Request $request)
     {
         $validated = $request->validate([
-            'image' => 'required|string',
+            'image'  => 'required|string',
             'prompt' => 'required|string',
         ]);
 
@@ -893,22 +917,83 @@ class ImageEditController extends Controller
                 return response()->json(['message' => 'Invalid image data'], 422);
             }
 
+            // Record original dimensions so we can restore them after AI generation
+            $originalData = base64_decode($imageBase64);
+            $originalImg  = imagecreatefromstring($originalData);
+            if (!$originalImg) {
+                return response()->json(['message' => 'Could not read image dimensions'], 422);
+            }
+            $originalW = imagesx($originalImg);
+            $originalH = imagesy($originalImg);
+            imagedestroy($originalImg);
+
+            Log::info('[ai-edit-image] Original dimensions', ['w' => $originalW, 'h' => $originalH]);
+
             $resultBase64 = $this->aiService->editBase64($imageBase64, $prompt, null);
-            $dataUrl = 'data:image/png;base64,' . $resultBase64;
+
+            // Resize result back to original dimensions if they differ
+            $resultBase64 = self::resizeToOriginal($resultBase64, $originalW, $originalH);
 
             Log::info('[ai-edit-image] Success');
 
             return response()->json([
-                'generatedImage' => $dataUrl,
-                'prompt' => $prompt,
+                'generatedImage' => 'data:image/png;base64,' . $resultBase64,
+                'prompt'         => $prompt,
             ]);
         } catch (\Throwable $e) {
             Log::error('[ai-edit-image] Error: ' . $e->getMessage());
             return response()->json([
                 'message' => 'AI edit failed',
-                'error' => $e->getMessage(),
+                'error'   => $e->getMessage(),
             ], 500);
         }
+    }
+
+    /**
+     * Resize a base64-encoded PNG to the given pixel dimensions.
+     * If the result already matches, returns it unchanged.
+     * Uses high-quality bicubic resampling (imagecopyresampled).
+     */
+    private static function resizeToOriginal(string $resultBase64, int $targetW, int $targetH): string
+    {
+        $data = base64_decode($resultBase64);
+        $img  = imagecreatefromstring($data);
+        if (!$img) {
+            // Can't decode — return as-is
+            return $resultBase64;
+        }
+
+        $srcW = imagesx($img);
+        $srcH = imagesy($img);
+
+        if ($srcW === $targetW && $srcH === $targetH) {
+            imagedestroy($img);
+            return $resultBase64;
+        }
+
+        Log::info('[resizeToOriginal] Resizing AI result', [
+            'from' => "{$srcW}x{$srcH}",
+            'to'   => "{$targetW}x{$targetH}",
+        ]);
+
+        // Preserve alpha/transparency
+        $out = imagecreatetruecolor($targetW, $targetH);
+        imagealphablending($out, false);
+        imagesavealpha($out, true);
+        $transparent = imagecolorallocatealpha($out, 0, 0, 0, 127);
+        imagefilledrectangle($out, 0, 0, $targetW, $targetH, $transparent);
+        imagealphablending($out, true);
+
+        imagecopyresampled($out, $img, 0, 0, 0, 0, $targetW, $targetH, $srcW, $srcH);
+
+        ob_start();
+        imagepng($out, null, 9);
+        $resized = ob_get_clean();
+
+        imagedestroy($img);
+        imagedestroy($out);
+
+        return base64_encode($resized);
     }
 
     private static function decodeDataUrl(string $dataUrl): ?string

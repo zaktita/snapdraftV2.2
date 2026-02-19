@@ -9,6 +9,8 @@ class AIServiceManager
     protected AIServiceInterface $primaryService;
     protected ?AIServiceInterface $fallbackService;
 
+    protected OpenRouterService $openRouterService;
+
     public function __construct(
         GoogleGeminiService $geminiService,
         OpenRouterService $openRouterService
@@ -18,6 +20,41 @@ class AIServiceManager
 
         // Fallback service: OpenRouter (if available)
         $this->fallbackService = $openRouterService->isAvailable() ? $openRouterService : null;
+
+        // Keep a direct reference for canvas editor routing
+        $this->openRouterService = $openRouterService;
+    }
+
+    // -------------------------------------------------------------------------
+    // Canvas Editor Methods
+    // -------------------------------------------------------------------------
+
+    /**
+     * Erase green-highlighted areas using Gemini.
+     */
+    public function eraseGreenHighlights(string $imageBase64): string
+    {
+        Log::info('AIServiceManager: eraseGreenHighlights → Gemini');
+        return $this->primaryService->eraseGreenHighlights($imageBase64);
+    }
+
+    /**
+     * Replace text in masked area using Gemini (green-highlight composite image).
+     * The prompt is already embedded client-side; we delegate straight to Gemini editBase64.
+     */
+    public function inpaint(string $imageBase64, string $maskBase64, string $prompt): string
+    {
+        Log::info('AIServiceManager: inpaint (replace-text) → Gemini');
+        return $this->primaryService->inpaint($imageBase64, $maskBase64, $prompt);
+    }
+
+    /**
+     * AI Edit (full image or green-highlighted composite) using Gemini.
+     */
+    public function editBase64(string $imageBase64, string $prompt, ?string $maskBase64 = null): string
+    {
+        Log::info('AIServiceManager: editBase64 (ai-edit) → Gemini');
+        return $this->primaryService->editBase64($imageBase64, $prompt, $maskBase64);
     }
 
     /**

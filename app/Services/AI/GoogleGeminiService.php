@@ -221,8 +221,20 @@ class GoogleGeminiService implements AIServiceInterface
     {
         $this->ensureConfigured();
 
+        // Enforce green-highlight editing rules and aspect ratio at the prompt level.
+        // These instructions appear first so the model treats them as highest priority.
+        $aspectConstraint =
+            "CRITICAL EDITING RULES — follow exactly:\n" .
+            "1. The input image contains bright green (RGB 0,255,0) brush strokes that mark the ONLY area to edit.\n" .
+            "2. Remove the green colour completely — it must NOT appear anywhere in the output.\n" .
+            "3. Apply the requested edit ONLY inside the green-marked zone.\n" .
+            "4. Every pixel OUTSIDE the green zone must remain pixel-perfect identical to the input — same colours, same content, no blurring or recoloring.\n" .
+            "5. The output image MUST be EXACTLY the same pixel dimensions as the input (same width × same height). Do NOT crop, pad, upscale, or downscale.\n\n" .
+            "Edit instruction: ";
+        $fullPrompt = $aspectConstraint . $prompt;
+
         $parts = [
-            ['text' => $prompt],
+            ['text' => $fullPrompt],
             [
                 'inlineData' => [
                     'mimeType' => 'image/png',
@@ -270,39 +282,9 @@ class GoogleGeminiService implements AIServiceInterface
      */
     public function eraseGreenHighlights(string $imageBase64): string
     {
-        $this->ensureConfigured();
-
+        // Delegated to editBase64 which already appends the aspect ratio constraint
         $prompt = "Remove all green-highlighted areas from this image and fill them naturally with appropriate content that matches the surrounding context. The green highlights (bright green color RGB 0,255,0) indicate areas that should be erased and seamlessly replaced with background that fits the image style, perspective, colors, and lighting. Do not leave any green color or artifacts in the final result.";
-
-        $parts = [
-            ['text' => $prompt],
-            [
-                'inlineData' => [
-                    'mimeType' => 'image/png',
-                    'data' => $imageBase64
-                ]
-            ]
-        ];
-
-        Log::info('Gemini Erase Green Highlights', [
-            'image_length' => strlen($imageBase64),
-        ]);
-
-        $response = $this->http()->post(
-            "{$this->baseUrl}/models/{$this->model}:generateContent?key={$this->apiKey}",
-            [
-                'contents' => [['role' => 'user', 'parts' => $parts]],
-                'generationConfig' => [
-                    'responseModalities' => ['IMAGE'],
-                    'temperature' => 0.4,
-                ]
-            ]
-        );
-
-        $result = $this->parseResponse($response);
-
-        // Back-compat: some callers expect image_base64, others image_data
-        return $result['image_data'] ?? $result['image_base64'];
+        return $this->editBase64($imageBase64, $prompt);
     }
 
     /**
