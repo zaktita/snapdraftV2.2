@@ -1345,7 +1345,7 @@ export default function ProjectShow({ project, justCreated = false, expectedImag
                                                 // Open canvas editor with image
                                                 const encodedImageUrl = encodeURIComponent(image.url);
                                                 const encodedTitle = encodeURIComponent(project.title);
-                                                router.visit(`/canvas-editor?projectId=${project.id}&image=${encodedImageUrl}&title=${encodedTitle}`);
+                                                router.visit(`/canvas-editor?projectId=${project.id}&image=${encodedImageUrl}&title=${encodedTitle}&imageId=${image.id}`);
                                             }}
                                         >
                                             <Edit className="size-4" style={{ color: 'var(--color-foreground)' }} />
@@ -1477,7 +1477,7 @@ export default function ProjectShow({ project, justCreated = false, expectedImag
                                     const image = project.images[lightboxImageIndex];
                                     const encodedImageUrl = encodeURIComponent(image.url);
                                     const encodedTitle = encodeURIComponent(project.title);
-                                    router.visit(`/canvas-editor?projectId=${project.id}&image=${encodedImageUrl}&title=${encodedTitle}`);
+                                    router.visit(`/canvas-editor?projectId=${project.id}&image=${encodedImageUrl}&title=${encodedTitle}&imageId=${image.id}`);
                                 }}
                             >
                                 <Edit className="size-4" />

@@ -66,13 +66,8 @@ interface BrushLine {
     objectId?: number | null;
 }
 
-interface EraseSelectionRect {
-    objectId: number;
-    startX: number;
-    startY: number;
-    endX: number;
-    endY: number;
-}
+// Resize handle type for objects
+type ResizeHandle = 'nw' | 'ne' | 'sw' | 'se';
 
 // API request body types
 interface ApiBody {
@@ -168,8 +163,17 @@ export default function CanvasEditor(props: CanvasEditorProps) {
     const [cropDragStart, setCropDragStart] = useState<{x: number; y: number; rectX: number; rectY: number; rectW: number; rectH: number} | null>(null);
     const [cropIntent, setCropIntent] = useState<'crop' | 'expand'>('crop');
 
-    // Erase tool selection rectangle (in object/image coordinates)
-    const [eraseSelection, setEraseSelection] = useState<EraseSelectionRect | null>(null);
+    // Object resize state
+    const [resizingObject, setResizingObject] = useState<CanvasObject | null>(null);
+    const [resizeHandle, setResizeHandle] = useState<ResizeHandle | null>(null);
+    const [resizeStart, setResizeStart] = useState<{mouseX: number; mouseY: number; objX: number; objY: number; objW: number; objH: number} | null>(null);
+
+    // Drag-and-drop state
+    const [isDragOver, setIsDragOver] = useState(false);
+
+    // Generation progress timer
+    const [genElapsedSecs, setGenElapsedSecs] = useState(0);
+    const genTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
     // Modal state
     const [promptModal, setPromptModal] = useState<{
@@ -559,7 +563,7 @@ export default function CanvasEditor(props: CanvasEditorProps) {
         isSpacePressed,
         isDragging,
         isGenerating,
-        eraseSelection,
+        resizingObject,
     ]);
 
     // Debug important state changes
@@ -708,16 +712,6 @@ export default function CanvasEditor(props: CanvasEditorProps) {
             }
         });
 
-        // Draw erase selection rectangle
-        if (currentTool === 'erase' && eraseSelection) {
-            const obj = canvasObjects.find(
-                (o) => o.id === eraseSelection.objectId,
-            );
-            if (obj) {
-                drawEraseSelection(obj, eraseSelection);
-            }
-        }
-
         // Draw selection highlight
         const sel = draggedObject || selectedObject;
         if (sel) {
@@ -741,139 +735,36 @@ export default function CanvasEditor(props: CanvasEditorProps) {
         }
     };
 
-    const drawEraseSelection = (obj: CanvasObject, rect: EraseSelectionRect) => {
-        if (!ctx) return;
-
-        const minX = Math.min(rect.startX, rect.endX);
-        const minY = Math.min(rect.startY, rect.endY);
-        const maxX = Math.max(rect.startX, rect.endX);
-        const maxY = Math.max(rect.startY, rect.endY);
-
-        const screenX = panX + (obj.x + minX) * scale;
-        const screenY = panY + (obj.y + minY) * scale;
-        const screenW = (maxX - minX) * scale;
-        const screenH = (maxY - minY) * scale;
-
-        ctx.save();
-        ctx.strokeStyle = '#2196F3';
-        ctx.lineWidth = 2;
-        ctx.setLineDash([6, 4]);
-        ctx.strokeRect(screenX, screenY, screenW, screenH);
-        ctx.restore();
-    };
-
-    const createRectGreenHighlightedImage = (obj: CanvasObject, rect: EraseSelectionRect) => {
-        const compositeCanvas = document.createElement('canvas');
-        compositeCanvas.width = obj.image.width;
-        compositeCanvas.height = obj.image.height;
-        const compositeCtx = compositeCanvas.getContext('2d');
-        if (!compositeCtx) return null;
-
-        // Draw the original image first
-        compositeCtx.drawImage(obj.image, 0, 0);
-
-        const minX = Math.max(0, Math.min(rect.startX, rect.endX));
-        const minY = Math.max(0, Math.min(rect.startY, rect.endY));
-        const maxX = Math.min(obj.image.width, Math.max(rect.startX, rect.endX));
-        const maxY = Math.min(obj.image.height, Math.max(rect.startY, rect.endY));
-
-        // Draw green rectangle over the selection area
-        compositeCtx.fillStyle = 'rgb(0, 255, 0)'; // Bright green
-        compositeCtx.fillRect(minX, minY, Math.max(1, maxX - minX), Math.max(1, maxY - minY));
-
-        return compositeCanvas;
-    };
-
-    const runEraseWithSelection = async (rect: EraseSelectionRect) => {
-        const sourceObject = canvasObjects.find((o) => o.id === rect.objectId);
-        if (!sourceObject) return;
-
-        setIsGenerating(true);
-        debug.log('[Erase] Starting erase with selection', rect);
-
-        try {
-            const compositeCanvas = createRectGreenHighlightedImage(sourceObject, rect);
-            if (!compositeCanvas) throw new Error('Failed to create composite image');
-
-            let compositeImage = '';
-            try {
-                compositeImage = compositeCanvas.toDataURL('image/png');
-            } catch (e) {
-                console.error(
-                    '[Erase] toDataURL failed for composite image, likely CORS taint',
-                    e,
-                );
-                showAlert(
-                    'Image Security Error',
-                    'Cannot read the image due to browser security (CORS). Try uploading a local image or ensure the image URL allows cross-origin access.',
-                    'error',
-                );
-                return;
+    const getResizeHandleAtPoint = (screenX: number, screenY: number, obj: CanvasObject): ResizeHandle | null => {
+        if (!obj || obj.isMainImage) return null;
+        const sx = panX + obj.x * scale;
+        const sy = panY + obj.y * scale;
+        const sw = obj.image.width * scale;
+        const sh = obj.image.height * scale;
+        const hSize = 8;
+        const tol = 6;
+        const corners: [ResizeHandle, number, number][] = [
+            ['nw', sx, sy],
+            ['ne', sx + sw, sy],
+            ['sw', sx, sy + sh],
+            ['se', sx + sw, sy + sh],
+        ];
+        for (const [handle, hx, hy] of corners) {
+            if (Math.abs(screenX - hx) <= hSize / 2 + tol && Math.abs(screenY - hy) <= hSize / 2 + tol) {
+                return handle;
             }
-
-            const response = await fetch('/api/erase-image', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN':
-                        document
-                            .querySelector('meta[name="csrf-token"]')
-                            ?.getAttribute('content') || '',
-                },
-                body: JSON.stringify({
-                    image: compositeImage,
-                }),
-            });
-
-            if (!response.ok) {
-                let details = response.statusText;
-                try {
-                    const text = await response.text();
-                    try {
-                        const json = JSON.parse(text);
-                        details = json?.error || json?.message || text;
-                    } catch {
-                        details = text || details;
-                    }
-                } catch {
-                    // ignore
-                }
-                throw new Error(`API error (${response.status}): ${String(details).slice(0, 400)}`);
-            }
-
-            const result = await response.json();
-            debug.log('[Erase] API result', result);
-
-            if (result.generatedImage) {
-                const newImage = new window.Image();
-                newImage.onload = () => {
-                    const generatedObj = {
-                        id: generateObjectId(),
-                        image: newImage,
-                        x:
-                            sourceObject.x +
-                            sourceObject.image.width +
-                            CANVAS_DEFAULTS.ERASE_GAP,
-                        y: sourceObject.y,
-                        label: `${sourceObject.label || 'Image'} (Edited)`,
-                        isMainImage: false,
-                    };
-                    setCanvasObjects((prev) => [...prev, generatedObj]);
-                    setSelectedObject(generatedObj);
-                };
-                newImage.src = result.generatedImage;
-            }
-        } catch (error) {
-            console.error('Erase error:', error);
-            showAlert(
-                'Error',
-                error instanceof Error ? error.message : 'Failed to erase area',
-                'error',
-            );
-        } finally {
-            setIsGenerating(false);
-            debug.log('[Erase] Finished');
         }
+        return null;
+    };
+
+    // Start generation timer
+    const startGenTimer = () => {
+        setGenElapsedSecs(0);
+        if (genTimerRef.current) clearInterval(genTimerRef.current);
+        genTimerRef.current = setInterval(() => setGenElapsedSecs(s => s + 1), 1000);
+    };
+    const stopGenTimer = () => {
+        if (genTimerRef.current) { clearInterval(genTimerRef.current); genTimerRef.current = null; }
     };
 
     const drawCanvasObject = (obj: CanvasObject) => {
@@ -918,18 +809,34 @@ export default function CanvasEditor(props: CanvasEditorProps) {
     const drawSelectionHighlight = (obj: CanvasObject) => {
         if (!ctx) return;
 
+        const sx = panX + obj.x * scale;
+        const sy = panY + obj.y * scale;
+        const sw = obj.image.width * scale;
+        const sh = obj.image.height * scale;
+
         ctx.save();
-        ctx.translate(panX + obj.x * scale - 2, panY + obj.y * scale - 2);
-        ctx.scale(scale, scale);
         ctx.strokeStyle = '#2196F3';
-        ctx.lineWidth = 3 / scale;
-        ctx.setLineDash([5 / scale, 5 / scale]);
-        ctx.strokeRect(
-            0,
-            0,
-            obj.image.width + 4 / scale,
-            obj.image.height + 4 / scale,
-        );
+        ctx.lineWidth = 2;
+        ctx.setLineDash([5, 5]);
+        ctx.strokeRect(sx - 1, sy - 1, sw + 2, sh + 2);
+        ctx.setLineDash([]);
+
+        // Draw resize handles only for non-main images in select mode
+        if (!obj.isMainImage && currentTool === 'select') {
+            const hSize = 8;
+            const corners: [number, number][] = [
+                [sx - hSize / 2, sy - hSize / 2],           // nw
+                [sx + sw - hSize / 2, sy - hSize / 2],      // ne
+                [sx - hSize / 2, sy + sh - hSize / 2],      // sw
+                [sx + sw - hSize / 2, sy + sh - hSize / 2], // se
+            ];
+            ctx.fillStyle = '#ffffff';
+            corners.forEach(([cx, cy]) => {
+                ctx.fillRect(cx, cy, hSize, hSize);
+                ctx.strokeRect(cx, cy, hSize, hSize);
+            });
+        }
+
         ctx.restore();
     };
 
@@ -1099,13 +1006,6 @@ export default function CanvasEditor(props: CanvasEditorProps) {
         const rect = canvas.getBoundingClientRect();
         const x = e.clientX - rect.left;
         const y = e.clientY - rect.top;
-        debug.log('[Canvas] mouseDown', {
-            x,
-            y,
-            button: e.button,
-            tool: currentTool,
-            isSpacePressed,
-        });
 
         // Crop mode interactions
         if (cropMode && cropRect) {
@@ -1132,82 +1032,96 @@ export default function CanvasEditor(props: CanvasEditorProps) {
             return;
         }
 
-        // Don't handle right click
         if (e.button === 2) return;
 
-        const clickedObject = getObjectAtPoint(x, y);
-        if (clickedObject) {
-            debug.log('[Canvas] Clicked object', {
-                id: clickedObject.id,
-                isMainImage: !!clickedObject.isMainImage,
-            });
-            setSelectedObject(clickedObject);
-
-            if (currentTool === 'erase') {
-                if (isGenerating) return;
-                const imagePos = screenToObjectCoordinates(x, y, clickedObject);
-                const clampedX = Math.max(0, Math.min(clickedObject.image.width, imagePos.x));
-                const clampedY = Math.max(0, Math.min(clickedObject.image.height, imagePos.y));
-                setEraseSelection({
-                    objectId: clickedObject.id,
-                    startX: clampedX,
-                    startY: clampedY,
-                    endX: clampedX,
-                    endY: clampedY,
+        // Check resize handles first (only in select mode on selected non-main object)
+        if (currentTool === 'select' && selectedObject && !selectedObject.isMainImage) {
+            const rHandle = getResizeHandleAtPoint(x, y, selectedObject);
+            if (rHandle) {
+                setResizeHandle(rHandle);
+                setResizingObject(selectedObject);
+                setResizeStart({
+                    mouseX: x,
+                    mouseY: y,
+                    objX: selectedObject.x,
+                    objY: selectedObject.y,
+                    objW: selectedObject.image.width,
+                    objH: selectedObject.image.height,
                 });
                 return;
             }
+        }
+
+        const clickedObject = getObjectAtPoint(x, y);
+        if (clickedObject) {
+            setSelectedObject(clickedObject);
 
             if (currentTool === 'retouch' && clickedObject === selectedObject) {
                 const imagePos = screenToObjectCoordinates(x, y, clickedObject);
                 if (isPointInObject(imagePos.x, imagePos.y, clickedObject)) {
                     setIsPainting(true);
-                    debug.log('[Paint] Start new line', {
-                        objectId: clickedObject.id,
-                        x: imagePos.x,
-                        y: imagePos.y,
-                    });
                     startNewLine(imagePos.x, imagePos.y, clickedObject.id);
                 }
             } else if (currentTool === 'select') {
-                // Begin dragging this object
                 const objScreenX = panX + clickedObject.x * scale;
                 const objScreenY = panY + clickedObject.y * scale;
                 setDraggedObject(clickedObject);
                 setDragOffset({ x: x - objScreenX, y: y - objScreenY });
             }
         } else {
-            debug.log('[Canvas] Clicked empty area');
             setSelectedObject(null);
             setDraggedObject(null);
-            setEraseSelection(null);
         }
     };
 
-    const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
-        if (!canvas) return;
-        const rect = canvas.getBoundingClientRect();
-        const x = e.clientX - rect.left;
-        const y = e.clientY - rect.top;
-
-        // Update cursor position for custom cursor
+    // Unified pointer event handler (used for both mouse and touch)
+    const handlePointerMove = (x: number, y: number, clientX: number, clientY: number) => {
         setCursorPosition({ x, y });
 
-        if (currentTool === 'erase' && eraseSelection) {
-            const obj = canvasObjects.find((o) => o.id === eraseSelection.objectId);
-            if (!obj) return;
-            const imagePos = screenToObjectCoordinates(x, y, obj);
-            const clampedX = Math.max(0, Math.min(obj.image.width, imagePos.x));
-            const clampedY = Math.max(0, Math.min(obj.image.height, imagePos.y));
-            setEraseSelection((prev) =>
-                prev
-                    ? {
-                          ...prev,
-                          endX: clampedX,
-                          endY: clampedY,
-                      }
-                    : prev,
-            );
+        // Object resize
+        if (resizingObject && resizeHandle && resizeStart) {
+            const dx = (x - resizeStart.mouseX) / scale;
+            const dy = (y - resizeStart.mouseY) / scale;
+            const minSize = 20;
+
+            let newX = resizeStart.objX;
+            let newY = resizeStart.objY;
+            let newW = resizeStart.objW;
+            let newH = resizeStart.objH;
+
+            if (resizeHandle === 'nw') {
+                newX = resizeStart.objX + dx; newY = resizeStart.objY + dy;
+                newW = Math.max(minSize, resizeStart.objW - dx);
+                newH = Math.max(minSize, resizeStart.objH - dy);
+            } else if (resizeHandle === 'ne') {
+                newY = resizeStart.objY + dy;
+                newW = Math.max(minSize, resizeStart.objW + dx);
+                newH = Math.max(minSize, resizeStart.objH - dy);
+            } else if (resizeHandle === 'sw') {
+                newX = resizeStart.objX + dx;
+                newW = Math.max(minSize, resizeStart.objW - dx);
+                newH = Math.max(minSize, resizeStart.objH + dy);
+            } else if (resizeHandle === 'se') {
+                newW = Math.max(minSize, resizeStart.objW + dx);
+                newH = Math.max(minSize, resizeStart.objH + dy);
+            }
+
+            // Create a scaled version of the image
+            const offscreen = document.createElement('canvas');
+            offscreen.width = Math.round(newW);
+            offscreen.height = Math.round(newH);
+            const offCtx = offscreen.getContext('2d');
+            if (offCtx) {
+                offCtx.drawImage(resizingObject.image, 0, 0, Math.round(newW), Math.round(newH));
+                const resizedImg = new window.Image();
+                resizedImg.src = offscreen.toDataURL('image/png');
+                resizedImg.onload = () => {
+                    setCanvasObjects(prev => prev.map(obj =>
+                        obj.id === resizingObject.id ? { ...obj, image: resizedImg, x: newX, y: newY } : obj
+                    ));
+                    setSelectedObject(prev => prev?.id === resizingObject.id ? { ...prev, image: resizedImg, x: newX, y: newY } : prev);
+                };
+            }
             return;
         }
 
@@ -1215,78 +1129,39 @@ export default function CanvasEditor(props: CanvasEditorProps) {
         if (cropMode && cropDragHandle && cropDragStart && cropRect) {
             const dx = (x - cropDragStart.x) / scale;
             const dy = (y - cropDragStart.y) / scale;
-
             const newRect = { ...cropRect };
-
             switch (cropDragHandle) {
-                case 'move':
-                    newRect.x = cropDragStart.rectX + dx;
-                    newRect.y = cropDragStart.rectY + dy;
-                    break;
-                case 'nw':
-                    newRect.x = cropDragStart.rectX + dx;
-                    newRect.y = cropDragStart.rectY + dy;
-                    newRect.w = cropDragStart.rectW - dx;
-                    newRect.h = cropDragStart.rectH - dy;
-                    break;
-                case 'ne':
-                    newRect.y = cropDragStart.rectY + dy;
-                    newRect.w = cropDragStart.rectW + dx;
-                    newRect.h = cropDragStart.rectH - dy;
-                    break;
-                case 'sw':
-                    newRect.x = cropDragStart.rectX + dx;
-                    newRect.w = cropDragStart.rectW - dx;
-                    newRect.h = cropDragStart.rectH + dy;
-                    break;
-                case 'se':
-                    newRect.w = cropDragStart.rectW + dx;
-                    newRect.h = cropDragStart.rectH + dy;
-                    break;
-                case 'n':
-                    newRect.y = cropDragStart.rectY + dy;
-                    newRect.h = cropDragStart.rectH - dy;
-                    break;
-                case 's':
-                    newRect.h = cropDragStart.rectH + dy;
-                    break;
-                case 'w':
-                    newRect.x = cropDragStart.rectX + dx;
-                    newRect.w = cropDragStart.rectW - dx;
-                    break;
-                case 'e':
-                    newRect.w = cropDragStart.rectW + dx;
-                    break;
+                case 'move': newRect.x = cropDragStart.rectX + dx; newRect.y = cropDragStart.rectY + dy; break;
+                case 'nw': newRect.x = cropDragStart.rectX + dx; newRect.y = cropDragStart.rectY + dy; newRect.w = cropDragStart.rectW - dx; newRect.h = cropDragStart.rectH - dy; break;
+                case 'ne': newRect.y = cropDragStart.rectY + dy; newRect.w = cropDragStart.rectW + dx; newRect.h = cropDragStart.rectH - dy; break;
+                case 'sw': newRect.x = cropDragStart.rectX + dx; newRect.w = cropDragStart.rectW - dx; newRect.h = cropDragStart.rectH + dy; break;
+                case 'se': newRect.w = cropDragStart.rectW + dx; newRect.h = cropDragStart.rectH + dy; break;
+                case 'n': newRect.y = cropDragStart.rectY + dy; newRect.h = cropDragStart.rectH - dy; break;
+                case 's': newRect.h = cropDragStart.rectH + dy; break;
+                case 'w': newRect.x = cropDragStart.rectX + dx; newRect.w = cropDragStart.rectW - dx; break;
+                case 'e': newRect.w = cropDragStart.rectW + dx; break;
             }
-
-            // Enforce minimum size
             if (newRect.w < 50) newRect.w = 50;
             if (newRect.h < 50) newRect.h = 50;
-
             setCropRect(newRect);
             return;
         }
 
         if (isDragging) {
-            const dx = e.clientX - lastPanPoint.x;
-            const dy = e.clientY - lastPanPoint.y;
+            const dx = clientX - lastPanPoint.x;
+            const dy = clientY - lastPanPoint.y;
             setPanX((prev) => prev + dx);
             setPanY((prev) => prev + dy);
-            setLastPanPoint({ x: e.clientX, y: e.clientY });
+            setLastPanPoint({ x: clientX, y: clientY });
             return;
         }
 
         if (draggedObject) {
-            // Move object with cursor in select mode
             const newX = (x - dragOffset.x - panX) / scale;
             const newY = (y - dragOffset.y - panY) / scale;
-
-            // Update object position immutably
-            setCanvasObjects(prev => 
-                prev.map(obj => 
-                    obj.id === draggedObject.id
-                        ? { ...obj, x: newX, y: newY }
-                        : obj
+            setCanvasObjects(prev =>
+                prev.map(obj =>
+                    obj.id === draggedObject.id ? { ...obj, x: newX, y: newY } : obj
                 )
             );
             return;
@@ -1300,33 +1175,91 @@ export default function CanvasEditor(props: CanvasEditorProps) {
         }
     };
 
-    const handleMouseUp = async () => {
-        // Clear crop drag state
-        if (cropDragHandle) {
-            setCropDragHandle(null);
-            setCropDragStart(null);
-        }
+    const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
+        if (!canvas) return;
+        const rect = canvas.getBoundingClientRect();
+        handlePointerMove(e.clientX - rect.left, e.clientY - rect.top, e.clientX, e.clientY);
+    };
 
+    const handleMouseUp = () => {
+        if (cropDragHandle) { setCropDragHandle(null); setCropDragStart(null); }
+        if (resizingObject) { setResizingObject(null); setResizeHandle(null); setResizeStart(null); }
         setIsDragging(false);
-        if (isPainting) {
-            setIsPainting(false);
-        }
-        if (draggedObject) {
-            setDraggedObject(null);
+        if (isPainting) setIsPainting(false);
+        if (draggedObject) setDraggedObject(null);
+    };
+
+    // Touch event handlers
+    const handleTouchStart = (e: React.TouchEvent<HTMLCanvasElement>) => {
+        e.preventDefault();
+        if (!canvas) return;
+        const rect = canvas.getBoundingClientRect();
+
+        if (e.touches.length === 2) {
+            // Two-finger pan start — store midpoint as last pan point
+            const t0 = e.touches[0]; const t1 = e.touches[1];
+            setIsDragging(true);
+            setLastPanPoint({ x: (t0.clientX + t1.clientX) / 2, y: (t0.clientY + t1.clientY) / 2 });
+            return;
         }
 
-        if (currentTool === 'erase' && eraseSelection && !isGenerating) {
-            const rect = eraseSelection;
-            setEraseSelection(null);
+        const t = e.touches[0];
+        const x = t.clientX - rect.left;
+        const y = t.clientY - rect.top;
 
-            const minX = Math.min(rect.startX, rect.endX);
-            const minY = Math.min(rect.startY, rect.endY);
-            const maxX = Math.max(rect.startX, rect.endX);
-            const maxY = Math.max(rect.startY, rect.endY);
-            if (maxX - minX >= 2 && maxY - minY >= 2) {
-                await runEraseWithSelection(rect);
+        // Resize handle?
+        if (currentTool === 'select' && selectedObject && !selectedObject.isMainImage) {
+            const rHandle = getResizeHandleAtPoint(x, y, selectedObject);
+            if (rHandle) {
+                setResizeHandle(rHandle);
+                setResizingObject(selectedObject);
+                setResizeStart({ mouseX: x, mouseY: y, objX: selectedObject.x, objY: selectedObject.y, objW: selectedObject.image.width, objH: selectedObject.image.height });
+                return;
             }
         }
+
+        const clickedObject = getObjectAtPoint(x, y);
+        if (clickedObject) {
+            setSelectedObject(clickedObject);
+            if (currentTool === 'retouch' && clickedObject === selectedObject) {
+                const imagePos = screenToObjectCoordinates(x, y, clickedObject);
+                if (isPointInObject(imagePos.x, imagePos.y, clickedObject)) {
+                    setIsPainting(true);
+                    startNewLine(imagePos.x, imagePos.y, clickedObject.id);
+                }
+            } else if (currentTool === 'select') {
+                setDraggedObject(clickedObject);
+                setDragOffset({ x: x - (panX + clickedObject.x * scale), y: y - (panY + clickedObject.y * scale) });
+            }
+        } else {
+            setSelectedObject(null);
+        }
+    };
+
+    const handleTouchMove = (e: React.TouchEvent<HTMLCanvasElement>) => {
+        e.preventDefault();
+        if (!canvas) return;
+        const rect = canvas.getBoundingClientRect();
+
+        if (e.touches.length === 2) {
+            const t0 = e.touches[0]; const t1 = e.touches[1];
+            const midX = (t0.clientX + t1.clientX) / 2;
+            const midY = (t0.clientY + t1.clientY) / 2;
+            const dx = midX - lastPanPoint.x;
+            const dy = midY - lastPanPoint.y;
+            setPanX(prev => prev + dx);
+            setPanY(prev => prev + dy);
+            setLastPanPoint({ x: midX, y: midY });
+            return;
+        }
+
+        const t = e.touches[0];
+        handlePointerMove(t.clientX - rect.left, t.clientY - rect.top, t.clientX, t.clientY);
+    };
+
+    const handleTouchEnd = (e: React.TouchEvent<HTMLCanvasElement>) => {
+        e.preventDefault();
+        handleMouseUp();
     };
 
     // Add an image element to canvas, position at cursor if available, else center
@@ -1718,6 +1651,8 @@ export default function CanvasEditor(props: CanvasEditorProps) {
 
         // Start erasing immediately without confirmation
         setIsGenerating(true);
+        setGeneratingType('erase');
+        startGenTimer();
         debug.log('[Erase] Starting erase with strokes', {
             strokeCount: relevant.length,
             points: relevant.reduce((a, l) => a + l.points.length / 2, 0),
@@ -1820,6 +1755,8 @@ export default function CanvasEditor(props: CanvasEditorProps) {
             );
         } finally {
             setIsGenerating(false);
+            setGeneratingType(null);
+            stopGenTimer();
             debug.log('[Erase] Finished');
         }
     };
@@ -1844,6 +1781,8 @@ export default function CanvasEditor(props: CanvasEditorProps) {
         }
 
         setIsGenerating(true);
+        setGeneratingType('ai-edit');
+        startGenTimer();
         debug.log('[AI Edit] Starting', { prompt: userPrompt });
 
         try {
@@ -1960,6 +1899,8 @@ export default function CanvasEditor(props: CanvasEditorProps) {
             );
         } finally {
             setIsGenerating(false);
+            setGeneratingType(null);
+            stopGenTimer();
             debug.log('[AI Edit] Finished');
         }
     };
@@ -2002,6 +1943,8 @@ export default function CanvasEditor(props: CanvasEditorProps) {
 
             // Start generation immediately without confirmation
             setIsGenerating(true);
+            setGeneratingType('replace-text');
+            startGenTimer();
             debug.log('[ReplaceText] Starting with strokes', {
                 strokeCount: relevant.length,
             });
@@ -2144,153 +2087,9 @@ export default function CanvasEditor(props: CanvasEditorProps) {
             );
         } finally {
             setIsGenerating(false);
+            setGeneratingType(null);
+            stopGenTimer();
             debug.log('[ReplaceText] Finished');
-        }
-    };
-
-    const handleGenerate = async () => {
-        if (!selectedObject) {
-            showAlert(
-                'No Selection',
-                'Please select an image first.',
-                'warning',
-            );
-            debug.log('[AI Generate] No selected object');
-            return;
-        }
-
-        const relevant = lines.filter((l) => l.objectId === selectedObject.id);
-        if (relevant.length === 0) {
-            showAlert(
-                'No Mask',
-                'Please paint over the areas you want to regenerate.',
-                'warning',
-            );
-            debug.log('[AI Generate] No mask/brush strokes found');
-            return;
-        }
-
-        try {
-            const prompt = await showPrompt(
-                'AI Generation',
-                'Describe what you want to generate in the masked area:',
-                'e.g., "a red sports car", "mountains in the background"...',
-                '',
-            );
-
-            if (!prompt) {
-                debug.log('[AI Generate] Prompt cancelled by user');
-                return;
-            }
-
-            // Start generation immediately without confirmation
-            setIsGenerating(true);
-            debug.log('[AI Generate] Starting generation...');
-
-            // Create mask
-            const maskCanvas = createMaskCanvas(selectedObject);
-            if (!maskCanvas) {
-                console.error('[AI Generate] Failed to create mask');
-                throw new Error('Failed to create mask');
-            }
-
-            // Convert images to base64
-            const originalImage = imageToDataUrl(selectedObject.image);
-            const maskImage = maskCanvas.toDataURL('image/png');
-
-            debug.log('[AI Generate] Sending API request...', {
-                prompt,
-                originalImageLength: originalImage.length,
-                maskImageLength: maskImage.length,
-            });
-
-            // Make API call
-            const response = await fetch('/api/generate-with-mask', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN':
-                        document
-                            .querySelector('meta[name="csrf-token"]')
-                            ?.getAttribute('content') || '',
-                },
-                body: JSON.stringify({
-                    originalImage,
-                    mask: maskImage,
-                    prompt,
-                    brushStrokes: relevant,
-                    imageSize: {
-                        width: selectedObject.image.width,
-                        height: selectedObject.image.height,
-                    },
-                }),
-            });
-
-            debug.log('[AI Generate] API response status:', response.status);
-            if (!response.ok) {
-                console.error('[AI Generate] API error:', response.statusText);
-                throw new Error(`API error: ${response.statusText}`);
-            }
-
-            const result = await response.json();
-            debug.log('[AI Generate] API result:', result);
-
-            // Display generated result
-            if (result.generatedImage) {
-                debug.log('[AI Generate] Received generated image, loading...');
-                const newImage = new Image();
-                newImage.onload = () => {
-                    debug.log(
-                        '[AI Generate] New image loaded, updating canvas...',
-                    );
-                    // Replace selected object's image
-                    const objIndex = canvasObjects.findIndex(
-                        (obj) => obj.id === selectedObject.id,
-                    );
-                    if (objIndex !== -1) {
-                        const updatedObjects = [...canvasObjects];
-                        updatedObjects[objIndex] = {
-                            ...updatedObjects[objIndex],
-                            image: newImage,
-                        };
-                        setCanvasObjects(updatedObjects);
-                        setSelectedObject(updatedObjects[objIndex]);
-
-                        // Clear brush strokes for this object
-                        setLines(
-                            lines.filter(
-                                (l) => l.objectId !== selectedObject.id,
-                            ),
-                        );
-                    } else {
-                        console.error(
-                            '[AI Generate] Selected object not found in canvasObjects',
-                        );
-                    }
-                };
-                newImage.onerror = (e) => {
-                    console.error(
-                        '[AI Generate] Error loading generated image',
-                        e,
-                    );
-                };
-                newImage.src = result.generatedImage;
-            } else {
-                console.error('[AI Generate] No generatedImage in API result');
-            }
-        } catch (error) {
-            if (error === null) return; // User cancelled
-            console.error('[AI Generate] Generate error:', error);
-            showAlert(
-                'Error',
-                error instanceof Error
-                    ? error.message
-                    : 'Failed to generate image',
-                'error',
-            );
-        } finally {
-            setIsGenerating(false);
-            debug.log('[AI Generate] Generation finished');
         }
     };
 
@@ -2360,6 +2159,7 @@ export default function CanvasEditor(props: CanvasEditorProps) {
         setCropRect(null);
         setGeneratingType('crop');
         setIsGenerating(true);
+        startGenTimer();
 
         try {
             const imageDataUrl = imageToDataUrl(target.image);
@@ -2388,11 +2188,13 @@ export default function CanvasEditor(props: CanvasEditorProps) {
                     showAlert('Success', result.mode === 'crop' ? 'Image cropped.' : 'Canvas expanded with AI.', 'info', 'crop');
                     setIsGenerating(false);
                     setGeneratingType(null);
+                    stopGenTimer();
                 };
                 outImg.onerror = () => {
                     showAlert('Error', 'Failed to load processed image', 'error', 'crop');
                     setIsGenerating(false);
                     setGeneratingType(null);
+                    stopGenTimer();
                 };
                 outImg.src = result.resultImage;
             }
@@ -2400,6 +2202,7 @@ export default function CanvasEditor(props: CanvasEditorProps) {
             showAlert('Error', error instanceof Error ? error.message : 'Failed to crop/resize', 'error', 'crop');
             setIsGenerating(false);
             setGeneratingType(null);
+            stopGenTimer();
         }
     };
 
@@ -2420,6 +2223,7 @@ export default function CanvasEditor(props: CanvasEditorProps) {
         setCropRect(null);
         setGeneratingType('expand');
         setIsGenerating(true);
+        startGenTimer();
 
         try {
             // Build a black-filled expanded canvas image
@@ -2519,6 +2323,7 @@ export default function CanvasEditor(props: CanvasEditorProps) {
         } finally {
             setIsGenerating(false);
             setGeneratingType(null);
+            stopGenTimer();
         }
     };
 
@@ -2572,6 +2377,7 @@ export default function CanvasEditor(props: CanvasEditorProps) {
         setUpscaleModal({ isOpen: false, selectedFactor: factor });
         setGeneratingType('upscale');
         setIsGenerating(true);
+        startGenTimer();
         debug.log('[Upscale] Starting FAL AI upscale', { factor, creditCost });
 
         try {
@@ -2705,6 +2511,7 @@ export default function CanvasEditor(props: CanvasEditorProps) {
                 showAlert('Success', `Upscaled ${factor}x! ${creditCost} ${creditCost === 1 ? 'credit' : 'credits'} deducted.`, 'info', 'upscale');
                 setIsGenerating(false);
                 setGeneratingType(null);
+                stopGenTimer();
             };
             
             newImage.onerror = () => {
@@ -2713,6 +2520,7 @@ export default function CanvasEditor(props: CanvasEditorProps) {
                 showAlert('Error', 'Failed to load upscaled image', 'error', 'upscale');
                 setIsGenerating(false);
                 setGeneratingType(null);
+                stopGenTimer();
             };
 
             // Set timeout for image loading (10 seconds)
@@ -2721,6 +2529,7 @@ export default function CanvasEditor(props: CanvasEditorProps) {
                 showAlert('Error', 'Image loading timed out', 'error', 'upscale');
                 setIsGenerating(false);
                 setGeneratingType(null);
+                stopGenTimer();
             }, 10000);
 
             debug.log('[Upscale] Setting image source', { imageUrl: imageUrl.substring(0, 50) + '...' });
@@ -2731,6 +2540,7 @@ export default function CanvasEditor(props: CanvasEditorProps) {
             showAlert('Error', errorMessage, 'error', 'upscale');
             setIsGenerating(false);
             setGeneratingType(null);
+            stopGenTimer();
         }
     };
 
@@ -2749,6 +2559,7 @@ export default function CanvasEditor(props: CanvasEditorProps) {
 
         setGeneratingType('remove-bg');
         setIsGenerating(true);
+        startGenTimer();
         setUndoStack((prev) => {
             const newStack = [...prev, lines];
             return newStack.length > CANVAS_DEFAULTS.UNDO_LIMIT ? newStack.slice(1) : newStack;
@@ -2792,12 +2603,14 @@ export default function CanvasEditor(props: CanvasEditorProps) {
                     // Clear loading states after image loads
                     setIsGenerating(false);
                     setGeneratingType(null);
+                    stopGenTimer();
                 };
                 processedImg.onerror = (e) => {
                     console.error('[Remove Background] Error loading processed image:', e);
                     showAlert('Error', 'Failed to load processed image', 'error', 'remove-bg');
                     setIsGenerating(false);
                     setGeneratingType(null);
+                    stopGenTimer();
                 };
                 processedImg.src = result.processedImage;
             } else {
@@ -2808,30 +2621,71 @@ export default function CanvasEditor(props: CanvasEditorProps) {
             showAlert('Error', error instanceof Error ? error.message : 'Failed to remove background', 'error', 'remove-bg');
             setIsGenerating(false);
             setGeneratingType(null);
+            stopGenTimer();
         }
     };
 
-    const applyChanges = () => {
-        showAlert('Coming Soon', 'Apply changes functionality will be implemented soon.', 'info');
+    const applyChanges = async () => {
+        const target = selectedObject || canvasObjects.find(o => o.isMainImage);
+        if (!target) {
+            showAlert('No Image', 'No image to apply. Please select an image first.', 'warning');
+            return;
+        }
+        if (!projectId) {
+            showAlert('No Project', 'This editor was opened without a project. Use Download instead.', 'warning');
+            return;
+        }
+        // Find the imageId from the URL param (passed as prop / query param)
+        const imageId = new URLSearchParams(window.location.search).get('imageId');
+        if (!imageId) {
+            showAlert('No Image ID', 'Cannot save — no image ID found in the URL. Use Download instead.', 'warning');
+            return;
+        }
+        let canvasData: string;
+        try {
+            const offscreen = document.createElement('canvas');
+            offscreen.width = target.image.width;
+            offscreen.height = target.image.height;
+            const offCtx = offscreen.getContext('2d');
+            if (!offCtx) throw new Error('Could not create canvas context');
+            offCtx.drawImage(target.image, 0, 0);
+            canvasData = offscreen.toDataURL('image/png');
+        } catch {
+            showAlert('Error', 'Could not read the image (CORS). Try downloading instead.', 'error');
+            return;
+        }
+        const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+        try {
+            const res = await fetch(`/projects/${projectId}/images/${imageId}/save-edit`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrf },
+                body: JSON.stringify({ canvas_data: canvasData, create_new: false }),
+            });
+            if (!res.ok) throw new Error(`Server error ${res.status}`);
+            showAlert('Saved', 'Image saved back to project successfully!', 'info');
+            setTimeout(() => { if (projectId) router.visit(`/projects/${projectId}`); }, 1500);
+        } catch (err) {
+            showAlert('Error', err instanceof Error ? err.message : 'Failed to save', 'error');
+        }
     };
 
     const downloadImage = () => {
-        if (canvasObjects.length === 0) return;
-        const mainImage = canvasObjects.find((obj) => obj.isMainImage);
-        if (!mainImage) return;
-
-        const exportCanvas = document.createElement('canvas');
-        exportCanvas.width = mainImage.image.width;
-        exportCanvas.height = mainImage.image.height;
-        const exportCtx = exportCanvas.getContext('2d');
-        if (!exportCtx) return;
-
-        exportCtx.drawImage(mainImage.image, 0, 0);
-
-        const link = document.createElement('a');
-        link.download = 'edited-image.png';
-        link.href = exportCanvas.toDataURL();
-        link.click();
+        const target = selectedObject || canvasObjects.find((obj) => obj.isMainImage);
+        if (!target) return;
+        try {
+            const exportCanvas = document.createElement('canvas');
+            exportCanvas.width = target.image.width;
+            exportCanvas.height = target.image.height;
+            const exportCtx = exportCanvas.getContext('2d');
+            if (!exportCtx) return;
+            exportCtx.drawImage(target.image, 0, 0);
+            const link = document.createElement('a');
+            link.download = `${target.label || 'image'}-${Date.now()}.png`;
+            link.href = exportCanvas.toDataURL();
+            link.click();
+        } catch {
+            showAlert('Error', 'Could not download — CORS restriction. Try uploading the image locally first.', 'error');
+        }
     };
 
     const closeEditor = () => {
@@ -3112,7 +2966,7 @@ export default function CanvasEditor(props: CanvasEditorProps) {
                     }}
                 >
                     {/* Skeleton beside original image when generating enhancements */}
-                    {isGenerating && generatingType && selectedObject && (
+                    {isGenerating && generatingType && selectedObject && !['erase', 'ai-edit', 'replace-text'].includes(generatingType) && (
                         <div
                             style={{
                                 position: 'absolute',
@@ -3151,6 +3005,11 @@ export default function CanvasEditor(props: CanvasEditorProps) {
                                 {generatingType === 'upscale' && 'Upscaling...'}
                                 {generatingType === 'remove-bg' && 'Removing background...'}
                                 {generatingType === 'crop' && 'Resizing canvas...'}
+                                {genElapsedSecs > 0 && (
+                                    <span style={{ display: 'block', fontSize: '11px', opacity: 0.65, marginTop: '2px' }}>
+                                        {genElapsedSecs}s
+                                    </span>
+                                )}
                             </div>
                         </div>
                     )}
@@ -3187,6 +3046,55 @@ export default function CanvasEditor(props: CanvasEditorProps) {
                                 <div className="space-y-2">
                                     <Skeleton className="h-4 w-48" />
                                     <Skeleton className="h-3 w-36" />
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Overlay for AI brush-based operations (erase / ai-edit / replace-text) */}
+                    {isGenerating && generatingType && ['erase', 'ai-edit', 'replace-text'].includes(generatingType) && (
+                        <div
+                            style={{
+                                position: 'absolute',
+                                top: 0,
+                                left: 0,
+                                width: '100%',
+                                height: '100%',
+                                zIndex: 1000,
+                                background: 'color-mix(in oklab, var(--color-background) 65%, transparent)',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                            }}
+                        >
+                            <div
+                                style={{
+                                    display: 'flex',
+                                    flexDirection: 'column',
+                                    alignItems: 'center',
+                                    gap: '16px',
+                                    background: 'var(--color-card)',
+                                    padding: '32px 40px',
+                                    borderRadius: '16px',
+                                    boxShadow: '0 8px 24px rgba(0, 0, 0, 0.12)',
+                                    minWidth: '220px',
+                                }}
+                            >
+                                <Skeleton className="w-24 h-24 rounded-xl" />
+                                <div style={{ textAlign: 'center' }}>
+                                    <div style={{ fontWeight: 600, fontSize: '14px', color: 'var(--color-foreground)' }}>
+                                        {generatingType === 'erase' && 'Erasing...'}
+                                        {generatingType === 'ai-edit' && 'Applying AI Edit...'}
+                                        {generatingType === 'replace-text' && 'Replacing Text...'}
+                                    </div>
+                                    {genElapsedSecs > 0 && (
+                                        <div style={{ fontSize: '12px', opacity: 0.6, marginTop: '4px' }}>
+                                            {genElapsedSecs}s elapsed
+                                        </div>
+                                    )}
+                                    <div style={{ fontSize: '12px', opacity: 0.5, marginTop: '4px' }}>
+                                        This may take up to a minute
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -3634,8 +3542,48 @@ export default function CanvasEditor(props: CanvasEditorProps) {
                             position: 'relative',
                             overflow: 'hidden',
                             background: 'var(--color-muted)',
+                            border: isDragOver ? '2px dashed var(--color-primary)' : '2px solid transparent',
+                            borderRadius: isDragOver ? '8px' : undefined,
+                            transition: 'border 0.15s ease',
+                        }}
+                        onDragOver={(e) => { e.preventDefault(); setIsDragOver(true); }}
+                        onDragLeave={() => setIsDragOver(false)}
+                        onDrop={(e) => {
+                            e.preventDefault();
+                            setIsDragOver(false);
+                            const file = e.dataTransfer.files[0];
+                            if (file && file.type.startsWith('image/')) {
+                                const url = URL.createObjectURL(file);
+                                const img = new Image();
+                                img.onload = () => {
+                                    const id = `obj-${Date.now()}`;
+                                    const newObj: CanvasObject = {
+                                        id,
+                                        image: img,
+                                        x: 50,
+                                        y: 50,
+                                        isMainImage: canvasObjects.length === 0,
+                                        label: file.name.replace(/\.[^/.]+$/, ''),
+                                    };
+                                    setCanvasObjects(prev => [...prev, newObj]);
+                                    setSelectedObject(newObj);
+                                };
+                                img.src = url;
+                            }
                         }}
                     >
+                        {isDragOver && (
+                            <div style={{
+                                position: 'absolute', inset: 0, zIndex: 2000, pointerEvents: 'none',
+                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                background: 'color-mix(in oklab, var(--color-primary) 10%, transparent)',
+                                borderRadius: '6px',
+                            }}>
+                                <div style={{ background: 'var(--color-card)', padding: '24px 40px', borderRadius: '12px', fontWeight: 600, fontSize: '15px', color: 'var(--color-primary)', boxShadow: '0 4px 16px rgba(0,0,0,0.12)' }}>
+                                    Drop image here
+                                </div>
+                            </div>
+                        )}
                         <div
                             style={{
                                 width: '100%',
@@ -3650,9 +3598,13 @@ export default function CanvasEditor(props: CanvasEditorProps) {
                                 onMouseMove={handleMouseMove}
                                 onMouseUp={handleMouseUp}
                                 onWheel={handleWheel}
+                                onTouchStart={handleTouchStart}
+                                onTouchMove={handleTouchMove}
+                                onTouchEnd={handleTouchEnd}
                                 style={{
                                     display: showUploadZone ? 'none' : 'block',
                                     cursor: getCursorStyle(),
+                                    touchAction: 'none',
                                 }}
                             />
 
