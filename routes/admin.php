@@ -4,16 +4,44 @@ use App\Http\Controllers\Admin\AdminDashboardController;
 use Illuminate\Support\Facades\Route;
 
 Route::middleware(['auth', 'verified', 'admin'])->prefix('admin')->name('admin.')->group(function () {
-    // Admin Dashboard
+
+    // ── Dashboard ────────────────────────────────────────────────
     Route::get('/', [AdminDashboardController::class, 'index'])->name('dashboard');
-    
-    // User Management
+
+    // ── Users ────────────────────────────────────────────────────
     Route::get('/users', [AdminDashboardController::class, 'users'])->name('users');
-    Route::post('/users/{id}/suspend', [AdminDashboardController::class, 'suspendUser'])->name('users.suspend');
-    Route::post('/users/{id}/reactivate', [AdminDashboardController::class, 'reactivateUser'])->name('users.reactivate');
-    Route::put('/users/{id}/tier', [AdminDashboardController::class, 'updateUserTier'])->name('users.tier');
-    Route::delete('/users/{id}', [AdminDashboardController::class, 'deleteUser'])->name('users.delete');
-    
-    // Usage Monitoring
-    Route::get('/usage', [AdminDashboardController::class, 'usage'])->name('usage');
+    Route::put('/users/{user}', [AdminDashboardController::class, 'updateUser'])->name('users.update');
+    Route::post('/users/{user}/suspend', [AdminDashboardController::class, 'suspendUser'])->name('users.suspend');
+    Route::post('/users/{user}/reactivate', [AdminDashboardController::class, 'reactivateUser'])->name('users.reactivate');
+    Route::put('/users/{user}/tier', [AdminDashboardController::class, 'updateUserTier'])->name('users.tier');
+    Route::delete('/users/{user}', [AdminDashboardController::class, 'deleteUser'])->name('users.delete');
+    Route::post('/users/{user}/password-reset', [AdminDashboardController::class, 'sendPasswordReset'])->name('users.password-reset');
+
+    // ── Impersonation ────────────────────────────────────────────
+    Route::post('/users/{user}/impersonate', [AdminDashboardController::class, 'impersonateUser'])->name('users.impersonate');
+});
+
+// Stop-impersonation is outside admin middleware: the active user is the impersonated non-admin
+Route::middleware(['auth'])->post('/admin/impersonate/stop', [AdminDashboardController::class, 'stopImpersonation'])->name('admin.impersonate.stop');
+
+Route::middleware(['auth', 'verified', 'admin'])->prefix('admin')->name('admin.')->group(function () {
+
+    // ── Plans ────────────────────────────────────────────────────
+    Route::get('/plans', [AdminDashboardController::class, 'plans'])->name('plans');
+
+    // ── Subscriptions ────────────────────────────────────────────
+    Route::get('/subscriptions', [AdminDashboardController::class, 'subscriptions'])->name('subscriptions');
+    Route::post('/subscriptions/{subscription}/cancel', [AdminDashboardController::class, 'cancelSubscription'])->name('subscriptions.cancel');
+
+    // ── Credits ──────────────────────────────────────────────────
+    Route::get('/credits', [AdminDashboardController::class, 'credits'])->name('credits');
+    Route::post('/credits/{user}/adjust', [AdminDashboardController::class, 'adjustCredits'])->name('credits.adjust');
+
+    // ── Projects ─────────────────────────────────────────────────
+    Route::get('/projects', [AdminDashboardController::class, 'projects'])->name('projects');
+    Route::delete('/projects/{project}', [AdminDashboardController::class, 'deleteProject'])->name('projects.delete');
+
+    // ── Analytics ────────────────────────────────────────────────
+    Route::get('/analytics', [AdminDashboardController::class, 'analytics'])->name('analytics');
+    Route::get('/usage', [AdminDashboardController::class, 'usage'])->name('usage'); // legacy alias
 });

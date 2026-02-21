@@ -54,6 +54,14 @@ class HandleInertiaRequests extends Middleware
             ],
             // Backwards-compatible top-level error for existing pages expecting page.props.error
             'error' => session('error'),
+            // Impersonation state
+            'impersonating' => session('impersonating_user_id')
+                ? (function () use ($request) {
+                    $adminId = session('impersonating_user_id');
+                    $admin = \App\Models\User::find($adminId);
+                    return $admin ? ['id' => $admin->id, 'name' => $admin->name, 'email' => $admin->email] : null;
+                })()
+                : null,
         ];
     }
 }

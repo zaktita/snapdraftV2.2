@@ -1,168 +1,131 @@
-import { Card } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import AppLayout from '@/layouts/app-layout';
+import AdminLayout from '@/layouts/admin-layout';
 import { Head, Link } from '@inertiajs/react';
-import { Users, FolderOpen, Zap, DollarSign, Activity } from 'lucide-react';
+import { Users, FolderOpen, Zap, DollarSign, CreditCard, ShieldCheck, TrendingUp, Activity } from 'lucide-react';
 
-interface AdminDashboardProps {
+interface DashboardProps {
     stats: {
         total_users: number;
         active_users: number;
         suspended_users: number;
+        new_users_today: number;
+        new_users_this_month: number;
         total_projects: number;
         total_generations: number;
         successful_generations: number;
         failed_generations: number;
         total_cost: number;
+        active_subscriptions: number;
+        total_revenue: number;
+        revenue_this_month: number;
         subscription_breakdown: Record<string, number>;
     };
+    recent_users: { id: number; name: string; email: string; created_at: string; subscription_tier: string }[];
 }
 
-export default function AdminDashboard({ stats }: AdminDashboardProps) {
+function StatCard({ label, value, sub, Icon, color }: {
+    label: string; value: string | number; sub?: string;
+    Icon: React.ElementType; color: string;
+}) {
+    return (
+        <div className="rounded-xl bg-white p-5 shadow-sm ring-1 ring-gray-100">
+            <div className="flex items-start justify-between">
+                <div>
+                    <p className="text-xs font-medium uppercase tracking-wider text-gray-500">{label}</p>
+                    <p className="mt-1 text-2xl font-bold text-gray-900">{value}</p>
+                    {sub && <p className="mt-0.5 text-xs text-gray-400">{sub}</p>}
+                </div>
+                <div className={`rounded-lg p-2 ${color}`}>
+                    <Icon className="h-5 w-5 text-white" />
+                </div>
+            </div>
+        </div>
+    );
+}
+
+const TIER_COLORS: Record<string, string> = {
+    free: 'bg-gray-100 text-gray-700',
+    launch: 'bg-blue-100 text-blue-700',
+    growth: 'bg-orange-100 text-orange-700',
+    scale: 'bg-purple-100 text-purple-700',
+};
+
+export default function AdminDashboard({ stats, recent_users }: DashboardProps) {
     const successRate = stats.total_generations > 0
         ? ((stats.successful_generations / stats.total_generations) * 100).toFixed(1)
         : '0';
 
     return (
-        <AppLayout>
+        <AdminLayout title="Dashboard">
             <Head title="Admin Dashboard" />
+            <div className="space-y-6">
+                <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+                    <StatCard label="Total Users" value={stats.total_users}
+                        sub={`${stats.active_users} active this month`} Icon={Users} color="bg-indigo-500" />
+                    <StatCard label="Active Subscriptions" value={stats.active_subscriptions}
+                        sub={`${stats.new_users_this_month} new this month`} Icon={CreditCard} color="bg-emerald-500" />
+                    <StatCard label="Total Revenue" value={`$${Number(stats.total_revenue).toFixed(2)}`}
+                        sub={`$${Number(stats.revenue_this_month).toFixed(2)} this month`} Icon={DollarSign} color="bg-violet-500" />
+                    <StatCard label="Generations" value={stats.total_generations}
+                        sub={`${successRate}% success rate`} Icon={Zap} color="bg-amber-500" />
+                </div>
+                <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+                    <StatCard label="Total Projects" value={stats.total_projects} Icon={FolderOpen} color="bg-sky-500" />
+                    <StatCard label="Suspended" value={stats.suspended_users} Icon={ShieldCheck} color="bg-red-500" />
+                    <StatCard label="New Today" value={stats.new_users_today} Icon={TrendingUp} color="bg-teal-500" />
+                    <StatCard label="AI Cost" value={`$${Number(stats.total_cost).toFixed(4)}`}
+                        sub="total generation cost" Icon={Activity} color="bg-pink-500" />
+                </div>
 
-            <div className="min-h-screen bg-background p-8">
-                <div className="mx-auto max-w-7xl">
-                    {/* Header */}
-                    <div className="mb-8">
-                        <h1 className="text-3xl font-semibold">Admin Dashboard</h1>
-                        <p className="text-muted-foreground mt-2">Monitor and manage SnapDraft platform</p>
-                    </div>
-
-                    {/* Quick Stats */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-                        <div className="rounded-lg bg-muted/40 p-6">
-                            <div className="flex items-center justify-between">
-                                <div>
-                                    <p className="text-sm text-muted-foreground">Total Users</p>
-                                    <p className="text-3xl font-semibold mt-2">{stats.total_users}</p>
-                                    <p className="text-sm text-muted-foreground mt-1">
-                                        {stats.active_users} active
-                                    </p>
+                <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+                    <div className="rounded-xl bg-white p-5 shadow-sm ring-1 ring-gray-100">
+                        <h2 className="mb-4 text-sm font-semibold text-gray-700">Subscription Breakdown</h2>
+                        <div className="space-y-2.5">
+                            {Object.entries(stats.subscription_breakdown).map(([tier, count]) => (
+                                <div key={tier} className="flex items-center justify-between">
+                                    <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium capitalize ${TIER_COLORS[tier] ?? 'bg-gray-100 text-gray-700'}`}>{tier}</span>
+                                    <span className="text-sm font-bold text-gray-900">{count}</span>
                                 </div>
-                                <Users className="h-12 w-12 text-muted-foreground" />
-                            </div>
-                        </div>
-
-                        <div className="rounded-lg bg-muted/40 p-6">
-                            <div className="flex items-center justify-between">
-                                <div>
-                                    <p className="text-sm text-muted-foreground">Total Projects</p>
-                                    <p className="text-3xl font-semibold mt-2">{stats.total_projects}</p>
-                                </div>
-                                <FolderOpen className="h-12 w-12 text-muted-foreground" />
-                            </div>
-                        </div>
-
-                        <div className="rounded-lg bg-muted/40 p-6">
-                            <div className="flex items-center justify-between">
-                                <div>
-                                    <p className="text-sm text-muted-foreground">Generations</p>
-                                    <p className="text-3xl font-semibold mt-2">{stats.total_generations}</p>
-                                    <p className="text-sm text-muted-foreground mt-1">
-                                        {successRate}% success rate
-                                    </p>
-                                </div>
-                                <Zap className="h-12 w-12 text-muted-foreground" />
-                            </div>
-                        </div>
-
-                        <div className="rounded-lg bg-muted/40 p-6">
-                            <div className="flex items-center justify-between">
-                                <div>
-                                    <p className="text-sm text-muted-foreground">Total Cost</p>
-                                    <p className="text-3xl font-semibold mt-2">
-                                        ${stats.total_cost.toFixed(2)}
-                                    </p>
-                                </div>
-                                <DollarSign className="h-12 w-12 text-muted-foreground" />
-                            </div>
+                            ))}
                         </div>
                     </div>
 
-                    {/* Subscription Breakdown */}
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-                        <div className="rounded-lg bg-muted/40 p-6">
-                            <h3 className="text-lg font-semibold mb-4">Subscription Tiers</h3>
-                            <div className="space-y-4">
-                                <div className="flex items-center justify-between">
-                                    <span className="text-muted-foreground">Free</span>
-                                    <span className="text-2xl font-semibold">{stats.subscription_breakdown.free || 0}</span>
-                                </div>
-                                <div className="flex items-center justify-between">
-                                    <span className="text-muted-foreground">Pro</span>
-                                    <span className="text-2xl font-semibold">{stats.subscription_breakdown.pro || 0}</span>
-                                </div>
-                                <div className="flex items-center justify-between">
-                                    <span className="text-muted-foreground">Enterprise</span>
-                                    <span className="text-2xl font-semibold">{stats.subscription_breakdown.enterprise || 0}</span>
-                                </div>
-                            </div>
+                    <div className="rounded-xl bg-white p-5 shadow-sm ring-1 ring-gray-100">
+                        <div className="mb-4 flex items-center justify-between">
+                            <h2 className="text-sm font-semibold text-gray-700">Recent Sign-ups</h2>
+                            <Link href="/admin/users" className="text-xs text-indigo-600 hover:underline">View all</Link>
                         </div>
-
-                        <div className="rounded-lg bg-muted/40 p-6">
-                            <h3 className="text-lg font-semibold mb-4">Generation Stats</h3>
-                            <div className="space-y-4">
-                                <div className="flex items-center justify-between">
-                                    <span className="text-muted-foreground">Successful</span>
-                                    <span className="text-2xl font-semibold">{stats.successful_generations}</span>
+                        <div className="space-y-2.5">
+                            {recent_users.map((u) => (
+                                <div key={u.id} className="flex items-center justify-between">
+                                    <div>
+                                        <p className="text-sm font-medium text-gray-800">{u.name}</p>
+                                        <p className="text-xs text-gray-400">{u.email}</p>
+                                    </div>
+                                    <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium capitalize ${TIER_COLORS[u.subscription_tier] ?? 'bg-gray-100 text-gray-700'}`}>
+                                        {u.subscription_tier ?? 'free'}
+                                    </span>
                                 </div>
-                                <div className="flex items-center justify-between">
-                                    <span className="text-muted-foreground">Failed</span>
-                                    <span className="text-2xl font-semibold">{stats.failed_generations}</span>
-                                </div>
-                                <div className="flex items-center justify-between">
-                                    <span className="text-muted-foreground">Success Rate</span>
-                                    <span className="text-2xl font-semibold">{successRate}%</span>
-                                </div>
-                            </div>
+                            ))}
                         </div>
                     </div>
+                </div>
 
-                    {/* Quick Actions */}
-                    <div className="rounded-lg bg-muted/40 p-6">
-                        <h3 className="text-lg font-semibold mb-4">Quick Actions</h3>
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                            <Button asChild className="w-full">
-                                <Link href="/admin/users">
-                                    <Users className="h-4 w-4 mr-2" />
-                                    Manage Users
-                                </Link>
-                            </Button>
-                            <Button asChild variant="outline" className="w-full">
-                                <Link href="/admin/usage">
-                                    <Activity className="h-4 w-4 mr-2" />
-                                    View Usage
-                                </Link>
-                            </Button>
-                            <Button asChild variant="outline" className="w-full">
-                                <Link href="/projects">
-                                    <FolderOpen className="h-4 w-4 mr-2" />
-                                    View Projects
-                                </Link>
-                            </Button>
-                        </div>
-                    </div>
-
-                    {/* Warnings */}
-                    {stats.suspended_users > 0 && (
-                        <div className="rounded-lg bg-destructive/10 p-6 mt-6">
-                            <div className="flex items-center gap-2">
-                                <Activity className="h-5 w-5 text-destructive" />
-                                <p className="text-destructive font-medium">
-                                    {stats.suspended_users} suspended user{stats.suspended_users > 1 ? 's' : ''} require attention
-                                </p>
-                            </div>
-                        </div>
-                    )}
+                <div className="flex flex-wrap gap-3">
+                    {[
+                        { href: '/admin/users', label: 'Manage Users' },
+                        { href: '/admin/subscriptions', label: 'Subscriptions' },
+                        { href: '/admin/credits', label: 'Credits' },
+                        { href: '/admin/plans', label: 'Plans' },
+                        { href: '/admin/projects', label: 'Projects' },
+                        { href: '/admin/analytics', label: 'Analytics' },
+                    ].map((l) => (
+                        <Link key={l.href} href={l.href}
+                            className="rounded-lg bg-indigo-50 px-4 py-2 text-sm font-medium text-indigo-700 transition hover:bg-indigo-100">
+                            {l.label}
+                        </Link>
+                    ))}
                 </div>
             </div>
-        </AppLayout>
+        </AdminLayout>
     );
 }

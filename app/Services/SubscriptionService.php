@@ -53,15 +53,16 @@ class SubscriptionService
             ];
         }
 
-        // Yearly price is 20% off (multiply monthly by 12 then apply discount)
-        $yearlyPrice = round($monthlyPlan->price * 12 * 0.8, 2);
-        $yearlySavings = round($monthlyPlan->price * 12 - $yearlyPrice, 2);
+        // Yearly price = monthly × 10 (2 months free)
+        $yearlyTotal = round($monthlyPlan->price * 10, 2);
+        $yearlySavings = round($monthlyPlan->price * 2, 2); // 2 months free
 
         return [
-            'monthly_price' => $monthlyPlan->price,
-            'yearly_price' => $yearlyPrice / 12, // Per month when billed yearly
-            'currency' => $monthlyPlan->currency,
-            'yearly_savings' => $yearlySavings,
+            'monthly_price'    => $monthlyPlan->price,
+            'yearly_price'     => round($yearlyTotal / 12, 2), // Per month when billed yearly
+            'yearly_total'     => $yearlyTotal,
+            'yearly_savings'   => $yearlySavings,
+            'currency'         => $monthlyPlan->currency,
         ];
     }
 
@@ -136,10 +137,10 @@ class SubscriptionService
     public static function getProcessingPriority(string $tier): int
     {
         return match($tier) {
-            'scale' => 1,      // Highest priority
-            'growth' => 2,     // High priority
-            'launch' => 3,     // Normal priority
-            default => 4,      // Normal priority (for free/unknown)
+            'scale', 'scale-plan' => 1,      // Highest priority
+            'growth', 'growth-plan' => 2,    // High priority
+            'launch', 'launch-plan' => 3,    // Normal priority
+            default => 4,                    // Normal priority (for free/unknown)
         };
     }
 
