@@ -71,13 +71,22 @@ class CSVWizardController extends Controller
                 $referencePaths[] = $uploadResult['url'];
             }
 
-            // Analyze brand DNA once and store in project settings
-            $brandAnalysis = $this->brandAnalyzer->analyze($referencePaths);
-            $project->update([
-                'settings' => array_merge($project->settings ?? [], [
-                    'brand_analysis' => $brandAnalysis,
-                ]),
-            ]);
+            // Analyze brand DNA once and store in project settings.
+            // Non-fatal: if the AI analysis fails, we log it and continue;
+            // images will still be generated using the raw reference images.
+            try {
+                $brandAnalysis = $this->brandAnalyzer->analyze($referencePaths);
+                $project->update([
+                    'settings' => array_merge($project->settings ?? [], [
+                        'brand_analysis' => $brandAnalysis,
+                    ]),
+                ]);
+            } catch (\Throwable $analysisError) {
+                Log::warning('CSVWizardController: brand analysis failed (non-fatal), continuing without brand DNA', [
+                    'project_id' => $project->id,
+                    'error' => $analysisError->getMessage(),
+                ]);
+            }
 
             // Upload product images if provided
             if ($request->hasFile('product_images')) {
@@ -382,7 +391,9 @@ class CSVWizardController extends Controller
         $header = null;
         $maxCellLength = 1000; // Maximum characters per cell
         $headerCount = 0;
-        $required = ['title', 'caption', 'description', 'format'];
+        // caption is optional — the job requires either caption OR description per row.
+        // format is optional — blank means AI decides.
+        $required = ['title', 'description'];
 
         if (($handle = fopen($filePath, 'r')) !== false) {
             while (($row = fgetcsv($handle, 1000, ',')) !== false) {
@@ -416,7 +427,7 @@ class CSVWizardController extends Controller
                     if (!empty($missing)) {
                         fclose($handle);
                         throw ValidationException::withMessages([
-                            'csv_file' => 'CSV must include columns: title, caption, description, format. Missing: ' . implode(', ', $missing),
+                            'csv_file' => 'CSV must include columns: title, description. Missing: ' . implode(', ', $missing),
                         ]);
                     }
 

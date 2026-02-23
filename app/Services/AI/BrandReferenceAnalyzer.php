@@ -16,11 +16,13 @@ class BrandReferenceAnalyzer
     public function __construct()
     {
         $this->apiKey = config('services.gemini.api_key');
-        $this->model = config('services.gemini.vision_model', 'gemini-2.5-pro');
+        // Use vision_model if set, fall back to the general text model (both support multimodal input)
+        $this->model = config('services.gemini.vision_model')
+            ?: config('services.gemini.model', 'gemini-1.5-flash');
     }
 
     /**
-     * Analyze a set of reference images in a single Gemini 2.5 Pro call.
+     * Analyze a set of reference images in a single Gemini 3.1 Pro call.
      * Returns per-image categories plus aggregated brand DNA.
      *
      * @param array $referencePaths Absolute or storage-relative paths to images

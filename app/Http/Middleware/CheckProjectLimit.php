@@ -16,6 +16,11 @@ class CheckProjectLimit
      */
     public function handle(Request $request, Closure $next): Response
     {
+        // Bypass limit checks in local/testing environments
+        if (app()->environment('local', 'testing')) {
+            return $next($request);
+        }
+
         $user = $request->user();
 
         if (!$user) {

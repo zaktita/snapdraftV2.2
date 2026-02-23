@@ -49,6 +49,8 @@ return [
         'api_key' => env('GEMINI_API_KEY'),
         // Text/analysis model
         'model' => env('GEMINI_MODEL', 'gemini-1.5-flash'),
+        // Vision/analysis model — used for brand reference image analysis
+        'vision_model' => env('GEMINI_VISION_MODEL', 'gemini-1.5-flash'),
         // Image generation model (default for most tasks)
         'image_model' => env('GEMINI_IMAGE_MODEL', 'gemini-2.5-flash-image'),
         // Text-to-image model (no references)

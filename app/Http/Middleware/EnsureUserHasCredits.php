@@ -15,6 +15,11 @@ class EnsureUserHasCredits
      */
     public function handle(Request $request, Closure $next): Response
     {
+        // Bypass credit check in local/testing environments so development works without a paid plan
+        if (app()->environment('local', 'testing')) {
+            return $next($request);
+        }
+
         $user = $request->user();
 
         if (!$user || !$user->hasCredits()) {

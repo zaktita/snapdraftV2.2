@@ -201,6 +201,19 @@ class GenerateBatchImagesJob implements ShouldQueue
             }
 
             // Dispatch batch of jobs without callbacks (to avoid closure serialization issues)
+            if (empty($jobs)) {
+                Log::warning('GenerateBatchImagesJob: no dispatchable jobs (all rows failed validation)', [
+                    'project_id' => $this->project->id,
+                    'total_csv_rows' => count($csvData),
+                ]);
+
+                if ($session) {
+                    $session->markAsFailed('All CSV rows failed validation. Check that each row has a caption or description, and a valid format value.');
+                }
+
+                return;
+            }
+
             $dispatchStart = microtime(true);
 
             $batch = Bus::batch($jobs)

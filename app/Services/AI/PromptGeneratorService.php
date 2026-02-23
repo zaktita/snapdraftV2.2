@@ -17,7 +17,7 @@ class PromptGeneratorService
      * Models to test for prompt generation.
      */
     protected array $models = [
-        'google/gemini-3-flash-preview',
+        'google/gemini-3.1-pro-preview',
         'openai/gpt-5.2',
 
     ];
@@ -532,7 +532,7 @@ class PromptGeneratorService
     {
         // Average input tokens: ~300, output tokens: ~800
         $costs = [
-            'google/gemini-3-flash-preview' => 0.075,
+            'google/gemini-3.1-pro-preview' => 0.075,
             'openai/gpt-5.2' => 0.08,
             'anthropic/claude-opus-4.5' => 0.15,
             'nvidia/nemotron-3-nano-30b-a3b:free' => 0.0,

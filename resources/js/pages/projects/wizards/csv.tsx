@@ -154,14 +154,24 @@ export default function CSVWizard() {
             hasFlashError: !!backendErrorMessage,
         });
         if (backendErrorMessage) {
+            // Clear any local error when a backend error arrives
             setLocalError(null);
-        }
-        if (errorMessage) {
+            // Backend flash errors are persistent — user must explicitly dismiss them
             setShowError(true);
-            const timer = setTimeout(() => setShowError(false), 7000);
+        }
+    }, [backendErrorMessage]);
+
+    useEffect(() => {
+        if (localError) {
+            // Local validation errors auto-dismiss after 7 seconds
+            setShowError(true);
+            const timer = setTimeout(() => {
+                setShowError(false);
+                setLocalError(null);
+            }, 7000);
             return () => clearTimeout(timer);
         }
-    }, [errorMessage, backendErrorMessage]);
+    }, [localError]);
 
     useEffect(() => {
         debug('stepChanged', {
@@ -174,22 +184,61 @@ export default function CSVWizard() {
         });
     }, [currentStep]);
 
-    // Parse CSV
+    // Parse CSV — handles CRLF, quoted fields with embedded commas, and all rows
     const parseCSV = (text: string): CSVRow[] => {
         debug('parseCSV: start', { length: text.length });
-        const lines = text.trim().split('\n');
-        const headers = lines[0].split(',').map(h => h.trim());
+
+        // Normalize line endings (CRLF → LF, legacy CR → LF)
+        const normalized = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+        const lines = normalized.trim().split('\n').filter(line => line.trim() !== '');
+
+        if (lines.length < 2) {
+            debug('parseCSV: no data rows found');
+            return [];
+        }
+
+        // Parse a single CSV row, respecting double-quoted fields (RFC 4180)
+        const parseRow = (line: string): string[] => {
+            const result: string[] = [];
+            let current = '';
+            let inQuotes = false;
+
+            for (let i = 0; i < line.length; i++) {
+                const char = line[i];
+                if (char === '"') {
+                    if (inQuotes && line[i + 1] === '"') {
+                        // Escaped double-quote inside a quoted field
+                        current += '"';
+                        i++;
+                    } else {
+                        inQuotes = !inQuotes;
+                    }
+                } else if (char === ',' && !inQuotes) {
+                    result.push(current.trim());
+                    current = '';
+                } else {
+                    current += char;
+                }
+            }
+            result.push(current.trim());
+            return result;
+        };
+
+        const headers = parseRow(lines[0]).map(h => h.trim());
         const data: CSVRow[] = [];
-        
-        for (let i = 1; i < Math.min(lines.length, 6); i++) {
-            const values = lines[i].split(',').map(v => v.trim());
+
+        for (let i = 1; i < lines.length; i++) {
+            const values = parseRow(lines[i]);
             const row: CSVRow = {};
             headers.forEach((header, index) => {
                 row[header] = values[index] || '';
             });
-            data.push(row);
+            // Skip entirely empty rows
+            if (Object.values(row).some(v => v !== '')) {
+                data.push(row);
+            }
         }
-        
+
         // Auto-detect column mappings
         const mappings: ColumnMapping = {};
         headers.forEach(header => {
@@ -210,10 +259,10 @@ export default function CSVWizard() {
 
         debug('parseCSV: done', {
             headers,
-            previewRows: data.length,
+            totalRows: data.length,
             mappings,
         });
-        
+
         return data;
     };
 
@@ -349,10 +398,10 @@ export default function CSVWizard() {
 
     const confirmCSVEditor = () => {
         if (editableData.length === 0) return;
-        
-        setCsvData(editableData.slice(0, 5));
+
+        setCsvData(editableData);
         setFileName('Custom CSV');
-        
+
         const mappings: ColumnMapping = {};
         editableHeaders.forEach(header => {
             const lower = header.toLowerCase();
@@ -361,26 +410,28 @@ export default function CSVWizard() {
             } else if (lower.includes('description') || lower.includes('prompt')) {
                 mappings[header] = 'Image Prompt';
             } else if (lower.includes('format')) {
+                mappings[header] = 'Format';
+            } else if (lower.includes('id')) {
                 mappings[header] = 'Product ID';
             } else {
                 mappings[header] = 'Ignore this column';
             }
         });
         setColumnMappings(mappings);
-        
-        setSelectedRows(new Set(editableData.slice(0, 5).map((_, index) => index)));
-        
+
+        setSelectedRows(new Set(editableData.map((_, index) => index)));
+
         const csvContent = [
             editableHeaders.join(','),
-            ...editableData.slice(0, 5).map(row => 
-                editableHeaders.map(h => `"${row[h] || ''}"`).join(',')
-            )
+            ...editableData.map(row =>
+                editableHeaders.map(h => `"${(row[h] || '').replaceAll('"', '""')}"`).join(',')
+            ),
         ].join('\n');
-        
+
         const blob = new Blob([csvContent], { type: 'text/csv' });
         const file = new File([blob], 'custom.csv', { type: 'text/csv' });
         setCsvFile(file);
-        
+
         setUploadComplete(true);
     };
 
@@ -470,16 +521,41 @@ export default function CSVWizard() {
 
         setIsSubmitting(true);
 
+        // Build a filtered CSV file that only includes the rows the user selected.
+        // This ensures the backend only generates images for rows the user actually checked.
+        let fileToSubmit: File = csvFile;
+        if (csvData.length > 0 && selectedRows.size > 0) {
+            const selectedIndices = Array.from(selectedRows).sort((a, b) => a - b);
+            const filteredData = selectedIndices.map(i => csvData[i]).filter(Boolean);
+
+            if (filteredData.length > 0) {
+                const csvHeaders = Object.keys(filteredData[0]);
+                const csvContent = [
+                    csvHeaders.join(','),
+                    ...filteredData.map(row =>
+                        csvHeaders.map(h => `"${(row[h] || '').replaceAll('"', '""')}"`).join(',')
+                    ),
+                ].join('\n');
+                const blob = new Blob([csvContent], { type: 'text/csv' });
+                fileToSubmit = new File([blob], fileName || 'selected.csv', { type: 'text/csv' });
+                debug('submitToBackend: built filtered csv', {
+                    originalRows: csvData.length,
+                    selectedRows: filteredData.length,
+                    bytes: blob.size,
+                });
+            }
+        }
+
         debug('submitToBackend: building FormData', {
-            csvFileName: csvFile.name,
-            csvFileSize: csvFile.size,
+            csvFileName: fileToSubmit.name,
+            csvFileSize: fileToSubmit.size,
         });
 
         const fd = new FormData();
         fd.append('project_name', name);
-        fd.append('csv_file', csvFile);
-        
-        // Add reference images (required: 5-10)
+        fd.append('csv_file', fileToSubmit);
+
+        // Add reference images (required: 3-10)
         styleImageFiles.slice(0, 10).forEach((f) => fd.append('reference_images[]', f));
         // product_images optional: skip for now
 
@@ -726,29 +802,32 @@ export default function CSVWizard() {
                             gap: '8px',
                             marginBottom: '12px'
                         }}>
-                            {[1, 2, 3, 4].map((step) => {
-                                let className = '';
-                                if (currentStep === 1 && uploadComplete) {
-                                    if (step === 1) className = 'completed';
-                                    if (step === 2) className = 'current';
-                                } else {
-                                    if (step < currentStep) className = 'completed';
-                                    if (step === currentStep) className = 'current';
-                                }
-                                
-                                return (
-                                    <div 
-                                        key={step}
-                                        style={{
-                                            flex: 1,
-                                            height: '4px',
-                                            background: className === 'completed' ? 'var(--color-primary)' : className === 'current' ? 'var(--color-muted)' : 'var(--color-border)',
-                                            borderRadius: '2px',
-                                            transition: 'all 0.2s ease-out'
-                                        }}
-                                    />
-                                );
-                            })}
+                            {(() => {
+                                // Map the internal step + uploadComplete flag to a 1-5 visual segment
+                                const currentSegment =
+                                    currentStep === 1 ? 1
+                                    : currentStep === 2 && !uploadComplete ? 2
+                                    : currentStep === 2 && uploadComplete ? 3
+                                    : currentStep === 4 ? 4
+                                    : 5; // step 5
+
+                                return [1, 2, 3, 4, 5].map((seg) => {
+                                    const isCompleted = seg < currentSegment;
+                                    const isCurrent   = seg === currentSegment;
+                                    return (
+                                        <div
+                                            key={seg}
+                                            style={{
+                                                flex: 1,
+                                                height: '4px',
+                                                background: isCompleted ? 'var(--color-primary)' : isCurrent ? 'hsl(var(--primary) / 0.4)' : 'var(--color-border)',
+                                                borderRadius: '2px',
+                                                transition: 'all 0.2s ease-out'
+                                            }}
+                                        />
+                                    );
+                                });
+                            })()}
                         </div>
                         <div style={{
                             display: 'flex',
@@ -758,7 +837,7 @@ export default function CSVWizard() {
                             fontWeight: 500
                         }}>
                             <span style={{ color: currentStep === 1 ? 'var(--color-foreground)' : 'var(--color-muted-foreground)' }}>Project Name</span>
-                            <span style={{ color: (currentStep === 2 && !uploadComplete) || (currentStep === 2 && uploadComplete) ? 'var(--color-foreground)' : 'var(--color-muted-foreground)' }}>Upload</span>
+                            <span style={{ color: (currentStep === 2 && !uploadComplete) ? 'var(--color-foreground)' : 'var(--color-muted-foreground)' }}>Upload</span>
                             <span style={{ color: (currentStep === 3) || (currentStep === 2 && uploadComplete) ? 'var(--color-foreground)' : 'var(--color-muted-foreground)' }}>Review Data</span>
                             <span style={{ color: currentStep === 4 ? 'var(--color-foreground)' : 'var(--color-muted-foreground)' }}>Style References</span>
                             <span style={{ color: currentStep === 5 ? 'var(--color-foreground)' : 'var(--color-muted-foreground)' }}>Generate</span>
@@ -1345,7 +1424,7 @@ export default function CSVWizard() {
                                         Drag & drop your style images here, or click to upload
                                     </div>
                                     <div style={{ fontSize: '14px', color: 'var(--color-muted-foreground)' }}>
-                                        Upload 5-10 images to define the visual style (optional)
+                                        Upload 3–10 brand reference images (required)
                                     </div>
                                 </div>
                                 <input 
@@ -1547,7 +1626,7 @@ export default function CSVWizard() {
                                 </>
                             ) : currentStep === 4 ? (
                                 <>
-                                    {styleImages.length > 0 ? 'Next' : 'Skip Style References'}
+                                    {styleImages.length >= 3 ? 'Next' : `Add References (${styleImages.length}/3 min)`}
                                     <ArrowRight size={16} />
                                 </>
                             ) : currentStep === 5 ? (
