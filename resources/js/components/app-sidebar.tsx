@@ -36,6 +36,7 @@ import {
     Shield,
     Crown,
     Zap,
+    Palette,
 } from 'lucide-react';
 import AppLogo from './app-logo';
 
@@ -128,6 +129,11 @@ export function AppSidebar() {
                     title: 'Quick Generate',
                     href: '/quick-generate',
                     icon: Zap,
+                },
+                {
+                    title: 'Brand Kit',
+                    href: '/projects/create/brand-kit',
+                    icon: Palette,
                 },
                 {
                     title: 'Canvas Editor',

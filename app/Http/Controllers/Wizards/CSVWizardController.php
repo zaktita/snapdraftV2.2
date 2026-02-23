@@ -3,7 +3,6 @@
 namespace App\Http\Controllers\Wizards;
 
 use App\Http\Controllers\Controller;
-use App\Http\Requests\StoreProjectRequest;
 use App\Jobs\GenerateBatchImagesJob;
 use App\Models\CsvWizardSession;
 use App\Models\Project;
@@ -39,6 +38,7 @@ class CSVWizardController extends Controller
             'reference_images.*' => 'required|image|mimes:jpeg,jpg,png,webp|max:10240',
             'product_images' => 'nullable|array|max:5',
             'product_images.*' => 'nullable|image|mimes:jpeg,jpg,png,webp|max:10240',
+            'column_mappings' => 'nullable|string', // JSON: frontend column mapping overrides
         ]);
 
         $project = null;
@@ -359,17 +359,21 @@ class CSVWizardController extends Controller
         ]);
 
         // Queue AI processing job (sync in local for immediate feedback)
+        // Create a session for progress tracking (same flow as main store)
+        $session = CsvWizardSession::create([
+            'user_id' => Auth::id(),
+            'project_id' => $project->id,
+            'status' => 'pending',
+            'total_jobs' => null,
+        ]);
+
         if (app()->environment('local')) {
-            \App\Jobs\GenerateBatchImagesJob::dispatchSync($project);
+            GenerateBatchImagesJob::dispatchSync($project, $session->id);
         } else {
-            \App\Jobs\GenerateBatchImagesJob::dispatch($project);
+            GenerateBatchImagesJob::dispatch($project, $session->id);
         }
 
-        return redirect()->route('projects.show', [
-            'project' => $project->id,
-            'expectedImages' => count($csvData),
-        ])->with('success', 'Generation started! Images will appear as they complete.')
-          ->with('generating', true);
+        return redirect()->route('projects.wizards.csv.session.show', $session->id);
     }
 
     /**
