@@ -11,13 +11,13 @@ class GoogleGeminiService implements AIServiceInterface
 {
     protected string $baseUrl = 'https://generativelanguage.googleapis.com/v1beta';
     protected ?string $apiKey;
-    protected string $model = 'gemini-3-pro-image-preview';
+    protected string $model = 'gemini-2.0-flash-exp-image-generation';
     protected ?string $currentFormat = null;
 
     public function __construct()
     {
         $this->apiKey = config('services.gemini.api_key');
-        $this->model = config('services.gemini.text_accurate_model', 'gemini-3-pro-image-preview');
+        $this->model = config('services.gemini.text_accurate_model', 'gemini-2.0-flash-exp-image-generation');
     }
 
     /**

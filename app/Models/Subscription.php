@@ -264,27 +264,50 @@ class Subscription extends Model
     }
 
     /**
-     * Get projects count.
+     * Get projects count (reads from actual DB count via user relationship).
      */
     public function projectsUsed(): int
     {
+        // Prefer live DB count over stale capabilities counter
+        if ($this->relationLoaded('user') || $this->user_id) {
+            try {
+                return (int) $this->user()->withCount('projects')->first()?->projects_count ?? 0;
+            } catch (\Throwable) {
+                // fall through to capabilities fallback
+            }
+        }
         return (int) ($this->capabilities['projects_used'] ?? 0);
     }
 
     /**
      * Get projects limit.
+     * Supports both 'projects_limit' and legacy 'max_projects' capability keys.
      */
     public function projectsLimit(): int
     {
-        return (int) ($this->capabilities['projects_limit'] ?? 0);
+        $caps = $this->capabilities ?? [];
+        // Check both key variants for backwards compatibility
+        if (isset($caps['projects_limit'])) {
+            return (int) $caps['projects_limit'];
+        }
+        if (isset($caps['max_projects'])) {
+            return (int) $caps['max_projects'];
+        }
+        return 0;
     }
 
     /**
      * Check if can create more projects.
+     * A limit of 0 means unlimited (no cap enforced).
      */
     public function canCreateProject(): bool
     {
-        return $this->projectsUsed() < $this->projectsLimit();
+        $limit = $this->projectsLimit();
+        // 0 = no limit set, treat as unlimited
+        if ($limit === 0) {
+            return true;
+        }
+        return $this->projectsUsed() < $limit;
     }
 
     /**

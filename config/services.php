@@ -48,17 +48,19 @@ return [
     'gemini' => [
         'api_key' => env('GEMINI_API_KEY'),
         // Text/analysis model
-        'model' => env('GEMINI_MODEL', 'gemini-1.5-flash'),
+        'model' => env('GEMINI_MODEL', 'gemini-3.1-pro-preview'),
         // Vision/analysis model — used for brand reference image analysis
-        'vision_model' => env('GEMINI_VISION_MODEL', 'gemini-1.5-flash'),
+        'vision_model' => env('GEMINI_VISION_MODEL', 'gemini-3.1-pro-preview'),
         // Image generation model (default for most tasks)
-        'image_model' => env('GEMINI_IMAGE_MODEL', 'gemini-2.5-flash-image'),
+        'image_model' => env('GEMINI_IMAGE_MODEL', 'gemini-3-pro-image-preview'),
         // Text-to-image model (no references)
         // Text-to-image model (used when no reference images are supplied)
         // Align fallback name with service default; update .env if Google changes naming.
         'text_to_image_model' => env('GEMINI_TEXT_TO_IMAGE_MODEL', 'imagen-3.0-generate-001'),
         // Text-accurate model (4x credits). Prefer stable non-preview for reliability.
-        'text_accurate_model' => env('GEMINI_TEXT_ACCURATE_MODEL', 'gemini-2.0-flash-exp'),
+        'text_accurate_model' => env('GEMINI_TEXT_ACCURATE_MODEL', 'gemini-3.1-pro-preview-exp'),
+        // Step-2 prompt crafting model: cluster selection + image text per CSV row
+        'prompt_model' => env('GEMINI_PROMPT_MODEL', 'gemini-3.1-pro-preview'),
         'rate_limit' => env('GEMINI_RATE_LIMIT', 30), // Requests per minute
     ],
 
@@ -67,6 +69,8 @@ return [
         'model' => env('OPENROUTER_MODEL', 'bytedance-seed/seedream-4.5'),
         // Image model for canvas editor (inpainting, outpainting, prompt-based editing)
         'image_model' => 'bytedance-seed/seedream-4.5',
+        // Comma-separated model list for the multi-model prompt-tester UI
+        'prompt_models' => env('OPENROUTER_PROMPT_MODELS', 'google/gemini-3.1-pro-preview,openai/gpt-4o-mini'),
         'site_url' => env('APP_URL'),
         'site_name' => env('APP_NAME', 'SnapDraft'),
     ],

@@ -216,7 +216,7 @@ class AIServiceManager
     public function getActiveModelName(): string
     {
         // Always use Gemini 3 Pro Image Preview
-        return config('services.gemini.text_accurate_model', 'gemini-3-pro-image-preview');
+        return config('services.gemini.text_accurate_model', 'gemini-2.0-flash-exp-image-generation');
     }
 
     /**

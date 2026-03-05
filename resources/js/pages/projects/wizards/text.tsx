@@ -1,6 +1,6 @@
 import { Head, Link, router, usePage } from '@inertiajs/react';
 import { ArrowLeft, ArrowRight, Upload, X, Zap, ChevronDown, AlertCircle } from 'lucide-react';
-import { useState, useRef, DragEvent, ChangeEvent, useEffect } from 'react';
+import { useState, useRef, ChangeEvent, useEffect } from 'react';
 import text from '@/routes/projects/wizards/text';
 
 const formatOptions = [
@@ -28,8 +28,7 @@ export default function TextWizard() {
     const [styleImageFiles, setStyleImageFiles] = useState<File[]>([]);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [showError, setShowError] = useState(false);
-    const [dragOver, setDragOver] = useState(false);
-    
+
     const imageInputRef = useRef<HTMLInputElement>(null);
 
     // Show error message if present
@@ -42,60 +41,22 @@ export default function TextWizard() {
         }
     }, [page.props.error]);
 
-    // Drag and drop handlers
-    const handleDragOver = (e: DragEvent<HTMLDivElement>) => {
-        e.preventDefault();
-        e.stopPropagation();
-        setDragOver(true);
-    };
-
-    const handleDragLeave = (e: DragEvent<HTMLDivElement>) => {
-        e.preventDefault();
-        e.stopPropagation();
-        setDragOver(false);
-    };
-
-    const handleDrop = (e: DragEvent<HTMLDivElement>) => {
-        e.preventDefault();
-        e.stopPropagation();
-        setDragOver(false);
-        const remaining = 5 - styleImageFiles.length;
-        console.log('[TextWizard] drop event — files dropped:', e.dataTransfer.files.length, '| remaining slots:', remaining);
-        if (remaining <= 0) return;
-        const files = Array.from(e.dataTransfer.files)
-            .filter(f => f.type.startsWith('image/'))
-            .slice(0, remaining);
-        console.log('[TextWizard] accepted dropped files:', files.map(f => ({ name: f.name, type: f.type, size: f.size })));
-        files.forEach(file => {
-            const reader = new FileReader();
-            reader.onload = (ev) => {
-                setStyleImages(prev => [...prev, ev.target?.result as string]);
-            };
-            reader.readAsDataURL(file);
-            setStyleImageFiles(prev => [...prev, file]);
-        });
-    };
-
     // Handle image upload
     const handleImageUpload = (e: ChangeEvent<HTMLInputElement>) => {
         const files = e.target.files;
         if (!files) return;
-        const remaining = 5 - styleImageFiles.length;
-        console.log('[TextWizard] file input change — files selected:', files.length, '| remaining slots:', remaining);
-        Array.from(files).slice(0, remaining).forEach(file => {
-            console.log('[TextWizard] uploading file:', { name: file.name, type: file.type, size: file.size });
+        
+        Array.from(files).forEach(file => {
             const reader = new FileReader();
-            reader.onload = (ev) => {
-                setStyleImages(prev => [...prev, ev.target?.result as string]);
+            reader.onload = (e) => {
+                setStyleImages(prev => [...prev, e.target?.result as string]);
             };
             reader.readAsDataURL(file);
             setStyleImageFiles(prev => [...prev, file]);
         });
-        e.target.value = '';
     };
 
     const removeImage = (index: number) => {
-        console.log('[TextWizard] removing image at index:', index);
         setStyleImages(prev => prev.filter((_, i) => i !== index));
         setStyleImageFiles(prev => prev.filter((_, i) => i !== index));
     };
@@ -106,15 +67,11 @@ export default function TextWizard() {
     };
 
     const nextStep = () => {
-        console.log('[TextWizard] nextStep called — currentStep:', currentStep, '| canProceed:', canProceed());
         if (currentStep < 3) {
             setCurrentStep(currentStep + 1);
         } else {
             // Submit to backend
-            if (!projectName.trim() || !ideaDescription.trim() || isSubmitting) {
-                console.warn('[TextWizard] submit guard triggered — projectName:', !!projectName.trim(), '| ideaDescription:', !!ideaDescription.trim(), '| isSubmitting:', isSubmitting);
-                return;
-            }
+            if (!projectName.trim() || !ideaDescription.trim() || isSubmitting) return;
             
             setIsSubmitting(true);
             
@@ -122,14 +79,8 @@ export default function TextWizard() {
             fd.append('project_name', projectName.trim());
             fd.append('idea_description', ideaDescription.trim());
             fd.append('format', mapFormat(selectedFormat));
+            // reference images optional (max 5)
             styleImageFiles.slice(0, 5).forEach((f) => fd.append('reference_images[]', f));
-
-            console.log('[TextWizard] submitting to:', text.store.url(), '| payload:', {
-                project_name: projectName.trim(),
-                idea_description: ideaDescription.trim(),
-                format: mapFormat(selectedFormat),
-                reference_images_count: Math.min(styleImageFiles.length, 5),
-            });
 
             router.post(text.store.url(), fd, {
                 forceFormData: true,
@@ -153,8 +104,8 @@ export default function TextWizard() {
 
     const canProceed = () => {
         if (currentStep === 1) return projectName.trim().length > 0;
-        if (currentStep === 2) return ideaDescription.trim().length > 0 && selectedFormat.length > 0;
-        return true; // Step 3 is optional
+        if (currentStep === 2) return ideaDescription.trim().length > 0;
+        return true;
     };
 
     return (
@@ -301,7 +252,6 @@ export default function TextWizard() {
                         }}>
                             {currentStep === 1 && 'Name Your Project'}
                             {currentStep === 2 && 'Describe Your Idea'}
-                            {currentStep === 3 && 'Add Style References (Optional)'}
                         </h1>
                         <p style={{
                             fontSize: '14px',
@@ -311,7 +261,6 @@ export default function TextWizard() {
                         }}>
                             {currentStep === 1 && 'Give your project a descriptive name to help organize your work.'}
                             {currentStep === 2 && 'Tell us what you want to create.'}
-                            {currentStep === 3 && 'Upload reference images to guide the visual style (optional).'}
                         </p>
                     </div>
 
@@ -325,7 +274,7 @@ export default function TextWizard() {
                             gap: '8px',
                             marginBottom: '12px'
                         }}>
-                            {[1, 2, 3].map((step) => (
+                            {[1, 2].map((step) => (
                                 <div 
                                     key={step}
                                     style={{
@@ -347,7 +296,6 @@ export default function TextWizard() {
                         }}>
                             <span style={{ color: currentStep === 1 ? 'var(--color-foreground)' : 'var(--color-muted-foreground)' }}>Project Name</span>
                             <span style={{ color: currentStep === 2 ? 'var(--color-foreground)' : 'var(--color-muted-foreground)' }}>Your Idea</span>
-                            <span style={{ color: currentStep === 3 ? 'var(--color-foreground)' : 'var(--color-muted-foreground)' }}>References</span>
                         </div>
                     </div>
 
@@ -490,11 +438,8 @@ export default function TextWizard() {
                         {/* Step 3: Optional References */}
                         {currentStep === 3 && (
                             <div style={{ animation: 'fadeIn 0.3s ease' }}>
-                                {styleImages.length < 5 && <div 
+                                <div 
                                     onClick={() => imageInputRef.current?.click()}
-                                    onDragOver={handleDragOver}
-                                    onDragLeave={handleDragLeave}
-                                    onDrop={handleDrop}
                                     style={{
                                         border: '2px dashed var(--color-border)',
                                         borderRadius: '12px',
@@ -502,8 +447,7 @@ export default function TextWizard() {
                                         textAlign: 'center',
                                         cursor: 'pointer',
                                         transition: 'all 0.2s ease-out',
-                                        background: dragOver ? 'var(--color-primary-foreground)' : 'var(--color-muted)',
-                                        borderColor: dragOver ? 'var(--color-primary)' : 'var(--color-border)',
+                                        background: 'var(--color-muted)',
                                         marginBottom: '20px'
                                     }}
                                 >
@@ -514,9 +458,9 @@ export default function TextWizard() {
                                         Drag & drop reference images here, or click to upload
                                     </div>
                                     <div style={{ fontSize: '14px', color: 'var(--color-muted-foreground)' }}>
-                                        Add up to 5 style references to guide the AI (optional)
+                                        Add style references to guide the AI (optional)
                                     </div>
-                                </div>}
+                                </div>
                                 <input 
                                     ref={imageInputRef}
                                     type="file" 
@@ -528,11 +472,8 @@ export default function TextWizard() {
 
                                 {styleImages.length > 0 && (
                                     <>
-                                        <div style={{ fontSize: '14px', fontWeight: 500, color: styleImages.length >= 5 ? 'var(--color-muted-foreground)' : 'var(--color-foreground)', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                        <div style={{ fontSize: '14px', fontWeight: 500, color: 'var(--color-foreground)', marginBottom: '12px' }}>
                                             {styleImages.length} reference image{styleImages.length !== 1 ? 's' : ''} uploaded
-                                            {styleImages.length >= 5 && (
-                                                <span style={{ fontSize: '13px', fontWeight: 400, color: 'var(--color-muted-foreground)' }}>(maximum reached)</span>
-                                            )}
                                         </div>
                                         <div style={{
                                             display: 'grid',
@@ -639,7 +580,7 @@ export default function TextWizard() {
                                 opacity: !canProceed() || isSubmitting ? 0.5 : 1
                             }}
                         >
-                            {currentStep === 3 ? (
+                            {currentStep === 2 ? (
                                 <>
                                     {isSubmitting ? 'Starting Generation...' : 'Generate (1 credit)'}
                                     <Zap size={16} />

@@ -108,7 +108,7 @@ class GenerateBatchImagesJob implements ShouldQueue
                         'user_id' => $this->project->user_id,
                         'project_id' => $this->project->id,
                         'prompt' => $this->buildPrompt($caption, $description),
-                        'ai_model' => 'gemini-3-pro-image-preview',
+                        'ai_model' => config('services.gemini.text_accurate_model', 'gemini-2.0-flash-exp-image-generation'),
                         'status' => 'failed',
                         'error_message' => 'Invalid format. Allowed: ' . implode(', ', self::FORMAT_PRESETS) . ' (or leave blank to let AI decide).',
                         'parameters' => [
@@ -136,7 +136,7 @@ class GenerateBatchImagesJob implements ShouldQueue
                         'user_id' => $this->project->user_id,
                         'project_id' => $this->project->id,
                         'prompt' => '',
-                        'ai_model' => 'gemini-3-pro-image-preview',
+                        'ai_model' => config('services.gemini.text_accurate_model', 'gemini-2.0-flash-exp-image-generation'),
                         'status' => 'failed',
                         'error_message' => 'Caption or description is required (at least one must be non-empty).',
                         'parameters' => [
@@ -216,24 +216,63 @@ class GenerateBatchImagesJob implements ShouldQueue
 
             $dispatchStart = microtime(true);
 
-            $batch = Bus::batch($jobs)
-                ->name('Batch Generation - Project ' . $this->project->id)
-                ->dispatch();
+            // Run synchronously only when the queue driver is set to 'sync' (no worker).
+            // When QUEUE_CONNECTION=database (or any real driver), always dispatch to the
+            // queue worker — running sync here causes PHP 60-second timeout.
+            $useSync = config('queue.default') === 'sync';
 
-            if ($session) {
-                $session->markAsGenerating(batchId: $batch->id, totalJobs: count($jobs));
+            if ($useSync) {
+                Log::info('Local env: running generation jobs synchronously', [
+                    'project_id' => $this->project->id,
+                    'job_count' => count($jobs),
+                ]);
+
+                if ($session) {
+                    $session->markAsGenerating(batchId: null, totalJobs: count($jobs));
+                }
+
+                foreach ($jobs as $job) {
+                    try {
+                        // Strip the delay so local runs are instant
+                        dispatch_sync($job->withoutDelay());
+                    } catch (\Throwable $e) {
+                        Log::error('Sync job failed, continuing batch', [
+                            'project_id' => $this->project->id,
+                            'error' => $e->getMessage(),
+                        ]);
+                    }
+                }
+
+                if ($session) {
+                    $session->markAsCompleted();
+                }
+
+                $totalBatchTime = round((microtime(true) - $batchStart) * 1000);
+                Log::info('✅ Sync batch complete', [
+                    'total_batch_setup_ms' => $totalBatchTime,
+                    'project_id' => $this->project->id,
+                    'job_count' => count($jobs),
+                ]);
+            } else {
+                $batch = Bus::batch($jobs)
+                    ->name('Batch Generation - Project ' . $this->project->id)
+                    ->dispatch();
+
+                if ($session) {
+                    $session->markAsGenerating(batchId: $batch->id, totalJobs: count($jobs));
+                }
+
+                $dispatchTime = round((microtime(true) - $dispatchStart) * 1000);
+                $totalBatchTime = round((microtime(true) - $batchStart) * 1000);
+
+                Log::info('✅ Batch jobs dispatched', [
+                    'dispatch_duration_ms' => $dispatchTime,
+                    'total_batch_setup_ms' => $totalBatchTime,
+                    'project_id' => $this->project->id,
+                    'job_count' => count($jobs),
+                    'batch_id' => $batch->id ?? null,
+                ]);
             }
-            
-            $dispatchTime = round((microtime(true) - $dispatchStart) * 1000);
-            $totalBatchTime = round((microtime(true) - $batchStart) * 1000);
-            
-            Log::info('✅ Batch jobs dispatched', [
-                'dispatch_duration_ms' => $dispatchTime,
-                'total_batch_setup_ms' => $totalBatchTime,
-                'project_id' => $this->project->id,
-                'job_count' => count($jobs),
-                'batch_id' => $batch->id ?? null,
-            ]);
         } catch (\Exception $e) {
             Log::error('Batch generation setup failed', [
                 'project_id' => $this->project->id,

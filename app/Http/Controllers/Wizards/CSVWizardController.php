@@ -3,7 +3,6 @@
 namespace App\Http\Controllers\Wizards;
 
 use App\Http\Controllers\Controller;
-use App\Http\Requests\StoreProjectRequest;
 use App\Jobs\GenerateBatchImagesJob;
 use App\Models\CsvWizardSession;
 use App\Models\Project;
@@ -39,7 +38,12 @@ class CSVWizardController extends Controller
             'reference_images.*' => 'required|image|mimes:jpeg,jpg,png,webp|max:10240',
             'product_images' => 'nullable|array|max:5',
             'product_images.*' => 'nullable|image|mimes:jpeg,jpg,png,webp|max:10240',
+            'column_mappings' => 'nullable|string', // JSON: frontend column mapping overrides
         ]);
+
+        // Brand analysis + file uploads involve external AI calls that can take 60-120s.
+        // Disable the default PHP execution time limit for this request only.
+        set_time_limit(0);
 
         $project = null;
 
@@ -130,14 +134,10 @@ class CSVWizardController extends Controller
                 'total_jobs' => null,
             ]);
 
-            // Queue AI processing job (sync in local for immediate feedback)
-            if (app()->environment('local')) {
-                GenerateBatchImagesJob::dispatchSync($project, $session->id);
-            } else {
-                GenerateBatchImagesJob::dispatch($project, $session->id);
-            }
+            // Always dispatch async — queue worker runs via `composer dev`
+            GenerateBatchImagesJob::dispatch($project, $session->id);
 
-            return redirect()->route('projects.wizards.csv.session.show', $session->id);
+            return redirect()->route('projects.show', $project->id);
         } catch (ValidationException $e) {
             if ($project) {
                 $project->delete();
@@ -368,17 +368,18 @@ class CSVWizardController extends Controller
         ]);
 
         // Queue AI processing job (sync in local for immediate feedback)
-        if (app()->environment('local')) {
-            \App\Jobs\GenerateBatchImagesJob::dispatchSync($project);
-        } else {
-            \App\Jobs\GenerateBatchImagesJob::dispatch($project);
-        }
+        // Create a session for progress tracking (same flow as main store)
+        $session = CsvWizardSession::create([
+            'user_id' => Auth::id(),
+            'project_id' => $project->id,
+            'status' => 'pending',
+            'total_jobs' => null,
+        ]);
 
-        return redirect()->route('projects.show', [
-            'project' => $project->id,
-            'expectedImages' => count($csvData),
-        ])->with('success', 'Generation started! Images will appear as they complete.')
-          ->with('generating', true);
+        // Always dispatch async — queue worker handles processing via `composer dev`
+        GenerateBatchImagesJob::dispatch($project, $session->id);
+
+        return redirect()->route('projects.wizards.csv.session.show', $session->id);
     }
 
     /**

@@ -54,7 +54,7 @@ const stepContent = {
     },
     4: {
         title: 'Add Style References',
-        subtitle: (count: number) => `Upload 3-10 images to lock the brand style for the ${count} selected product${count !== 1 ? 's' : ''}. This step is required.`
+        subtitle: (count: number) => `Upload 3–10 brand reference images to define the visual style for ${count} image${count !== 1 ? 's' : ''}. Minimum 3 required.`
     },
     5: {
         title: 'Preview & Generate',
@@ -63,7 +63,7 @@ const stepContent = {
 };
 
 export default function CSVWizard() {
-    const page = usePage<{ error?: string }>();
+    const page = usePage<{ error?: string; auth: { user: { credits_remaining?: number; credits_total?: number } } }>();
     const [currentStep, setCurrentStep] = useState(1);
     const [csvData, setCsvData] = useState<CSVRow[]>([]);
     const [selectedRows, setSelectedRows] = useState<Set<number>>(new Set());
@@ -81,6 +81,7 @@ export default function CSVWizard() {
     const [editableHeaders, setEditableHeaders] = useState<string[]>(['title', 'caption', 'description', 'format']);
     const [showError, setShowError] = useState(false);
     const [localError, setLocalError] = useState<string | null>(null);
+    const [imageDragOver, setImageDragOver] = useState(false);
     
     const csvInputRef = useRef<HTMLInputElement>(null);
     const imageInputRef = useRef<HTMLInputElement>(null);
@@ -182,6 +183,7 @@ export default function CSVWizard() {
             styleRefCount: styleImageFiles.length,
             uploadMode,
         });
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [currentStep]);
 
     // Parse CSV — handles CRLF, quoted fields with embedded commas, and all rows
@@ -291,6 +293,8 @@ export default function CSVWizard() {
 
         reader.onerror = () => {
             debug('handleFileUpload: reader error');
+            setLocalError('Failed to read the file. Please try a different CSV file.');
+            setShowError(true);
         };
         
         reader.readAsText(file);
@@ -318,9 +322,53 @@ export default function CSVWizard() {
         
         const files = e.dataTransfer.files;
         if (files.length > 0) {
-            debug('drop', { count: files.length, first: { name: files[0].name, size: files[0].size } });
-            handleFileUpload(files[0]);
+            const file = files[0];
+            if (!file.name.toLowerCase().endsWith('.csv') && file.type !== 'text/csv' && file.type !== 'application/vnd.ms-excel') {
+                setLocalError('Please upload a valid CSV file (.csv)');
+                setShowError(true);
+                debug('drop: rejected non-csv', { name: file.name, type: file.type });
+                return;
+            }
+            debug('drop', { count: files.length, first: { name: file.name, size: file.size } });
+            handleFileUpload(file);
         }
+    };
+
+    // Drag handlers for step 4 image upload zone
+    const handleImageDragOver = (e: DragEvent<HTMLDivElement>) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setImageDragOver(true);
+    };
+
+    const handleImageDragLeave = (e: DragEvent<HTMLDivElement>) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setImageDragOver(false);
+    };
+
+    const handleImageDrop = (e: DragEvent<HTMLDivElement>) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setImageDragOver(false);
+
+        const files = e.dataTransfer.files;
+        if (!files || files.length === 0) return;
+
+        debug('imageDrop', { count: files.length });
+        const currentCount = styleImageFiles.length;
+        const remaining = 10 - currentCount;
+        if (remaining <= 0) return;
+        const accepted = Array.from(files).filter(f => f.type.startsWith('image/')).slice(0, remaining);
+        if (accepted.length === 0) return;
+        accepted.forEach(file => {
+            const reader = new FileReader();
+            reader.onload = (ev) => {
+                setStyleImages(p => [...p, ev.target?.result as string]);
+            };
+            reader.readAsDataURL(file);
+        });
+        setStyleImageFiles(prev => [...prev, ...accepted]);
     };
 
     const handleFileInputChange = (e: ChangeEvent<HTMLInputElement>) => {
@@ -339,10 +387,11 @@ export default function CSVWizard() {
         setCsvData(newData);
         
         // Regenerate CSV file
-        const headers = Object.keys(csvData[0]);
+        if (newData.length === 0) return;
+        const headers = Object.keys(newData[0]);
         const csvContent = [
             headers.join(','),
-            ...newData.map(row => headers.map(h => `"${row[h] || ''}"`).join(','))
+            ...newData.map(row => headers.map(h => `"${(row[h] || '').replace(/"/g, '""')}"`).join(','))
         ].join('\n');
         const blob = new Blob([csvContent], { type: 'text/csv' });
         const file = new File([blob], fileName || 'edited.csv', { type: 'text/csv' });
@@ -354,7 +403,7 @@ export default function CSVWizard() {
     const addRow = () => {
         const newRow: CSVRow = {};
         editableHeaders.forEach(header => {
-            newRow[header] = header.toLowerCase() === 'format' ? '' : '';
+            newRow[header] = '';
         });
         setEditableData([...editableData, newRow]);
     };
@@ -433,6 +482,7 @@ export default function CSVWizard() {
         setCsvFile(file);
 
         setUploadComplete(true);
+        setCurrentStep(4);
     };
 
     // Handle image upload
@@ -444,15 +494,19 @@ export default function CSVWizard() {
             count: files.length,
             names: Array.from(files).map((f) => f.name),
         });
-        
-        Array.from(files).forEach(file => {
+        const currentCount = styleImageFiles.length;
+        const remaining = 10 - currentCount;
+        if (remaining <= 0) return;
+        const accepted = Array.from(files).filter(f => f.type.startsWith('image/')).slice(0, remaining);
+        if (accepted.length === 0) return;
+        accepted.forEach(file => {
             const reader = new FileReader();
-            reader.onload = (e) => {
-                setStyleImages(prev => [...prev, e.target?.result as string]);
+            reader.onload = (ev) => {
+                setStyleImages(p => [...p, ev.target?.result as string]);
             };
             reader.readAsDataURL(file);
-            setStyleImageFiles(prev => [...prev, file]);
         });
+        setStyleImageFiles(prev => [...prev, ...accepted]);
     };
 
     const removeImage = (index: number) => {
@@ -519,6 +573,24 @@ export default function CSVWizard() {
             return;
         }
 
+        // Build a filtered CSV containing only selected rows
+        const selectedData = csvData.filter((_, i) => selectedRows.has(i));
+        if (selectedData.length === 0) {
+            setLocalError('Please select at least one row to generate.');
+            setShowError(true);
+            return;
+        }
+
+        const csvHeaders = Object.keys(csvData[0]);
+        const filteredCsvContent = [
+            csvHeaders.join(','),
+            ...selectedData.map(row =>
+                csvHeaders.map(h => `"${(row[h] || '').replace(/"/g, '""')}"`).join(',')
+            )
+        ].join('\n');
+        const filteredBlob = new Blob([filteredCsvContent], { type: 'text/csv' });
+        const filteredFile = new File([filteredBlob], csvFile.name, { type: 'text/csv' });
+
         setIsSubmitting(true);
 
         // Build a filtered CSV file that only includes the rows the user selected.
@@ -554,6 +626,7 @@ export default function CSVWizard() {
         const fd = new FormData();
         fd.append('project_name', name);
         fd.append('csv_file', fileToSubmit);
+        fd.append('column_mappings', JSON.stringify(columnMappings));
 
         // Add reference images (required: 3-10)
         styleImageFiles.slice(0, 10).forEach((f) => fd.append('reference_images[]', f));
@@ -866,6 +939,7 @@ export default function CSVWizard() {
                                         type="text"
                                         value={projectName}
                                         onChange={(e) => setProjectName(e.target.value)}
+                                        onKeyDown={(e) => { if (e.key === 'Enter' && projectName.trim()) nextStep(); }}
                                         placeholder="e.g., Summer Campaign 2025"
                                         style={{
                                             width: '100%',
@@ -994,7 +1068,7 @@ export default function CSVWizard() {
                                                         Drag & drop your CSV file here, or click to upload
                                                     </div>
                                                     <div style={{ fontSize: '14px', color: 'var(--color-muted-foreground)' }}>
-                                                        Maximum 5 rows for bulk generation
+                                                        Supports CSV files of any size — all rows are loaded and selectable
                                                     </div>
                                                 </div>
                                                 <input 
@@ -1014,7 +1088,7 @@ export default function CSVWizard() {
                                             }}>
                                                 <div style={{ marginBottom: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                                     <div style={{ fontSize: '13px', color: 'var(--color-muted-foreground)' }}>
-                                                        Create your data inline (max 5 rows)
+                                                        Create your data inline (up to 100 rows, 6 columns)
                                                     </div>
                                                     <div style={{ display: 'flex', gap: '8px' }}>
                                                         <button
@@ -1037,7 +1111,7 @@ export default function CSVWizard() {
                                                         </button>
                                                         <button
                                                             onClick={addRow}
-                                                            disabled={editableData.length >= 5}
+                                                            disabled={editableData.length >= 100}
                                                             style={{
                                                                 padding: '6px 12px',
                                                                 fontSize: '13px',
@@ -1046,8 +1120,8 @@ export default function CSVWizard() {
                                                                 border: 'none',
                                                                 borderRadius: '6px',
                                                                 color: 'var(--color-primary-foreground)',
-                                                                cursor: editableData.length >= 5 ? 'not-allowed' : 'pointer',
-                                                                opacity: editableData.length >= 5 ? 0.5 : 1
+                                                                cursor: editableData.length >= 100 ? 'not-allowed' : 'pointer',
+                                                                opacity: editableData.length >= 100 ? 0.5 : 1
                                                             }}
                                                         >
                                                             <Plus size={14} style={{ marginRight: '4px', display: 'inline', verticalAlign: 'middle' }} />
@@ -1394,26 +1468,24 @@ export default function CSVWizard() {
                             </div>
                         )}
 
-                        {/* Step 3: Review Data (skipped if upload from step 2) */}
-                        {currentStep === 3 && (
-                            <div style={{ animation: 'fadeIn 0.3s ease' }}>
-                                {/* This step would show data review, but it's currently incorporated in step 2 */}
-                            </div>
-                        )}
+                        {/* Step 3: Review Data — reserved for future expansion; flow skips to step 4 after upload */}
 
-                        {/* Step 4: Style References (Optional) */}
+                        {/* Step 4: Style References (Required — min 3, max 10) */}
                         {currentStep === 4 && (
                             <div style={{ animation: 'fadeIn 0.3s ease' }}>
                                 <div 
                                     onClick={() => imageInputRef.current?.click()}
+                                    onDragOver={handleImageDragOver}
+                                    onDragLeave={handleImageDragLeave}
+                                    onDrop={handleImageDrop}
                                     style={{
-                                        border: '2px dashed var(--color-border)',
+                                        border: `2px dashed ${imageDragOver ? 'var(--color-primary)' : 'var(--color-border)'}`,
                                         borderRadius: '12px',
                                         padding: '60px 40px',
                                         textAlign: 'center',
                                         cursor: 'pointer',
                                         transition: 'all 0.2s ease-out',
-                                        background: 'var(--color-muted)',
+                                        background: imageDragOver ? 'var(--color-primary-foreground)' : 'var(--color-muted)',
                                         marginBottom: '20px'
                                     }}
                                 >
@@ -1426,6 +1498,12 @@ export default function CSVWizard() {
                                     <div style={{ fontSize: '14px', color: 'var(--color-muted-foreground)' }}>
                                         Upload 3–10 brand reference images (required)
                                     </div>
+                                    {styleImageFiles.length > 0 && (
+                                        <div style={{ marginTop: '12px', fontSize: '14px', fontWeight: 500, color: styleImageFiles.length >= 3 ? 'var(--color-primary)' : 'hsl(var(--destructive))' }}>
+                                            {styleImageFiles.length}/10 — {styleImageFiles.length >= 3 ? 'Ready to continue' : `Need ${3 - styleImageFiles.length} more to proceed`}
+                                            {styleImageFiles.length >= 10 && ' (maximum reached)'}
+                                        </div>
+                                    )}
                                 </div>
                                 <input 
                                     ref={imageInputRef}
@@ -1545,7 +1623,7 @@ export default function CSVWizard() {
                                         <div style={{ flex: 1 }}>
                                             <div style={{ fontSize: '13px', color: 'var(--color-muted-foreground)', marginBottom: '4px' }}>Estimated Time</div>
                                             <div style={{ fontSize: '16px', fontWeight: 500, color: 'var(--color-foreground)' }}>
-                                                ~2-3 minutes
+                                                ~{Math.max(1, Math.round(selectedRows.size * 0.5))}–{Math.max(2, selectedRows.size)} minute{selectedRows.size > 2 ? 's' : ''}
                                             </div>
                                         </div>
                                     </div>
@@ -1554,7 +1632,8 @@ export default function CSVWizard() {
                                         <div style={{ flex: 1 }}>
                                             <div style={{ fontSize: '13px', color: 'var(--color-muted-foreground)', marginBottom: '4px' }}>Credit Cost</div>
                                             <div style={{ fontSize: '16px', fontWeight: 500, color: 'var(--color-foreground)' }}>
-                                                This will use {selectedRows.size} of your 1,250 available credits
+                                                This will use {selectedRows.size} of your{' '}
+                                                {page.props.auth?.user?.credits_remaining ?? '—'} available credits
                                             </div>
                                         </div>
                                     </div>
@@ -1594,13 +1673,25 @@ export default function CSVWizard() {
                         </button>
                         <button 
                             onClick={nextStep}
-                            disabled={(currentStep === 1 && !projectName.trim()) || (currentStep === 2 && !csvData.length) || isSubmitting}
+                            disabled={
+                                (currentStep === 1 && !projectName.trim()) ||
+                                (currentStep === 2 && !csvData.length) ||
+                                (currentStep === 4 && styleImageFiles.length < 3) ||
+                                (currentStep === 5 && selectedRows.size === 0) ||
+                                isSubmitting
+                            }
                             style={{
                                 padding: '10px 24px',
                                 borderRadius: '8px',
                                 fontSize: '14px',
                                 fontWeight: 500,
-                                cursor: ((currentStep === 1 && !projectName.trim()) || (currentStep === 2 && !csvData.length) || isSubmitting) ? 'not-allowed' : 'pointer',
+                                cursor: (
+                                    (currentStep === 1 && !projectName.trim()) ||
+                                    (currentStep === 2 && !csvData.length) ||
+                                    (currentStep === 4 && styleImageFiles.length < 3) ||
+                                    (currentStep === 5 && selectedRows.size === 0) ||
+                                    isSubmitting
+                                ) ? 'not-allowed' : 'pointer',
                                 transition: 'all 0.2s ease-out',
                                 display: 'inline-flex',
                                 alignItems: 'center',
@@ -1608,7 +1699,13 @@ export default function CSVWizard() {
                                 background: 'var(--color-primary)',
                                 color: 'var(--color-primary-foreground)',
                                 border: '1px solid var(--color-primary)',
-                                opacity: ((currentStep === 1 && !projectName.trim()) || (currentStep === 2 && !csvData.length) || isSubmitting) ? 0.5 : 1
+                                opacity: (
+                                    (currentStep === 1 && !projectName.trim()) ||
+                                    (currentStep === 2 && !csvData.length) ||
+                                    (currentStep === 4 && styleImageFiles.length < 3) ||
+                                    (currentStep === 5 && selectedRows.size === 0) ||
+                                    isSubmitting
+                                ) ? 0.5 : 1
                             }}
                         >
                             {isSubmitting ? (
@@ -1631,7 +1728,7 @@ export default function CSVWizard() {
                                 </>
                             ) : currentStep === 5 ? (
                                 <>
-                                    Generate ({selectedRows.size} credits)
+                                    Generate ({selectedRows.size} credit{selectedRows.size !== 1 ? 's' : ''})
                                     <Zap size={16} />
                                 </>
                             ) : (

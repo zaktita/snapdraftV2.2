@@ -28,6 +28,10 @@ class SubscriptionController extends Controller
             $plans = $dbPlans->groupBy('slug')->map(function ($planGroup) {
                 $plan = $planGroup->first();
                 $capabilities = $plan->capabilities ?? [];
+                // Guard: if capabilities is a JSON string (double-encoded), decode it
+                if (is_string($capabilities)) {
+                    $capabilities = json_decode($capabilities, true) ?? [];
+                }
                 
                 // Get pricing for both periods
                 $pricing = SubscriptionService::getTierPricing($plan->slug);
@@ -85,9 +89,9 @@ class SubscriptionController extends Controller
     private function getSubtitle(string $slug): string
     {
         return match($slug) {
-            'launch' => 'Entry / Freelancer / Testing',
-            'growth' => 'Most Popular',
-            'scale' => 'For Agencies & Teams',
+            'launch', 'launch-plan' => 'Entry / Freelancer / Testing',
+            'growth', 'growth-plan' => 'Most Popular',
+            'scale', 'scale-plan' => 'For Agencies & Teams',
             default => '',
         };
     }
@@ -98,49 +102,64 @@ class SubscriptionController extends Controller
     private function formatFeatures(array $capabilities): array
     {
         $features = [];
-        
+        $flags = $capabilities['features'] ?? [];
+
         if (isset($capabilities['credits_per_month'])) {
             $features[] = $capabilities['credits_per_month'] . ' Production Credits / month';
         }
-        
+
         if (isset($capabilities['max_projects'])) {
             $features[] = $capabilities['max_projects'] . ' Brand Project' . ($capabilities['max_projects'] > 1 ? 's' : '');
         }
-        
+
         if (isset($capabilities['csv_max_rows'])) {
             $features[] = 'CSV upload up to ' . number_format($capabilities['csv_max_rows']) . ' rows';
         }
-        
-        $featureFlags = $capabilities['features'] ?? [];
-        
-        if ($featureFlags['batch_generation'] ?? false) {
-            $features[] = 'Batch Generation';
+
+        if (isset($capabilities['max_team_seats']) && $capabilities['max_team_seats'] > 1) {
+            $features[] = 'Team access (' . $capabilities['max_team_seats'] . ' seats included)';
         }
-        
-        if ($featureFlags['brand_dna_analysis'] ?? false) {
-            $features[] = 'Brand DNA extraction';
-        }
-        
-        if ($featureFlags['version_history'] ?? false) {
-            $features[] = 'Version history';
-        }
-        
-        if ($featureFlags['advanced_canvas'] ?? false) {
-            $features[] = 'Advanced Canvas Editor';
-        }
-        
-        if ($featureFlags['priority_processing'] ?? false) {
+
+        if ($flags['priority_processing'] ?? false) {
             $features[] = 'Priority processing';
         }
-        
-        if ($featureFlags['batch_regeneration'] ?? false) {
+
+        if ($flags['batch_regeneration'] ?? false) {
             $features[] = 'Batch regeneration';
         }
-        
-        if (isset($capabilities['max_team_seats']) && $capabilities['max_team_seats'] > 1) {
-            $features[] = 'Team access (' . $capabilities['max_team_seats'] . ' seats)';
+
+        if ($flags['advanced_canvas'] ?? false) {
+            if ($flags['version_history'] ?? false) {
+                $features[] = 'Advanced Canvas Editor + Version history';
+            } else {
+                $features[] = 'Advanced Canvas Editor';
+            }
+        } elseif ($flags['basic_canvas'] ?? false) {
+            $features[] = 'Basic Canvas Editor';
         }
-        
+
+        if ($flags['batch_generation'] ?? false) {
+            $features[] = 'Full Batch Generation';
+        }
+
+        if ($flags['brand_dna_analysis'] ?? false) {
+            $features[] = 'Brand DNA extraction';
+        }
+
+        if (($flags['image_generation'] ?? false) && ($flags['text_generation'] ?? false) && !($flags['batch_generation'] ?? false)) {
+            $features[] = 'Image + Text generation';
+        }
+
+        if ($flags['standard_processing'] ?? false) {
+            $features[] = 'Standard processing speed';
+        } elseif ($flags['priority_processing'] ?? false) {
+            // already added above, skip
+        }
+
+        if ($flags['advanced_canvas'] ?? false) {
+            $features[] = 'Full Canvas capabilities';
+        }
+
         return $features;
     }
 
@@ -150,9 +169,9 @@ class SubscriptionController extends Controller
     private function getBestFor(string $slug): array
     {
         return match($slug) {
-            'launch' => ['Freelancers', 'Solo founders', 'Testing campaigns'],
-            'growth' => ['Marketing teams', 'E-commerce brands', 'Weekly campaign production'],
-            'scale' => ['Agencies', 'Multi-market brands', 'Content ops teams'],
+            'launch', 'launch-plan' => ['Freelancers', 'Solo founders', 'Testing campaigns'],
+            'growth', 'growth-plan' => ['Marketing teams', 'E-commerce brands', 'Weekly campaign production'],
+            'scale', 'scale-plan' => ['Agencies', 'Multi-market brands', 'Content ops teams'],
             default => [],
         };
     }
@@ -223,7 +242,7 @@ class SubscriptionController extends Controller
         ]);
 
         $request->validate([
-            'tier' => 'required|in:launch,growth,scale',
+            'tier' => ['required', 'string', 'exists:plans,slug'],
             'billing_period' => 'required|in:monthly,yearly',
         ]);
 

@@ -43,7 +43,12 @@ class HandleInertiaRequests extends Middleware
             'name' => config('app.name'),
             'quote' => ['message' => trim($message), 'author' => trim($author)],
             'auth' => [
-                'user' => $request->user(),
+                'user' => $request->user()
+                    ? array_merge($request->user()->toArray(), [
+                        'credits_remaining' => $request->user()->creditsRemaining(),
+                        'credits_total'     => $request->user()->creditsTotal(),
+                    ])
+                    : null,
             ],
             'sidebarOpen' => ! $request->hasCookie('sidebar_state') || $request->cookie('sidebar_state') === 'true',
             // Flash messages (success, error, warning)
@@ -54,6 +59,14 @@ class HandleInertiaRequests extends Middleware
             ],
             // Backwards-compatible top-level error for existing pages expecting page.props.error
             'error' => session('error'),
+            // Impersonation state
+            'impersonating' => session('impersonating_user_id')
+                ? (function () use ($request) {
+                    $adminId = session('impersonating_user_id');
+                    $admin = \App\Models\User::find($adminId);
+                    return $admin ? ['id' => $admin->id, 'name' => $admin->name, 'email' => $admin->email] : null;
+                })()
+                : null,
         ];
     }
 }

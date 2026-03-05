@@ -99,11 +99,11 @@ export default function SubscriptionPlans({
     };
 
     const getYearlySavings = (plan: Plan) => {
+        const yearlyTotal = plan.yearly_price * 12;
         const monthlyCost = plan.price * 12;
-        const yearlyCost = plan.yearly_price;
-        const savings = monthlyCost - yearlyCost;
-        const savingsPercent = Math.round((savings / monthlyCost) * 100);
-        return { savings, savingsPercent };
+        const savings = monthlyCost - yearlyTotal; // = 2 months free
+        const savingsPercent = Math.round((savings / monthlyCost) * 100); // ~17%
+        return { savings, savingsPercent, monthsFree: 2 };
     };
 
     const getPlanIcon = (planId: string) => {
@@ -212,7 +212,7 @@ export default function SubscriptionPlans({
                         >
                             Yearly
                             <Badge variant="secondary" className="bg-green-500/10 text-green-700 border-green-500/20">
-                                Save 20%
+                                2 months free
                             </Badge>
                         </button>
                     </div>
@@ -256,15 +256,18 @@ export default function SubscriptionPlans({
                                     
                                     <div className="mt-4">
                                         <div className="flex items-baseline gap-1">
-                                            <span className="text-3xl font-bold">€{price}</span>
-                                            <span className="text-muted-foreground text-sm">
-                                                /{billingPeriod === 'yearly' ? 'year' : 'month'}
-                                            </span>
+                                            <span className="text-3xl font-bold">€{price.toFixed(2)}</span>
+                                            <span className="text-muted-foreground text-sm">/month</span>
                                         </div>
                                         {billingPeriod === 'yearly' && (
-                                            <p className="text-xs text-green-600 mt-1">
-                                                Save {savingsPercent}% with yearly billing
-                                            </p>
+                                            <>
+                                                <p className="text-xs text-muted-foreground mt-0.5">
+                                                    €{(plan.price * 10).toFixed(0)} billed yearly
+                                                </p>
+                                                <p className="text-xs text-green-600 mt-0.5">
+                                                    2 months free — save €{(plan.price * 2).toFixed(0)}/year
+                                                </p>
+                                            </>
                                         )}
                                     </div>
                                 </CardHeader>

@@ -18,7 +18,7 @@ class BrandReferenceAnalyzer
         $this->apiKey = config('services.gemini.api_key');
         // Use vision_model if set, fall back to the general text model (both support multimodal input)
         $this->model = config('services.gemini.vision_model')
-            ?: config('services.gemini.model', 'gemini-1.5-flash');
+            ?: config('services.gemini.model', 'gemini-2.0-flash');
     }
 
     /**

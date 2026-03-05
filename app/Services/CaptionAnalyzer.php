@@ -16,7 +16,7 @@ class CaptionAnalyzer
     public function __construct()
     {
         $this->apiKey = config('services.gemini.api_key');
-        $this->model = config('services.gemini.vision_model', 'gemini-3.1-pro-preview');
+        $this->model = config('services.gemini.vision_model', 'gemini-2.0-flash');
     }
 
     /**

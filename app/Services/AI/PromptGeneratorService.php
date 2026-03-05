@@ -381,101 +381,129 @@ class PromptGeneratorService
     }
 
     /**
-     * Generate simple prompt with title/description extraction for Quick Generate.
-     * Uses first successful model, extracts title/description, selects cluster, generates simple prompt.
+     * Generate prompt for a single CSV row using the Gemini direct API.
      *
-     * @param array $analysis Brand analysis with style_clusters and image_analysis
-     * @param string $caption User-provided caption
-     * @return array ['title' => string, 'description' => string, 'cluster_id' => int, 'selected_images' => array, 'prompt' => string]
+     * Pipeline step 2: given the brand analysis (style_clusters) and the row caption,
+     * ask Gemini to (a) select the best-matching cluster + reference image indices and
+     * (b) write the text content (headline / subtext / CTA) that should appear on the image.
+     * Styling, colour, and layout are handled by the reference images in step 3.
+     *
+     * @param array  $analysis Brand analysis produced by BrandReferenceAnalyzer::analyze()
+     * @param string $caption  Raw caption/description from the CSV row
+     * @return array [
+     *     'cluster_id'     => int|null,
+     *     'selected_images' => int[],
+     *     'simple_prompt'  => string,   // text content for image generation
+     *     'model_used'     => string,
+     * ]
      */
     public function generateSimplePrompt(array $analysis, string $caption): array
     {
-        if (!$this->apiKey) {
-            throw new RuntimeException('OpenRouter API key not configured');
+        $apiKey = config('services.gemini.api_key');
+        if (!$apiKey) {
+            throw new RuntimeException('Gemini API key not configured');
         }
 
-        $clusters = $analysis['style_clusters'] ?? [];
-        $images = $analysis['image_analysis'] ?? [];
+        $model   = config('services.gemini.prompt_model', config('services.gemini.model', 'gemini-3.1-pro-preview'));
+        $baseUrl = 'https://generativelanguage.googleapis.com/v1beta';
 
+        $clusters = $analysis['style_clusters'] ?? [];
+        $images   = $analysis['image_analysis'] ?? [];
+
+        // If no clusters were produced by the brand analyzer, return the raw caption
+        // so the job can still proceed using all reference images.
         if (empty($clusters)) {
-            throw new RuntimeException('No style clusters available for prompt generation');
+            Log::warning('PromptGeneratorService: no style_clusters in brand analysis — using raw caption');
+            return [
+                'cluster_id'      => null,
+                'selected_images' => [],
+                'simple_prompt'   => $caption,
+                'model_used'      => 'none',
+            ];
         }
 
         $clusterDescription = $this->buildClusterDescription($clusters, $images);
-        
-        // Build simplified prompt for title/description extraction + cluster matching
-        $prompt = $this->buildSimpleSystemPrompt($caption, $clusterDescription, $images);
+        $prompt = $this->buildContentPrompt($caption, $clusterDescription, $clusters);
 
-        // Try models in sequence until one succeeds
-        foreach ($this->models as $model) {
-            try {
-                $response = Http::withHeaders([
-                    'Authorization' => "Bearer {$this->apiKey}",
-                    'Content-Type' => 'application/json',
-                    'HTTP-Referer' => $this->siteUrl,
-                    'X-Title' => $this->siteName,
-                ])
-                ->withOptions(['verify' => false])
-                ->timeout(120)
-                ->post($this->baseUrl, [
-                    'model' => $model,
-                    'messages' => [
-                        ['role' => 'user', 'content' => $prompt],
-                    ],
-                    'temperature' => 0.7,
-                    'max_tokens' => 1000,
-                    'top_p' => 0.95,
-                ]);
+        $response = Http::withHeaders(['Content-Type' => 'application/json'])
+            ->withOptions(['verify' => false])
+            ->timeout(60)
+            ->post("{$baseUrl}/models/{$model}:generateContent?key={$apiKey}", [
+                'contents' => [
+                    ['role' => 'user', 'parts' => [['text' => $prompt]]],
+                ],
+                'generationConfig' => [
+                    'responseModalities' => ['TEXT'],
+                    'temperature'        => 0.7,
+                    'maxOutputTokens'    => 500,
+                ],
+            ]);
 
-                if (!$response->successful()) {
-                    continue;
-                }
-
-                $data = $response->json();
-                $content = $data['candidates'][0]['content']['parts'][0]['text']
-                    ?? $data['choices'][0]['message']['content']
-                    ?? null;
-
-                if (!$content) {
-                    continue;
-                }
-
-                $parsed = $this->parsePromptJson($content);
-                
-                // Validate required fields
-                if (!isset($parsed['title']) || !isset($parsed['description']) || !isset($parsed['cluster_id'])) {
-                    continue;
-                }
-
-                Log::info('PromptGeneratorService: Simple prompt generated', [
-                    'model' => $model,
-                    'title' => $parsed['title'],
-                    'cluster_id' => $parsed['cluster_id'],
-                ]);
-
-                return [
-                    'title' => $parsed['title'],
-                    'description' => $parsed['description'],
-                    'cluster_id' => $parsed['cluster_id'],
-                    'selected_images' => $parsed['selected_images'] ?? [],
-                    'simple_prompt' => $this->buildFinalSimplePrompt(
-                        $caption,
-                        $parsed['title'],
-                        $parsed['description']
-                    ),
-                    'model_used' => $model,
-                ];
-
-            } catch (\Throwable $e) {
-                Log::warning('PromptGeneratorService: Model failed', [
-                    'model' => $model,
-                    'error' => $e->getMessage(),
-                ]);
-                continue;
-            }
+        if (!$response->successful()) {
+            throw new RuntimeException(
+                'Gemini prompt generation failed (HTTP ' . $response->status() . '): ' . $response->body()
+            );
         }
 
-        throw new RuntimeException('All models failed to generate prompt');
+        $body = $response->json();
+        $text = $body['candidates'][0]['content']['parts'][0]['text'] ?? null;
+
+        if (!$text) {
+            throw new RuntimeException('Gemini returned no content for prompt generation');
+        }
+
+        $parsed = $this->parsePromptJson($text);
+
+        $clusterId      = isset($parsed['cluster_id']) ? (int) $parsed['cluster_id'] : null;
+        $selectedImages = array_map('intval', $parsed['selected_images'] ?? []);
+        $contentPrompt  = trim((string) ($parsed['prompt'] ?? $caption));
+
+        Log::info('PromptGeneratorService: prompt generated via Gemini', [
+            'model'           => $model,
+            'cluster_id'      => $clusterId,
+            'selected_images' => $selectedImages,
+        ]);
+
+        return [
+            'cluster_id'      => $clusterId,
+            'selected_images' => $selectedImages,
+            'simple_prompt'   => $contentPrompt,
+            'model_used'      => $model,
+        ];
+    }
+
+    /**
+     * Build the prompt sent to Gemini for cluster selection + image text extraction.
+     * The model must return JSON with cluster_id, selected_images, and prompt.
+     */
+    private function buildContentPrompt(string $caption, string $clusterDescription, array $clusters): string
+    {
+        $clusterIds = implode(', ', array_column($clusters, 'cluster_id'));
+
+        $lines   = [];
+        $lines[] = 'You are a visual content assistant. Given the caption and the available brand style clusters, do two things:';
+        $lines[] = '';
+        $lines[] = '1. SELECT the style cluster and 1-3 reference image indices that best match the caption mood and subject.';
+        $lines[] = '2. WRITE the text content that will appear on the image (headline, supporting text, CTA if applicable).';
+        $lines[] = '';
+        $lines[] = 'AVAILABLE STYLE CLUSTERS:';
+        $lines[] = $clusterDescription;
+        $lines[] = '';
+        $lines[] = 'CAPTION: ' . $caption;
+        $lines[] = '';
+        $lines[] = 'RULES:';
+        $lines[] = '- The "prompt" field must contain ONLY the text that will appear on the image.';
+        $lines[] = '- Do NOT include styling, colours, layout, or brand DNA — those come from the reference images.';
+        $lines[] = '- Keep the copy concise and match the tone from the cluster description.';
+        $lines[] = '';
+        $lines[] = 'RESPOND WITH VALID JSON ONLY (no markdown, no code blocks):';
+        $lines[] = '{';
+        $lines[] = '  "cluster_id": <number — must be one of: ' . $clusterIds . '>,';
+        $lines[] = '  "selected_images": [<1-3 integer image indices from that cluster>],';
+        $lines[] = '  "prompt": "<text content for the image — headline, subtext, CTA if any>"';
+        $lines[] = '}';
+
+        return implode("\n", $lines);
     }
 
     /**
