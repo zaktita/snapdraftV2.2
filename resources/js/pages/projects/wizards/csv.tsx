@@ -825,10 +825,32 @@ export default function CSVWizard() {
                                     margin: 0, 
                                     fontSize: '14px', 
                                     color: 'hsl(var(--destructive))',
-                                    lineHeight: 1.5
+                                    lineHeight: 1.5,
+                                    flex: 1
                                 }}>
                                     {errorMessage}
                                 </p>
+                                {(errorMessage.toLowerCase().includes('credit') || errorMessage.toLowerCase().includes('upgrade') || errorMessage.toLowerCase().includes('subscribe')) && (
+                                    <a
+                                        href="/subscription/plans"
+                                        style={{
+                                            display: 'inline-flex',
+                                            alignItems: 'center',
+                                            gap: '4px',
+                                            padding: '6px 12px',
+                                            fontSize: '13px',
+                                            fontWeight: 600,
+                                            background: 'hsl(var(--destructive))',
+                                            color: 'hsl(var(--destructive-foreground))',
+                                            borderRadius: '6px',
+                                            textDecoration: 'none',
+                                            whiteSpace: 'nowrap',
+                                            flexShrink: 0,
+                                        }}
+                                    >
+                                        Upgrade →
+                                    </a>
+                                )}
                                 <button
                                     onClick={() => setShowError(false)}
                                     style={{
@@ -839,7 +861,8 @@ export default function CSVWizard() {
                                         color: 'hsl(var(--destructive))',
                                         padding: '4px',
                                         display: 'flex',
-                                        alignItems: 'center'
+                                        alignItems: 'center',
+                                        flexShrink: 0,
                                     }}
                                 >
                                     <X size={16} />

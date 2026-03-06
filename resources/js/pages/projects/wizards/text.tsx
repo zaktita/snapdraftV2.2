@@ -85,18 +85,15 @@ export default function TextWizard() {
             router.post(text.store.url(), fd, {
                 forceFormData: true,
                 preserveScroll: true,
-                onSuccess: () => console.log('[TextWizard] router.post success'),
                 onError: (errors) => {
                     console.error('[TextWizard] router.post error:', errors);
                     setIsSubmitting(false);
                 },
-                onFinish: () => console.log('[TextWizard] router.post finished'),
             });
         }
     };
 
     const previousStep = () => {
-        console.log('[TextWizard] previousStep called — currentStep:', currentStep);
         if (currentStep > 1) {
             setCurrentStep(currentStep - 1);
         }

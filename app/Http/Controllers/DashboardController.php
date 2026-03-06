@@ -69,11 +69,11 @@ class DashboardController extends Controller
         // Get credits info
         $creditsRemaining = $user->credits_remaining ?? 0;
         $creditsTotal = $user->credits_total ?? 10;
-        $creditsUsed = $creditsTotal - $creditsRemaining;
-        $creditsPercentage = $creditsTotal > 0 ? round(($creditsRemaining / $creditsTotal) * 100) : 0;
+        $creditsUsed = max(0, $creditsTotal - $creditsRemaining);
+        $creditsPercentage = $creditsTotal > 0 ? min(100, round(($creditsUsed / $creditsTotal) * 100)) : 0;
         // Get subscription info
         $subscriptionTier = $user->subscription_tier ?? 'free';
-        $isLowCredits = $creditsPercentage < 20;
+        $isLowCredits = $creditsTotal > 0 && ($creditsRemaining / $creditsTotal) < 0.20; // less than 20% remaining
 
         // Get tier limits
         $tierLimits = SubscriptionService::getTierLimits($subscriptionTier);

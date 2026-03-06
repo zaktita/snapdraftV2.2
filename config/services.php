@@ -92,13 +92,16 @@ return [
         'signing_secret' => env('LEMON_SQUEEZY_WEBHOOK_SECRET'), // Alias for consistency
         'test_mode' => env('LEMON_SQUEEZY_TEST_MODE', false),
         'variants' => [
-            'launch_monthly' => env('LEMON_SQUEEZY_LAUNCH_MONTHLY_VARIANT_ID'),
-            'launch_yearly' => env('LEMON_SQUEEZY_LAUNCH_YEARLY_VARIANT_ID'),
-            'growth_monthly' => env('LEMON_SQUEEZY_GROWTH_MONTHLY_VARIANT_ID'),
-            'growth_yearly' => env('LEMON_SQUEEZY_GROWTH_YEARLY_VARIANT_ID'),
-            'scale_monthly' => env('LEMON_SQUEEZY_SCALE_MONTHLY_VARIANT_ID'),
-            'scale_yearly' => env('LEMON_SQUEEZY_SCALE_YEARLY_VARIANT_ID'),
+            // Beta plan (single plan for beta launch)
+            'beta_monthly' => env('LEMON_SQUEEZY_BETA_MONTHLY_VARIANT_ID'),
+            'beta_yearly'  => env('LEMON_SQUEEZY_BETA_YEARLY_VARIANT_ID'),
         ],
+    ],
+
+    'google' => [
+        'client_id'     => env('GOOGLE_CLIENT_ID'),
+        'client_secret' => env('GOOGLE_CLIENT_SECRET'),
+        'redirect'      => env('GOOGLE_REDIRECT_URI', '/auth/google/callback'),
     ],
 
 ];

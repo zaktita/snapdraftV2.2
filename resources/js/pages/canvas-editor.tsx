@@ -2396,43 +2396,35 @@ export default function CanvasEditor(props: CanvasEditorProps) {
             if (!falApiKey) throw new Error('FAL API key not configured');
             
             fal.config({ credentials: falApiKey });
-            console.log('[FAL AI] FAL client configured with API key');
 
             debug.log('[Upscale] Submitting to FAL AI', { factor });
-            console.log('[FAL AI] Submitting image to FAL AI for upscaling', { factor, model: 'fal-ai/seedvr/upscale/image' });
             
             const submitResponse = await fal.queue.submit('fal-ai/seedvr/upscale/image', {
                 input: { image_url: originalImage, upscale_factor: factor },
             });
-            console.log('[FAL AI] Submit response:', submitResponse);
             
             const { request_id } = submitResponse;
 
             debug.log('[Upscale] Request submitted', { request_id });
-            console.log('[FAL AI] Request ID:', request_id);
 
             let result = null;
             let attempts = 0;
             while (attempts < 120) {
                 const status = await fal.queue.status('fal-ai/seedvr/upscale/image', { requestId: request_id });
-                console.log('[FAL AI] Status response:', status);
                 debug.log('[Upscale] Status check', { attempts, statusObj: status });
                 
                 if ((status as any).status === 'COMPLETED') {
-                    console.log('[FAL AI] Request completed! Fetching full response from:', (status as any).response_url);
                     
                     // Fetch the actual output from the response URL
                     const responseUrl = (status as any).response_url;
                     const fullResponse = await fetch(responseUrl);
                     const responseData = await fullResponse.json();
-                    console.log('[FAL AI] Full response data:', responseData);
                     
                     result = responseData;
                     debug.log('[Upscale] Processing completed', { result });
                     break;
                 }
                 if (attempts % 10 === 0) {
-                    console.log('[FAL AI] Still processing...', { attempts, status: (status as any).status });
                     debug.log('[Upscale] Processing...', { attempts, status: (status as any).status });
                 }
                 await new Promise(r => setTimeout(r, 1000));
@@ -2440,22 +2432,15 @@ export default function CanvasEditor(props: CanvasEditorProps) {
             }
             
             if (!result) {
-                console.log('[FAL AI] ERROR: Result is null after timeout');
                 debug.log('[Upscale] Result is null after timeout');
                 throw new Error('Upscale timed out after 2 minutes');
             }
 
-            console.log('[FAL AI] Full result object:', result);
             debug.log('[Upscale] Result object:', result);
-
             debug.log('[Upscale] Credits deducted successfully');
 
             // Extract image from result - handle different response formats
             let imageUrl: string | null = null;
-            
-            console.log('[FAL AI] Attempting to extract image URL from result...');
-            console.log('[FAL AI] Result type:', typeof result);
-            console.log('[FAL AI] Result keys:', result && typeof result === 'object' ? Object.keys(result) : 'N/A');
             
             if (result && typeof result === 'object') {
                 // FAL AI returns { image: { url: "..." }, seed: ... }
@@ -2465,27 +2450,16 @@ export default function CanvasEditor(props: CanvasEditorProps) {
                           (result as any).output_url ||
                           (result as any).upscaled_image;
                 
-                console.log('[FAL AI] Extracted from object properties:', {
-                    'image.url': (result as any).image?.url,
-                    'image': (result as any).image,
-                    'url': (result as any).url,
-                    'output_url': (result as any).output_url,
-                    'upscaled_image': (result as any).upscaled_image,
-                    finalImageUrl: imageUrl
-                });
             } else if (typeof result === 'string') {
                 // Result might be the URL directly
                 imageUrl = result;
-                console.log('[FAL AI] Result is a string URL:', imageUrl);
             }
 
             if (!imageUrl) {
-                console.error('[FAL AI] ERROR: Could not extract image URL', { result, resultType: typeof result });
                 debug.log('[Upscale] Could not extract image URL from result', { result, resultType: typeof result });
                 throw new Error('No image URL in FAL AI response. Result: ' + JSON.stringify(result).substring(0, 200));
             }
 
-            console.log('[FAL AI] Successfully extracted image URL:', imageUrl.substring(0, 100) + '...');
             debug.log('[Upscale] Extracted image URL', { urlStart: imageUrl.substring(0, 50) });
 
             const newImage = new window.Image();

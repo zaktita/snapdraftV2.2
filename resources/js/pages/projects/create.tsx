@@ -1,164 +1,23 @@
-import { Button } from '@/components/ui/button';
-import {
-    Card,
-    CardContent,
-    CardDescription,
-    CardHeader,
-    CardTitle,
-} from '@/components/ui/card';
 import AppLayout from '@/layouts/app-layout';
 import { dashboard } from '@/routes';
 import { type BreadcrumbItem } from '@/types';
-import { Head, Link, router } from '@inertiajs/react';
-import { ArrowLeft, FileSpreadsheet, Image, Lightbulb } from 'lucide-react';
+import { Head, router } from '@inertiajs/react';
+import { useEffect } from 'react';
 
 const breadcrumbs: BreadcrumbItem[] = [
-    {
-        title: 'Dashboard',
-        href: dashboard().url,
-    },
-    {
-        title: 'Projects',
-        href: '/projects',
-    },
-    {
-        title: 'New Project',
-        href: '/projects/create',
-    },
-];
-
-const wizardOptions = [
-    {
-        id: 'csv',
-        title: 'CSV Wizard',
-        description:
-            'Upload a CSV file with content data to generate brand-consistent visuals in batch',
-        icon: FileSpreadsheet,
-        iconColor: 'text-gray-600 dark:text-gray-500',
-        iconBg: 'bg-gray-100 dark:bg-gray-950',
-        features: [
-            'Batch generate from CSV data',
-            'Required columns: title, description, format',
-            'Upload 5-10 reference images',
-            'Optional product images overlay',
-        ],
-        route: '/projects/create/csv',
-    },
-    {
-        id: 'images',
-        title: 'Images Wizard',
-        description:
-            'Start with reference images to analyze brand style and generate visuals',
-        icon: Image,
-        iconColor: 'text-gray-600 dark:text-gray-500',
-        iconBg: 'bg-gray-100 dark:bg-gray-950',
-        features: [
-            'Upload 5-10 brand reference images',
-            'AI analyzes colors, typography, composition',
-            'Generate individual visuals',
-            'Maintain brand consistency',
-        ],
-        route: '/projects/create/images',
-    },
-    {
-        id: 'text',
-        title: 'Text Wizard',
-        description:
-            'Describe your idea and let AI generate visuals based on your text input',
-        icon: Lightbulb,
-        iconColor: 'text-gray-600 dark:text-gray-500',
-        iconBg: 'bg-gray-100 dark:bg-gray-950',
-        features: [
-            'Text-based content generation',
-            'Describe your visual concept',
-            'Optional reference images',
-            'Quick and simple workflow',
-        ],
-        route: '/projects/create/text',
-    },
+    { title: 'Dashboard', href: dashboard().url },
+    { title: 'Projects', href: '/projects' },
+    { title: 'New Project', href: '/projects/create' },
 ];
 
 export default function ProjectCreate() {
+    useEffect(() => {
+        router.visit('/projects/create/csv', { replace: true });
+    }, []);
+
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
             <Head title="New Project" />
-
-            <div className="flex h-full flex-1 flex-col gap-6 p-4">
-                <div className="flex items-center gap-4">
-                    <Button variant="ghost" size="icon" asChild>
-                        <Link href="/projects">
-                            <ArrowLeft className="size-4" />
-                        </Link>
-                    </Button>
-                    <div>
-                        <h1 className="text-2xl font-bold">
-                            Create New Project
-                        </h1>
-                        <p className="text-sm text-muted-foreground">
-                            Choose how you want to start generating visuals
-                        </p>
-                    </div>
-                </div>
-
-                <div className="grid gap-6 md:grid-cols-3">
-                    {wizardOptions.map((option) => (
-                        <div
-                            key={option.id}
-                            className="group cursor-pointer rounded-lg bg-muted/40 p-6 hover:bg-muted/60 transition-colors"
-                            onClick={() => router.visit(option.route)}
-                        >
-                            <div className="space-y-4 mb-6">
-                                <div className="flex size-12 items-center justify-center rounded-lg bg-muted/60">
-                                    <option.icon className="size-6 text-muted-foreground" />
-                                </div>
-                                <div>
-                                    <h3 className="text-xl font-semibold mb-2">
-                                        {option.title}
-                                    </h3>
-                                    <p className="text-sm text-muted-foreground">
-                                        {option.description}
-                                    </p>
-                                </div>
-                            </div>
-                            <ul className="space-y-2 mb-6">
-                                {option.features.map((feature, idx) => (
-                                    <li
-                                        key={idx}
-                                        className="flex items-start gap-2 text-sm text-muted-foreground"
-                                    >
-                                        <span className="mt-0.5">•</span>
-                                        <span>{feature}</span>
-                                    </li>
-                                ))}
-                            </ul>
-                            <Button className="w-full" variant="outline">
-                                Start with {option.title}
-                            </Button>
-                        </div>
-                    ))}
-                </div>
-
-                <div className="rounded-lg bg-muted/40 p-4">
-                    <div className="flex items-start gap-3">
-                        <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-muted/60">
-                            <span className="text-sm font-semibold">?</span>
-                        </div>
-                        <div className="space-y-1">
-                            <p className="text-sm font-medium">
-                                Not sure which wizard to choose?
-                            </p>
-                            <p className="text-sm text-muted-foreground">
-                                <strong>CSV Wizard</strong> is best for batch
-                                generation from structured data.{' '}
-                                <strong>Images Wizard</strong> when you have
-                                brand references and want to analyze them.{' '}
-                                <strong>Text Wizard</strong> for quick,
-                                text-based generation.
-                            </p>
-                        </div>
-                    </div>
-                </div>
-            </div>
         </AppLayout>
     );
 }

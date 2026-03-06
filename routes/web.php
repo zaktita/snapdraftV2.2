@@ -13,9 +13,16 @@ use App\Http\Controllers\Wizards\BrandAnalysisWizardController;
 use App\Http\Controllers\Wizards\BrandKitWizardController;
 use App\Http\Controllers\SimpleTextWizardController;
 use App\Http\Controllers\QuickGenerateController;
+use App\Http\Controllers\Auth\SocialAuthController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 use Laravel\Fortify\Features;
+
+// Google OAuth (guest middleware — must be accessible before login)
+Route::middleware('guest')->group(function () {
+    Route::get('/auth/google', [SocialAuthController::class, 'redirect'])->name('auth.google');
+    Route::get('/auth/google/callback', [SocialAuthController::class, 'callback'])->name('auth.google.callback');
+});
 
 // Home route: show marketing homepage when unauthenticated, dashboard when logged in
 Route::get('/', function () {
@@ -203,9 +210,6 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('/api/erase-image', [ImageEditController::class, 'erase'])
         ->name('api.erase-image');
     
-    // Test Gemini inpainting
-    Route::get('/test/gemini-inpaint', [ImageEditController::class, 'testInpaint']);
-
     // Subscription & Billing
     Route::prefix('subscription')->name('subscription.')->group(function () {
         Route::get('/plans', [\App\Http\Controllers\SubscriptionController::class, 'index'])->name('plans');

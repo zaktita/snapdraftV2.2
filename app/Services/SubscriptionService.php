@@ -139,8 +139,9 @@ class SubscriptionService
         return match($tier) {
             'scale', 'scale-plan' => 1,      // Highest priority
             'growth', 'growth-plan' => 2,    // High priority
+            'beta' => 3,                     // Beta plan
             'launch', 'launch-plan' => 3,    // Normal priority
-            default => 4,                    // Normal priority (for free/unknown)
+            default => 4,                    // Free/unknown
         };
     }
 

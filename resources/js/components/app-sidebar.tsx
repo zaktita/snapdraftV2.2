@@ -21,8 +21,6 @@ import {
     Folder,
     LayoutGrid,
     FolderPlus,
-    Search,
-    Bell,
     FolderOpen,
     Star,
     Clock,
@@ -35,8 +33,6 @@ import {
     CreditCard,
     Shield,
     Crown,
-    Zap,
-    Palette,
 } from 'lucide-react';
 import AppLogo from './app-logo';
 
@@ -45,16 +41,6 @@ const mainNavItems: NavItem[] = [
         title: 'Home',
         href: dashboard(),
         icon: LayoutGrid,
-    },
-    {
-        title: 'Quick Find',
-        href: '/search',
-        icon: Search,
-    },
-    {
-        title: 'Updates',
-        href: '/updates',
-        icon: Bell,
     },
 ];
 
@@ -125,16 +111,6 @@ export function AppSidebar() {
         {
             title: 'Tools',
             items: [
-                {
-                    title: 'Quick Generate',
-                    href: '/quick-generate',
-                    icon: Zap,
-                },
-                {
-                    title: 'Brand Kit',
-                    href: '/projects/create/brand-kit',
-                    icon: Palette,
-                },
                 {
                     title: 'Canvas Editor',
                     href: '/canvas-editor',

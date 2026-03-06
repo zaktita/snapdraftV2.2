@@ -65,6 +65,8 @@ interface DashboardProps {
 export default function Dashboard({ stats, recent_projects }: DashboardProps) {
     const getTierBadge = (tier: string) => {
         switch (tier) {
+            case 'beta':
+                return <Badge className="bg-primary hover:bg-primary/90">Beta</Badge>;
             case 'launch':
                 return <Badge className="bg-blue-500 hover:bg-blue-600">Launch</Badge>;
             case 'growth':
@@ -76,9 +78,14 @@ export default function Dashboard({ stats, recent_projects }: DashboardProps) {
         }
     };
 
-    const successRate = stats.generations_this_month > 0
-        ? Math.round((stats.successful_generations / stats.generations_this_month) * 100)
-        : 0;
+    const successRate =
+        stats.generations_this_month > 0
+            ? Math.round((stats.successful_generations / stats.generations_this_month) * 100)
+            : 0;
+
+    // Guard against negative or NaN credits display
+    const creditsPercentage = Math.min(100, Math.max(0, stats.credits_percentage ?? 0));
+    const creditsUsed = Math.max(0, stats.credits_used ?? 0);
 
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
@@ -268,11 +275,11 @@ export default function Dashboard({ stats, recent_projects }: DashboardProps) {
                                     <div className="space-y-2">
                                         <div className="flex items-center justify-between text-sm">
                                             <span className="text-muted-foreground">Credits Used</span>
-                                            <span className="font-medium">{stats.credits_percentage}%</span>
+                                            <span className="font-medium">{creditsPercentage}%</span>
                                         </div>
-                                        <Progress value={stats.credits_percentage} className="h-2" />
+                                        <Progress value={creditsPercentage} className="h-2" />
                                         <p className="text-xs text-muted-foreground">
-                                            {stats.credits_used} of {stats.credits_total} used
+                                            {creditsUsed} of {stats.credits_total} used
                                         </p>
                                     </div>
                                 ) : (

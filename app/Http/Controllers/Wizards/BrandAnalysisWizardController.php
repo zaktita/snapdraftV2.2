@@ -14,12 +14,16 @@ use Inertia\Inertia;
 
 class BrandAnalysisWizardController extends Controller
 {
+    // Alias for the second analyzer slot (lab/testing — falls back to Gemini analyzer)
+    protected BrandReferenceAnalyzer $gpt52Analyzer;
+
     public function __construct(
         protected BrandReferenceAnalyzer $analyzer,
         protected GoogleGeminiService $generator,
         protected CaptionAnalyzer $captionAnalyzer,
         protected IntelligentReferenceSelector $referenceSelector
     ) {
+        $this->gpt52Analyzer = $analyzer;
     }
 
     /**
@@ -62,7 +66,7 @@ class BrandAnalysisWizardController extends Controller
 
             $storedReferences[$index] = [
                 'path' => $storedPath,
-                'url' => 'http://127.0.0.1:8000/storage/' . $storedPath,
+                'url' => Storage::url($storedPath),
                 'name' => $file->getClientOriginalName(),
             ];
         }
@@ -254,7 +258,7 @@ class BrandAnalysisWizardController extends Controller
         $references = collect($referencePaths)->map(function ($path) {
             return [
                 'path' => $path,
-                'url' => 'http://127.0.0.1:8000/storage/' . $path,
+                'url' => Storage::url($path),
                 'name' => basename($path),
             ];
         })->all();

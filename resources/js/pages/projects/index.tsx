@@ -248,10 +248,7 @@ export default function ProjectsIndex({ projects: projectsData = [], success }: 
     const handleGenerateMore = (projectId: number, e: React.MouseEvent) => {
         e.preventDefault();
         e.stopPropagation();
-        // Navigate to the project's generation page or show modal
-        console.log('Generate more images for project:', projectId);
-        // TODO: Implement generation flow
-        // router.visit(`/projects/${projectId}/generate`);
+        router.visit(`/projects/${projectId}`);
     };
 
     const tabs = [

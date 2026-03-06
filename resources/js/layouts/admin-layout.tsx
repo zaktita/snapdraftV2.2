@@ -5,8 +5,6 @@ import {
     LayoutDashboard,
     Users,
     CreditCard,
-    Layers,
-    FolderOpen,
     BarChart3,
     ChevronRight,
     LogOut,
@@ -22,11 +20,8 @@ interface AdminLayoutProps {
 const navItems = [
     { label: 'Dashboard', href: '/admin', icon: LayoutDashboard, exact: true },
     { label: 'Users', href: '/admin/users', icon: Users },
-    { label: 'Plans', href: '/admin/plans', icon: Layers },
-    { label: 'Subscriptions', href: '/admin/subscriptions', icon: CreditCard },
     { label: 'Credits', href: '/admin/credits', icon: CreditCard },
-    { label: 'Projects', href: '/admin/projects', icon: FolderOpen },
-    { label: 'Analytics', href: '/admin/analytics', icon: BarChart3 },
+    { label: 'Usage', href: '/admin/usage', icon: BarChart3 },
 ];
 
 function isActive(href: string, currentPath: string, exact = false) {

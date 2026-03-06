@@ -136,7 +136,7 @@ class LemonSqueezyController extends Controller
         }
 
         // Find plan by tier slug or variant ID
-        $tier = $customData['tier'] ?? 'launch';
+        $tier = $customData['tier'] ?? 'beta';
         $plan = Plan::where('slug', $tier)->first();
         
         if (!$plan) {

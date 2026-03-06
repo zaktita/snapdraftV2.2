@@ -13,70 +13,35 @@ class PlanSeeder extends Seeder
      */
     public function run(): void
     {
-        // Use config values if available, otherwise use test/placeholder IDs
-        $launchMonthly = config('services.lemonsqueezy.variants.launch_monthly') ?: '123456';
-        $launchYearly = config('services.lemonsqueezy.variants.launch_yearly') ?: '123457';
-        $growthMonthly = config('services.lemonsqueezy.variants.growth_monthly') ?: '123458';
-        $growthYearly = config('services.lemonsqueezy.variants.growth_yearly') ?: '123459';
-        $scaleMonthly = config('services.lemonsqueezy.variants.scale_monthly') ?: '123460';
-        $scaleYearly = config('services.lemonsqueezy.variants.scale_yearly') ?: '123461';
+        // Deactivate any old plans (Launch / Growth / Scale) so they no longer appear
+        Plan::whereIn('slug', ['launch', 'growth', 'scale'])->update(['is_active' => false]);
+
+        // Single beta plan — variant IDs come from .env
+        $betaMonthly = config('services.lemonsqueezy.variants.beta_monthly') ?: 'BETA_MONTHLY_VARIANT_ID';
+        $betaYearly  = config('services.lemonsqueezy.variants.beta_yearly')  ?: 'BETA_YEARLY_VARIANT_ID';
 
         $plans = [
-            // Launch Plan
             [
                 'provider' => 'lemonsqueezy',
-                'provider_product_id' => $launchMonthly,
-                'provider_variant_monthly' => $launchMonthly,
-                'provider_variant_yearly' => $launchYearly,
-                'name' => 'Launch Plan',
-                'slug' => 'launch',
-                'description' => 'Perfect for freelancers and solo founders getting started with AI-powered visual content generation.',
-                'price' => 39.00,
-                'currency' => 'EUR',
-                'billing_cycle' => 'monthly', // Primary billing cycle
-                'capabilities' => [
-                    'credits_per_month' => 100,
-                    'max_projects' => 1,
-                    'csv_max_rows' => 50,
-                    'max_team_seats' => 1,
-                    'features' => [
-                        'brand_dna_analysis' => true,
-                        'batch_generation' => true,
-                        'version_history' => false,
-                        'priority_processing' => false,
-                        'batch_regeneration' => false,
-                        'advanced_canvas' => false,
-                        'team_access' => false,
-                    ],
-                ],
-                'is_active' => true,
-                'is_featured' => false,
-                'sort_order' => 1,
-                'has_trial' => false,
-                'trial_days' => null,
-            ],
-            // Growth Plan
-            [
-                'provider' => 'lemonsqueezy',
-                'provider_product_id' => $growthMonthly,
-                'provider_variant_monthly' => $growthMonthly,
-                'provider_variant_yearly' => $growthYearly,
-                'name' => 'Growth Plan',
-                'slug' => 'growth',
-                'description' => 'Ideal for growing businesses that need more capacity and advanced features.',
-                'price' => 89.00,
-                'currency' => 'EUR',
+                'provider_product_id' => $betaMonthly,
+                'provider_variant_monthly' => $betaMonthly,
+                'provider_variant_yearly' => $betaYearly,
+                'name' => 'SnapDraft Beta',
+                'slug' => 'beta',
+                'description' => 'Full access to SnapDraft during the beta period. Generate brand-consistent visuals from CSV data with AI.',
+                'price' => 29.00,
+                'currency' => 'USD',
                 'billing_cycle' => 'monthly',
                 'capabilities' => [
-                    'credits_per_month' => 350,
-                    'max_projects' => 3,
-                    'csv_max_rows' => 300,
+                    'credits_per_month' => 100,
+                    'max_projects' => 10,
+                    'csv_max_rows' => 25,
                     'max_team_seats' => 1,
                     'features' => [
                         'brand_dna_analysis' => true,
                         'batch_generation' => true,
                         'version_history' => true,
-                        'priority_processing' => true,
+                        'priority_processing' => false,
                         'batch_regeneration' => false,
                         'advanced_canvas' => true,
                         'team_access' => false,
@@ -84,42 +49,9 @@ class PlanSeeder extends Seeder
                 ],
                 'is_active' => true,
                 'is_featured' => true,
-                'sort_order' => 2,
-                'has_trial' => false,
-                'trial_days' => null,
-            ],
-            // Scale Plan
-            [
-                'provider' => 'lemonsqueezy',
-                'provider_product_id' => $scaleMonthly,
-                'provider_variant_monthly' => $scaleMonthly,
-                'provider_variant_yearly' => $scaleYearly,
-                'name' => 'Scale Plan',
-                'slug' => 'scale',
-                'description' => 'For agencies and enterprises requiring maximum capacity and premium features.',
-                'price' => 199.00,
-                'currency' => 'EUR',
-                'billing_cycle' => 'monthly',
-                'capabilities' => [
-                    'credits_per_month' => 900,
-                    'max_projects' => 10,
-                    'csv_max_rows' => 1500,
-                    'max_team_seats' => 3,
-                    'features' => [
-                        'brand_dna_analysis' => true,
-                        'batch_generation' => true,
-                        'version_history' => true,
-                        'priority_processing' => true,
-                        'batch_regeneration' => true,
-                        'advanced_canvas' => true,
-                        'team_access' => true,
-                    ],
-                ],
-                'is_active' => true,
-                'is_featured' => false,
-                'sort_order' => 3,
-                'has_trial' => false,
-                'trial_days' => null,
+                'sort_order' => 1,
+                'has_trial' => true,
+                'trial_days' => 7,
             ],
         ];
 
@@ -131,6 +63,6 @@ class PlanSeeder extends Seeder
         }
 
         $this->command->info('Plans seeded successfully!');
-        $this->command->info('3 plans created: Launch, Growth, Scale');
+        $this->command->info('1 plan created: SnapDraft Beta ($29/mo, 100 credits, 10 projects, 7-day trial)');
     }
 }

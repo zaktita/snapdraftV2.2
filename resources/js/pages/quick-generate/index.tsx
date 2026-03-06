@@ -56,9 +56,7 @@ export default function QuickGenerateIndex() {
     };
 
     const addFiles = (newFiles: File[]) => {
-        console.log('📸 Adding files:', newFiles.length);
         const combined = [...referenceImages, ...newFiles].slice(0, 10);
-        console.log('📊 Total images after add:', combined.length);
         setReferenceImages(combined);
         setData('reference_images', combined);
     };
@@ -71,25 +69,10 @@ export default function QuickGenerateIndex() {
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        console.log('🚀 Quick Generate Form Submit');
-        console.log('📋 Form Data:', {
-            reference_images_count: data.reference_images.length,
-            caption: data.caption,
-            format: data.format,
-        });
-        console.log('📁 Reference Images:', data.reference_images);
-        console.log('🔗 Post URL:', quickGenerate.store().url);
-        
         post(quickGenerate.store().url, {
-            forceFormData: true, // Force multipart/form-data for file uploads
-            onSuccess: (page) => {
-                console.log('✅ Form submission successful', page);
-            },
+            forceFormData: true,
             onError: (errors) => {
                 console.error('❌ Form submission errors:', errors);
-            },
-            onFinish: () => {
-                console.log('🏁 Form submission finished');
             },
         });
     };
@@ -239,15 +222,6 @@ export default function QuickGenerateIndex() {
                         <Button
                             type="submit"
                             disabled={processing || referenceImages.length < 5 || !data.caption.trim()}
-                            onClick={() => {
-                                console.log('🔘 Generate Visual button clicked');
-                                console.log('⚙️ Button state:', {
-                                    processing,
-                                    referenceCount: referenceImages.length,
-                                    captionLength: data.caption.trim().length,
-                                    disabled: processing || referenceImages.length < 5 || !data.caption.trim(),
-                                });
-                            }}
                         >
                             <Zap className="mr-2 h-4 w-4" />
                             {processing ? 'Processing...' : 'Generate Visual'}

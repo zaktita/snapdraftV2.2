@@ -89,9 +89,10 @@ class SubscriptionController extends Controller
     private function getSubtitle(string $slug): string
     {
         return match($slug) {
+            'beta'                   => 'Beta access — full feature set',
             'launch', 'launch-plan' => 'Entry / Freelancer / Testing',
             'growth', 'growth-plan' => 'Most Popular',
-            'scale', 'scale-plan' => 'For Agencies & Teams',
+            'scale', 'scale-plan'   => 'For Agencies & Teams',
             default => '',
         };
     }
@@ -169,9 +170,10 @@ class SubscriptionController extends Controller
     private function getBestFor(string $slug): array
     {
         return match($slug) {
+            'beta'                   => ['Solo founders', 'Freelancers', 'Early adopters'],
             'launch', 'launch-plan' => ['Freelancers', 'Solo founders', 'Testing campaigns'],
             'growth', 'growth-plan' => ['Marketing teams', 'E-commerce brands', 'Weekly campaign production'],
-            'scale', 'scale-plan' => ['Agencies', 'Multi-market brands', 'Content ops teams'],
+            'scale', 'scale-plan'   => ['Agencies', 'Multi-market brands', 'Content ops teams'],
             default => [],
         };
     }
