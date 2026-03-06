@@ -9,6 +9,7 @@ use App\Models\Project;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
+use App\Services\AI\AIServiceManager;
 use ZipArchive;
 
 class ImageController extends Controller
@@ -104,7 +105,7 @@ class ImageController extends Controller
         }
 
         foreach ($images as $index => $image) {
-            $filePath = storage_path('app/' . $image->url);
+            $filePath = Storage::disk('public')->path($image->url);
             if (file_exists($filePath)) {
                 $extension = pathinfo($image->url, PATHINFO_EXTENSION);
                 $fileName = $project->title . '_image_' . ($index + 1) . '.' . $extension;

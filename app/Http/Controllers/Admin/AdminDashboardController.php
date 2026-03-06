@@ -12,9 +12,10 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Password;
+use App\Http\Controllers\Controller;
 use Inertia\Inertia;
 
-class AdminDashboardController
+class AdminDashboardController extends Controller
 {
     public function index()
     {
@@ -198,19 +199,26 @@ class AdminDashboardController
     {
         $plans = Plan::withCount(['subscriptions' => function ($q) {
             $q->where('status', 'active');
-        }])->get()->map(fn ($plan) => [
-            'id'                      => $plan->id,
-            'name'                    => $plan->name,
-            'slug'                    => $plan->slug,
-            'description'             => $plan->description ?? '',
-            'price_monthly'           => $plan->price_monthly ?? 0,
-            'price_yearly'            => $plan->price_yearly ?? 0,
-            'features'                => $plan->features ?? [],
-            'credits_per_month'       => $plan->credits_per_month ?? 0,
-            'max_projects'            => $plan->max_projects ?? 0,
-            'lemonsqueezy_variant_id' => $plan->lemonsqueezy_variant_id ?? null,
-            'is_active'               => $plan->is_active ?? true,
-            'subscriptions_count'     => $plan->subscriptions_count,
+        }])->withTrashed()->get()->map(fn ($plan) => [
+            'id'                       => $plan->id,
+            'name'                     => $plan->name,
+            'slug'                     => $plan->slug,
+            'description'              => $plan->description ?? '',
+            'price'                    => $plan->price ?? 0,
+            'currency'                 => $plan->currency ?? 'USD',
+            'billing_cycle'            => $plan->billing_cycle ?? 'monthly',
+            'is_active'                => (bool) ($plan->is_active ?? true),
+            'is_featured'              => (bool) ($plan->is_featured ?? false),
+            'has_trial'                => (bool) ($plan->has_trial ?? false),
+            'trial_days'               => (int) ($plan->trial_days ?? 0),
+            'sort_order'               => (int) ($plan->sort_order ?? 0),
+            'provider'                 => $plan->provider ?? 'lemonsqueezy',
+            'provider_product_id'      => $plan->provider_product_id ?? null,
+            'provider_variant_monthly' => $plan->provider_variant_monthly ?? $plan->lemonsqueezy_variant_id ?? null,
+            'provider_variant_yearly'  => $plan->provider_variant_yearly ?? null,
+            'capabilities'             => $plan->capabilities ?? null,
+            'subscriptions_count'      => $plan->subscriptions_count,
+            'deleted_at'               => $plan->deleted_at?->toISOString(),
         ]);
 
         return Inertia::render('admin/plans', ['plans' => $plans]);

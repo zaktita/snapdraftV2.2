@@ -33,8 +33,8 @@ class CheckCsvRowLimit
             $rows = $this->countCsvRows($csv);
 
             if (!SubscriptionService::canUploadCsvRows($user, $rows)) {
-                $limits = SubscriptionService::getTierLimits($user->subscription_tier);
-                $tierName = SubscriptionService::getTierDisplayName($user->subscription_tier);
+                $limits = SubscriptionService::getTierLimits($user->currentTier() ?? 'free');
+                $tierName = SubscriptionService::getTierDisplayName($user->currentTier() ?? 'free');
 
                 return back()->with('error', 
                     "Your CSV has {$rows} rows, but your {$tierName} allows up to {$limits['csv_max_rows']} rows. Please upgrade or reduce the number of rows."
@@ -49,8 +49,8 @@ class CheckCsvRowLimit
                 $rows = count($inlineData);
 
                 if (!SubscriptionService::canUploadCsvRows($user, $rows)) {
-                    $limits = SubscriptionService::getTierLimits($user->subscription_tier);
-                    $tierName = SubscriptionService::getTierDisplayName($user->subscription_tier);
+                    $limits = SubscriptionService::getTierLimits($user->currentTier() ?? 'free');
+                    $tierName = SubscriptionService::getTierDisplayName($user->currentTier() ?? 'free');
 
                     return back()->with('error', 
                         "Your data has {$rows} rows, but your {$tierName} allows up to {$limits['csv_max_rows']} rows. Please upgrade or reduce the number of rows."

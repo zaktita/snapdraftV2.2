@@ -148,7 +148,7 @@ class ProjectController extends Controller
     {
         $project = Project::with(['images' => function ($query) {
             $query->orderBy('order')->orderBy('created_at');
-        }])->findOrFail($id);
+        }])->withCount('images')->findOrFail($id);
 
         // Authorize viewing the project
         $this->authorize('view', $project);

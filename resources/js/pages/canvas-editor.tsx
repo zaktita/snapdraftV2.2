@@ -2695,9 +2695,6 @@ export default function CanvasEditor(props: CanvasEditorProps) {
 
     const selectTool = (toolName: string) => {
         setCurrentTool(toolName);
-        if (toolName !== 'erase') {
-            setEraseSelection(null);
-        }
     };
 
     return (
@@ -3530,7 +3527,7 @@ export default function CanvasEditor(props: CanvasEditorProps) {
                                 const url = URL.createObjectURL(file);
                                 const img = new Image();
                                 img.onload = () => {
-                                    const id = `obj-${Date.now()}`;
+                                    const id = Date.now();
                                     const newObj: CanvasObject = {
                                         id,
                                         image: img,

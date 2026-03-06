@@ -21,7 +21,7 @@ import { ProjectListSkeleton } from '@/components/ui/skeleton-loaders';
 import AppLayout from '@/layouts/app-layout';
 import { dashboard } from '@/routes';
 import { create as create_project } from '@/routes/projects';
-import { type BreadcrumbItem } from '@/types';
+import { type BreadcrumbItem, type SharedData } from '@/types';
 import { Head, Link, router, usePage } from '@inertiajs/react';
 import {
     ArrowUpDown,
@@ -71,16 +71,15 @@ interface PaginatedProjects {
 }
 
 interface ProjectsPageProps {
-    projects: PaginatedProjects | Project[]; // Support both paginated and array format
-    success?: string;
+    projects: PaginatedProjects | Project[];
 }
 
 type ViewMode = 'grid' | 'list';
 type FilterTab = 'all' | 'recent' | 'favorites';
 type SortOption = 'date-desc' | 'date-asc' | 'name-asc' | 'name-desc' | 'images-desc';
 
-export default function ProjectsIndex({ projects: projectsData = [], success }: ProjectsPageProps) {
-    const page = usePage();
+export default function ProjectsIndex({ projects: projectsData = [] }: ProjectsPageProps) {
+    const page = usePage<SharedData>();
     const urlParams = new URLSearchParams(window.location.search);
     const filterParam = urlParams.get('filter') as FilterTab | null;
     
@@ -91,18 +90,20 @@ export default function ProjectsIndex({ projects: projectsData = [], success }: 
     const [viewMode, setViewMode] = useState<ViewMode>('grid');
     const [activeTab, setActiveTab] = useState<FilterTab>(filterParam || 'all');
     const [sortBy, setSortBy] = useState<SortOption>('date-desc');
-    const [showSuccess, setShowSuccess] = useState(!!success);
+    const flashSuccess = page.props.flash?.success;
+    const [showSuccess, setShowSuccess] = useState(!!flashSuccess);
     
     // Local state to track optimistic favorite updates
     const [optimisticFavorites, setOptimisticFavorites] = useState<Record<number, boolean>>({});
 
     // Auto-hide success message after 5 seconds
     useEffect(() => {
-        if (success) {
+        if (flashSuccess) {
+            setShowSuccess(true);
             const timer = setTimeout(() => setShowSuccess(false), 5000);
             return () => clearTimeout(timer);
         }
-    }, [success]);
+    }, [flashSuccess]);
 
     // Update active tab when URL changes
     useEffect(() => {
@@ -273,11 +274,11 @@ export default function ProjectsIndex({ projects: projectsData = [], success }: 
             <div className="min-h-screen bg-white">
                 <div className="mx-auto px-8 py-16">
                     {/* Success Message */}
-                    {showSuccess && success && (
+                    {showSuccess && flashSuccess && (
                         <Alert className="relative mb-12 border-green-600/20 bg-green-50 dark:bg-green-950/20">
                             <CheckCircle className="size-4 text-green-600" />
                             <AlertTitle>Success</AlertTitle>
-                            <AlertDescription>{success}</AlertDescription>
+                            <AlertDescription>{flashSuccess}</AlertDescription>
                             <Button
                                 variant="ghost"
                                 size="icon"

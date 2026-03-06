@@ -89,7 +89,7 @@ class SubscriptionService
             return false;
         }
 
-        $csvLimit = (int) ($subscription->capabilities['csv_rows_limit'] ?? 0);
+        $csvLimit = (int) ($subscription->capabilities['csv_max_rows'] ?? 0);
         return $rows <= $csvLimit;
     }
 

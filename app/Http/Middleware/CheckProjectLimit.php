@@ -28,8 +28,8 @@ class CheckProjectLimit
         }
 
         if (!SubscriptionService::canCreateProject($user)) {
-            $limits = SubscriptionService::getTierLimits($user->subscription_tier);
-            $tierName = SubscriptionService::getTierDisplayName($user->subscription_tier);
+            $limits = SubscriptionService::getTierLimits($user->currentTier() ?? 'free');
+            $tierName = SubscriptionService::getTierDisplayName($user->currentTier() ?? 'free');
 
             return back()->with('error', 
                 "You've reached the maximum of {$limits['max_projects']} project(s) for your {$tierName}. Please upgrade to create more projects."

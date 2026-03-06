@@ -197,12 +197,21 @@ class User extends Authenticatable
         return $this->hasMany(SubscriptionUsage::class);
     }
 
+    /** @var \App\Models\Subscription|false|null  false = not yet loaded */
+    private $cachedSubscription = false;
+
     /**
-     * Get the user's active subscription.
+     * Get the user's active subscription (cached per model instance to avoid N+1 queries).
      */
-    public function subscription()
+    public function subscription(): ?\App\Models\Subscription
     {
-        return $this->subscriptions()->where('status', 'active')->latest()->first();
+        if ($this->cachedSubscription === false) {
+            $this->cachedSubscription = $this->subscriptions()
+                ->where('status', 'active')
+                ->latest()
+                ->first();
+        }
+        return $this->cachedSubscription;
     }
 
     /**

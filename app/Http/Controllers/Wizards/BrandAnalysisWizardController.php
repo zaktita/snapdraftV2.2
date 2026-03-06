@@ -152,16 +152,14 @@ class BrandAnalysisWizardController extends Controller
             $geminiPrompt,
             array_slice($geminiSelectedPaths, 0, 5),
             [],
-            $format,
-            false
+            $format
         );
 
         $falGeneration = $this->generator->generateWithReferences(
             $falPrompt,
             array_slice($falSelectedPaths, 0, 5),
             [],
-            $format,
-            false
+            $format
         );
 
         return Inertia::render('projects/wizards/brand-analysis', [
@@ -251,8 +249,7 @@ class BrandAnalysisWizardController extends Controller
             $prompt,
             $referencePaths,
             [],
-            $format,
-            false
+            $format
         );
 
         $references = collect($referencePaths)->map(function ($path) {

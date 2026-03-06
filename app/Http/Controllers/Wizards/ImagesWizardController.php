@@ -36,6 +36,7 @@ class ImagesWizardController extends Controller
 
         // Create the project
         $project = Auth::user()->projects()->create([
+            'name'  => $validated['project_name'],
             'title' => $validated['project_name'],
             'description' => $validated['content_description'],
             'settings' => [

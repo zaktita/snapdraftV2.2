@@ -7,6 +7,7 @@ use App\Models\Plan;
 use App\Models\Subscription;
 use App\Models\User;
 use Illuminate\Http\Request;
+use Carbon\Carbon;
 use Illuminate\Support\Facades\Log;
 
 class LemonSqueezyController extends Controller
@@ -160,10 +161,10 @@ class LemonSqueezyController extends Controller
             'lemonsqueezy_variant_id' => $attributes['variant_id'],
             'status' => $attributes['status'],
             'billing_period' => $customData['billing_period'] ?? 'monthly',
-            'starts_at' => $attributes['created_at'] ? now()->parse($attributes['created_at']) : now(),
-            'trial_ends_at' => $attributes['trial_ends_at'] ? now()->parse($attributes['trial_ends_at']) : null,
-            'renews_at' => $attributes['renews_at'] ? now()->parse($attributes['renews_at']) : null,
-            'ends_at' => $attributes['ends_at'] ? now()->parse($attributes['ends_at']) : null,
+            'starts_at' => $attributes['created_at'] ? Carbon::parse($attributes['created_at']) : now(),
+            'trial_ends_at' => $attributes['trial_ends_at'] ? Carbon::parse($attributes['trial_ends_at']) : null,
+            'renews_at' => $attributes['renews_at'] ? Carbon::parse($attributes['renews_at']) : null,
+            'ends_at' => $attributes['ends_at'] ? Carbon::parse($attributes['ends_at']) : null,
             'price' => ($attributes['first_subscription_item']['price'] ?? 0) / 100, // Convert cents to dollars
             'amount_paid' => ($attributes['first_subscription_item']['price'] ?? 0) / 100,
             'currency' => strtoupper($attributes['first_subscription_item']['currency'] ?? 'EUR'),
@@ -190,8 +191,8 @@ class LemonSqueezyController extends Controller
         
         $subscription->update([
             'status' => $attributes['status'],
-            'renews_at' => $attributes['renews_at'] ? now()->parse($attributes['renews_at']) : null,
-            'ends_at' => $attributes['ends_at'] ? now()->parse($attributes['ends_at']) : null,
+            'renews_at' => $attributes['renews_at'] ? Carbon::parse($attributes['renews_at']) : null,
+            'ends_at' => $attributes['ends_at'] ? Carbon::parse($attributes['ends_at']) : null,
             'price' => $attributes['first_subscription_item']['price'] ?? $subscription->price,
         ]);
 
@@ -218,7 +219,7 @@ class LemonSqueezyController extends Controller
         $subscription->update([
             'status' => 'cancelled',
             'cancelled_at' => now(),
-            'ends_at' => $attributes['ends_at'] ? now()->parse($attributes['ends_at']) : now(),
+            'ends_at' => $attributes['ends_at'] ? Carbon::parse($attributes['ends_at']) : now(),
         ]);
 
         Log::info('❌ Subscription cancelled', ['subscription_id' => $subscription->id]);
@@ -241,7 +242,7 @@ class LemonSqueezyController extends Controller
         $subscription->update([
             'status' => 'active',
             'cancelled_at' => null,
-            'renews_at' => $attributes['renews_at'] ? now()->parse($attributes['renews_at']) : null,
+            'renews_at' => $attributes['renews_at'] ? Carbon::parse($attributes['renews_at']) : null,
         ]);
 
         Log::info('▶️ Subscription resumed', ['subscription_id' => $subscription->id]);
@@ -304,7 +305,7 @@ class LemonSqueezyController extends Controller
         $subscription->update([
             'status' => 'active',
             'paused_at' => null,
-            'renews_at' => $attributes['renews_at'] ? now()->parse($attributes['renews_at']) : null,
+            'renews_at' => $attributes['renews_at'] ? Carbon::parse($attributes['renews_at']) : null,
         ]);
 
         Log::info('▶️ Subscription unpaused', ['subscription_id' => $subscription->id]);
@@ -326,7 +327,7 @@ class LemonSqueezyController extends Controller
         
         $subscription->update([
             'status' => 'active',
-            'renews_at' => $attributes['renews_at'] ? now()->parse($attributes['renews_at']) : null,
+            'renews_at' => $attributes['renews_at'] ? Carbon::parse($attributes['renews_at']) : null,
         ]);
 
         Log::info('💳 Subscription payment successful', ['subscription_id' => $subscription->id]);
@@ -367,7 +368,7 @@ class LemonSqueezyController extends Controller
         
         $subscription->update([
             'status' => 'active',
-            'renews_at' => $attributes['renews_at'] ? now()->parse($attributes['renews_at']) : null,
+            'renews_at' => $attributes['renews_at'] ? Carbon::parse($attributes['renews_at']) : null,
         ]);
 
         Log::info('✅ Subscription payment recovered', ['subscription_id' => $subscription->id]);
