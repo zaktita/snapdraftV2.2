@@ -25,6 +25,7 @@ interface Image {
     thumbnail_url: string;
     prompt?: string;
     is_favorite?: boolean;
+    metadata?: Record<string, any> | null;
 }
 
 interface Project {
@@ -45,16 +46,19 @@ interface ProjectShowProps {
     project: Project;
     justCreated?: boolean; // Flag to indicate project was just created
     expectedImages?: number; // Expected number of images to generate
+    batchCompleted?: boolean; // Flag to show completion toast after processing redirect
     hasPendingGenerations?: boolean; // Whether there are pending AI generations
     progress?: {
         total: number;
         completed: number;
         failed: number;
         pending: number;
+        failure_reasons?: Array<{ title?: string | null; message: string }>;
     } | null;
+    csvRowTitles?: string[] | null; // Titles from CSV data for titled skeleton slots
 }
 
-export default function ProjectShow({ project, justCreated = false, expectedImages = 0, hasPendingGenerations = false, progress = null }: ProjectShowProps) {
+export default function ProjectShow({ project, justCreated = false, expectedImages = 0, batchCompleted = false, hasPendingGenerations = false, progress = null, csvRowTitles = null }: ProjectShowProps) {
     const page = usePage<{ success?: string; generating?: boolean }>();
     const [selectedImages, setSelectedImages] = useState<number[]>([]);
     const [favoriteImages, setFavoriteImages] = useState<number[]>([]);
@@ -77,10 +81,13 @@ export default function ProjectShow({ project, justCreated = false, expectedImag
     const [showSuccess, setShowSuccess] = useState(false);
     // Initialize banner state based on flash message OR pending generations prop
     const [showGeneratingBanner, setShowGeneratingBanner] = useState(!!page.props.generating || hasPendingGenerations);
+    const [openImageMenuIndex, setOpenImageMenuIndex] = useState<number | null>(null);
     const [lightboxOpen, setLightboxOpen] = useState(false);
     const [lightboxImageIndex, setLightboxImageIndex] = useState(0);
     const titleInputRef = useRef<HTMLInputElement>(null);
     const csvInputRef = useRef<HTMLInputElement>(null);
+    const isGenerationPending = showGeneratingBanner;
+    const skeletonCount = Math.max(1, (progress?.total ?? expectedImages) || 1);
 
     const parseCSV = (text: string): CSVRow[] => {
         const lines = text.trim().split('\n');
@@ -259,46 +266,83 @@ export default function ProjectShow({ project, justCreated = false, expectedImag
         setCsvFile(file);
         setUploadComplete(true);
     };
-    
+
     // Show success message on mount if present
     useEffect(() => {
-        if (page.props.success) {
+        if (page.props.success || batchCompleted) {
             setShowSuccess(true);
+
+            // Clean one-time completion flag from URL without reloading.
+            if (batchCompleted && typeof window !== 'undefined') {
+                const url = new URL(window.location.href);
+                if (url.searchParams.has('batchCompleted')) {
+                    url.searchParams.delete('batchCompleted');
+                    const next = `${url.pathname}${url.searchParams.toString() ? `?${url.searchParams.toString()}` : ''}${url.hash}`;
+                    window.history.replaceState({}, '', next);
+                }
+            }
+
             // Auto-hide after 5 seconds
             const timer = setTimeout(() => setShowSuccess(false), 5000);
             return () => clearTimeout(timer);
         }
-    }, [page.props.success]);
-    
-    // Simple polling: check every 5 seconds if generating, reload when image count changes
+    }, [page.props.success, batchCompleted]);
+
+    // Adaptive polling: fast right after start, then slower to reduce load.
     useEffect(() => {
         if (!showGeneratingBanner) return;
-        
-        const initialImageCount = project.images.length;
-        
-        const interval = setInterval(() => {
-            router.reload({ 
-                only: ['project', 'hasPendingGenerations', 'progress'],
-                onSuccess: (page) => {
-                    const newProject = (page.props as any).project;
-                    const stillPending = (page.props as any).hasPendingGenerations;
-                    
-                    // Stop polling if we have new images AND no more pending generations
-                    if (newProject.images.length > initialImageCount && !stillPending) {
-                        setShowGeneratingBanner(false);
-                        clearInterval(interval);
-                    } else if (!stillPending && newProject.images.length === initialImageCount) {
-                        // Case where generation might have failed (no new images, but no longer pending)
-                        setShowGeneratingBanner(false);
-                        clearInterval(interval);
-                    }
-                }
-            });
-        }, 3000); // Poll every 3 seconds
-        
-        return () => clearInterval(interval);
-    }, [showGeneratingBanner, project.images.length]);
-    
+
+        const startedAt = Date.now();
+        let timeoutId: ReturnType<typeof setTimeout> | null = null;
+        let stopped = false;
+        let drainPolls = 0;
+        const MAX_DRAIN_POLLS = 3;
+
+        const scheduleNext = (delayOverride?: number) => {
+            if (stopped) return;
+
+            const elapsedMs = Date.now() - startedAt;
+            const nextDelay = delayOverride !== undefined ? delayOverride : (elapsedMs < 20_000 ? 1200 : 3000);
+
+            timeoutId = setTimeout(() => {
+                router.reload({
+                    only: ['project', 'hasPendingGenerations', 'progress'],
+                    onSuccess: (page) => {
+                        const stillPending = (page.props as any).hasPendingGenerations;
+
+                        if (!stillPending) {
+                            if (drainPolls < MAX_DRAIN_POLLS) {
+                                // Do a few more quick polls to catch last-second image saves
+                                drainPolls++;
+                                scheduleNext(1000);
+                                return;
+                            }
+                            setShowGeneratingBanner(false);
+                            stopped = true;
+                            return;
+                        }
+
+                        // Reset drain counter in case a new batch starts
+                        drainPolls = 0;
+                        scheduleNext();
+                    },
+                    onError: () => {
+                        scheduleNext();
+                    },
+                });
+            }, nextDelay);
+        };
+
+        scheduleNext(0);
+
+        return () => {
+            stopped = true;
+            if (timeoutId) {
+                clearTimeout(timeoutId);
+            }
+        };
+    }, [showGeneratingBanner]);
+
     useEffect(() => {
         if (isEditingTitle && titleInputRef.current) {
             titleInputRef.current.focus();
@@ -398,11 +442,16 @@ export default function ProjectShow({ project, justCreated = false, expectedImag
         if (!csvFile) return;
 
         setCsvSubmitting(true);
-        setShowGeneratingBanner(true);
 
-        router.post(`/projects/${project.id}/csv`, { csv_file: csvFile }, {
+        router.post(`/projects/${project.id}/generate`, {
+            csv_file: csvFile,
+            column_mappings: JSON.stringify(columnMappings),
+        }, {
             forceFormData: true,
             preserveScroll: true,
+            onSuccess: () => {
+                setShowGeneratingBanner(true);
+            },
             onFinish: () => {
                 setCsvSubmitting(false);
                 setCsvModalOpen(false);
@@ -411,38 +460,53 @@ export default function ProjectShow({ project, justCreated = false, expectedImag
     };
 
     const csvHeaders = csvData.length > 0 ? Object.keys(csvData[0]) : [];
-    
+
     const openLightbox = (index: number) => {
         setLightboxImageIndex(index);
         setLightboxOpen(true);
     };
-    
+
     const closeLightbox = () => {
         setLightboxOpen(false);
     };
-    
+
     const goToPrevImage = () => {
         setLightboxImageIndex((prev) => (prev === 0 ? project.images.length - 1 : prev - 1));
     };
-    
+
     const goToNextImage = () => {
         setLightboxImageIndex((prev) => (prev === project.images.length - 1 ? 0 : prev + 1));
     };
-    
+
+    // Close image menu on Escape or outside click
+    useEffect(() => {
+        if (openImageMenuIndex === null) return;
+        const handleClose = (e: MouseEvent | KeyboardEvent) => {
+            if ('key' in e && e.key !== 'Escape') return;
+            setOpenImageMenuIndex(null);
+        };
+        document.addEventListener('click', handleClose);
+        document.addEventListener('keydown', handleClose);
+        return () => {
+            document.removeEventListener('click', handleClose);
+            document.removeEventListener('keydown', handleClose);
+        };
+    }, [openImageMenuIndex]);
+
     // Keyboard navigation for lightbox
     useEffect(() => {
         if (!lightboxOpen) return;
-        
+
         const handleKeyDown = (e: KeyboardEvent) => {
             if (e.key === 'Escape') closeLightbox();
             if (e.key === 'ArrowLeft') goToPrevImage();
             if (e.key === 'ArrowRight') goToNextImage();
         };
-        
+
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
     }, [lightboxOpen, project.images.length]);
-    
+
     const breadcrumbs: BreadcrumbItem[] = [
         {
             title: 'Dashboard',
@@ -488,7 +552,7 @@ export default function ProjectShow({ project, justCreated = false, expectedImag
                                     fontSize: '24px',
                                     fontWeight: 600,
                                     color: 'var(--color-foreground)',
-                                    marginBottom: '6px',
+                                    marginBottom: '4px',
                                 }}
                             >
                                 {csvCurrentStep === 2 && uploadComplete ? 'Review, Map & Edit Data' : 'Upload Your CSV File'}
@@ -503,8 +567,23 @@ export default function ProjectShow({ project, justCreated = false, expectedImag
                             >
                                 {csvCurrentStep === 2 && uploadComplete
                                     ? 'Confirm your data is correct before proceeding.'
-                                    : 'Upload or create a CSV. Style references are already set for this project.'}
+                                    : 'Upload or create a CSV. Style references are already set for this project.'
+                                }
                             </p>
+                            {csvCurrentStep === 2 && !uploadComplete && (
+                                <p style={{
+                                    fontSize: '12px',
+                                    color: 'var(--color-muted-foreground)',
+                                    marginTop: '6px',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '4px',
+                                }}>
+                                    <AlertCircle size={12} style={{ flexShrink: 0 }} />
+                                    Max 5 rows per generation here. Need more?{' '}
+                                    <a href="/projects/create/csv" style={{ color: 'var(--color-primary)', textDecoration: 'none' }}>Use the CSV Wizard</a>
+                                </p>
+                            )}
                         </div>
 
                         {/* Body */}
@@ -1098,11 +1177,11 @@ export default function ProjectShow({ project, justCreated = false, expectedImag
             <div className="min-h-screen bg-white">
                 <div className="mx-auto px-8 py-8">
                     {/* Success Toast */}
-                    {showSuccess && page.props.success && (
+                    {showSuccess && (page.props.success || batchCompleted) && (
                         <div className="mb-6 flex items-center justify-between rounded-lg border border-green-200 bg-green-50 p-4 text-green-800">
                             <div className="flex items-center gap-3">
                                 <CheckCircle className="size-5" />
-                                <span className="font-medium">{page.props.success}</span>
+                                <span className="font-medium">{page.props.success || 'Batch generation complete. Your new images are ready.'}</span>
                             </div>
                             <button
                                 onClick={() => setShowSuccess(false)}
@@ -1123,14 +1202,14 @@ export default function ProjectShow({ project, justCreated = false, expectedImag
                                     My Projects
                                 </Link>
                             </Button>
-                            
+
                         </div>
 
                         {/* Right side */}
                         <div className="flex items-center gap-3">
-                            <Button 
-                                variant="ghost" 
-                                size="sm" 
+                            <Button
+                                variant="ghost"
+                                size="sm"
                                 className="gap-2 border"
                                 style={{ borderColor: 'var(--color-border)', color: 'var(--color-foreground)', minWidth: '125px', background: 'var(--color-card)' }}
                                 onClick={() => {
@@ -1153,11 +1232,11 @@ export default function ProjectShow({ project, justCreated = false, expectedImag
                                     </>
                                 )}
                             </Button>
-                            <Button 
-                                size="sm" 
+                            <Button
+                                size="sm"
                                 className="gap-2"
-                                style={{ 
-                                    backgroundColor: selectedImages.length > 0 ? 'var(--color-primary)' : 'var(--color-muted)', 
+                                style={{
+                                    backgroundColor: selectedImages.length > 0 ? 'var(--color-primary)' : 'var(--color-muted)',
                                     color: selectedImages.length > 0 ? 'var(--color-primary-foreground)' : 'var(--color-muted-foreground)',
                                     cursor: selectedImages.length === 0 ? 'not-allowed' : 'pointer',
                                     border: 'none'
@@ -1165,11 +1244,11 @@ export default function ProjectShow({ project, justCreated = false, expectedImag
                                 disabled={selectedImages.length === 0}
                                 onClick={async () => {
                                     if (selectedImages.length === 0) return;
-                                    
+
                                     // Import JSZip dynamically
                                     const JSZip = (await import('jszip')).default;
                                     const zip = new JSZip();
-                                    
+
                                     // Download each selected image and add to zip
                                     const promises = selectedImages.map(async (index) => {
                                         const image = project.images[index];
@@ -1182,9 +1261,9 @@ export default function ProjectShow({ project, justCreated = false, expectedImag
                                             console.error(`Failed to download image ${index}:`, error);
                                         }
                                     });
-                                    
+
                                     await Promise.all(promises);
-                                    
+
                                     // Generate zip file and trigger download
                                     const content = await zip.generateAsync({ type: 'blob' });
                                     const link = document.createElement('a');
@@ -1202,31 +1281,23 @@ export default function ProjectShow({ project, justCreated = false, expectedImag
                         </div>
                     </div>
 
-                    {/* Generation Status Banner */}
-                    {showGeneratingBanner && (
-                        <div className="mb-6 rounded-lg border border-blue-200 bg-blue-50 p-4 dark:border-blue-800 dark:bg-blue-950">
-                            <div className="flex items-center gap-3">
-                                <div className="size-5 animate-spin rounded-full border-2 border-blue-200 border-t-blue-600 dark:border-blue-800 dark:border-t-blue-400"></div>
-                                <div>
-                                    <p className="font-medium text-blue-900 dark:text-blue-100">
-                                        Generating your image...
-                                    </p>
-                                    <p className="text-sm text-blue-700 dark:text-blue-300">
-                                        This may take 30-60 seconds. The page will automatically update when complete.
-                                    </p>
-                                </div>
-                            </div>
-                        </div>
-                    )}
-
-                    {/* Generation Progress - show optimistic progress when a generation was just started or pending */}
-                    {(justCreated || hasPendingGenerations || (progress && progress.pending > 0)) && (
+                    {/* Generation Progress - show while pending OR when there were failures */}
+                    {progress && (progress.pending > 0 || progress.failed > 0) && (
                         <div className="mb-6">
                             <BatchProgress
-                                total={progress ? progress.total : (expectedImages || 1)}
-                                completed={progress ? progress.completed : 0}
-                                failed={progress ? progress.failed : 0}
-                                status={progress && progress.pending === 0 ? 'completed' : 'processing'}
+                                total={progress.total}
+                                completed={progress.completed}
+                                failed={progress.failed}
+                                status={
+                                    progress.pending > 0
+                                        ? 'processing'
+                                        : progress.failed > 0 && progress.completed > 0
+                                            ? 'partial'
+                                            : progress.failed > 0
+                                                ? 'failed'
+                                                : 'completed'
+                                }
+                                failures={progress.failure_reasons}
                             />
                         </div>
                     )}
@@ -1245,7 +1316,7 @@ export default function ProjectShow({ project, justCreated = false, expectedImag
                                     className="text-2xl font-semibold text-gray-900 border-b-2 border-blue-500 bg-transparent outline-none mb-1"
                                 />
                             ) : (
-                                <h1 
+                                <h1
                                     className="text-2xl font-semibold text-gray-900 mb-1 cursor-text hover:opacity-80 transition-opacity"
                                     onDoubleClick={handleTitleDoubleClick}
                                     title="Double-click to rename"
@@ -1257,7 +1328,7 @@ export default function ProjectShow({ project, justCreated = false, expectedImag
                                 {project.images_count} images
                             </p>
                         </div>
-                        
+
                         <Button
                             size="sm"
                             className="gap-2"
@@ -1270,129 +1341,251 @@ export default function ProjectShow({ project, justCreated = false, expectedImag
                     </div>
 
                     {/* Images Grid */}
-                    {project.images.length > 0 ? (
-                        <div className="grid grid-cols-5 gap-4">
-                            {project.images.map((image, index) => {
-                                const isSelected = selectedImages.includes(index);
-                                const isFavorite = favoriteImages.includes(index);
-                                
-                                return (
-                                    <div
-                                        key={image.id}
-                                        className="group relative aspect-square overflow-hidden cursor-pointer"
-                                        style={{ borderRadius: '12px' }}
-                                        onClick={() => {
-                                            setSelectedImages(prev => 
-                                                prev.includes(index) 
-                                                    ? prev.filter(i => i !== index)
-                                                    : [...prev, index]
-                                            );
-                                        }}
-                                    >
-                                        <img
-                                            src={`/storage/${image.thumbnail_url || image.url}`}
-                                            alt={image.prompt || `${project.title} - Image ${index + 1}`}
-                                            className="h-full w-full object-cover"
-                                        />
-                                    
-                                    {/* Selection Indicator - Always visible when selected */}
-                                    {isSelected && (
-                                        <div className="absolute inset-0 bg-black/20 pointer-events-none" />
-                                    )}
-                                    
-                                    {/* Hover Overlay */}
-                                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none" />
-                                    
-                                    {/* Checkbox - Always visible when selected, or on hover (above overlay) */}
-                                    <div className={`absolute left-3 top-3 z-20 ${isSelected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'} transition-opacity duration-200`}>
-                                        <button 
-                                            className="flex size-6 items-center justify-center rounded-xl transition-colors hover:scale-110"
-                                            style={{ 
-                                                backgroundColor: isSelected ? 'var(--color-primary)' : 'var(--color-card)',
-                                            }}
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                setSelectedImages(prev => 
-                                                    prev.includes(index) 
+                    {project.images.length > 0 || isGenerationPending ? (
+                        <>
+                            {isGenerationPending && (!progress || progress.pending > 0) && (
+                                <div className="mb-4 flex items-center gap-3">
+                                    <div className="size-4 animate-spin rounded-full border-2 border-blue-200 border-t-blue-600" />
+                                    <span className="text-sm font-medium text-gray-600">
+                                        {progress && progress.total > 0
+                                            ? `Generating ${project.images.length} of ${progress.total}${progress.failed > 0 ? ` (${progress.failed} failed)` : ''}…`
+                                            : 'Preparing your images…'}
+                                    </span>
+                                </div>
+                            )}
+                            <div className="grid grid-cols-5 gap-4">
+                                {project.images.map((image, index) => {
+                                    const isSelected = selectedImages.includes(index);
+                                    const isFavorite = favoriteImages.includes(index);
+
+                                    return (
+                                        <div
+                                            key={image.id}
+                                            className="group relative aspect-square overflow-hidden cursor-pointer"
+                                            style={{ borderRadius: '12px' }}
+                                            onClick={() => {
+                                                setSelectedImages(prev =>
+                                                    prev.includes(index)
                                                         ? prev.filter(i => i !== index)
                                                         : [...prev, index]
                                                 );
                                             }}
                                         >
-                                            {isSelected && <Check className="size-4" style={{ color: 'var(--color-primary-foreground)' }} />}
-                                        </button>
-                                    </div>
-                                    
-                                    {/* Bottom Center - Action Icons (above overlay) */}
-                                    <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-20">
-                                        <button 
-                                            className="flex size-10 items-center justify-center rounded-full transition-all hover:scale-110 hover:shadow-lg"
-                                            style={{ backgroundColor: 'var(--color-muted)' }}
-                                            title="Expand"
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                openLightbox(index);
-                                            }}
+                                            <img
+                                                src={`/storage/${image.thumbnail_url || image.url}`}
+                                                alt={image.prompt || `${project.title} - Image ${index + 1}`}
+                                                className="h-full w-full object-cover"
+                                            />
+
+                                            {/* Persistent 3-dot menu — always visible, accessible on touch/keyboard */}
+                                            <div className="absolute right-2 top-2 z-20">
+                                                <button
+                                                    className="flex size-7 items-center justify-center rounded-full shadow-sm transition-all hover:scale-110"
+                                                    style={{ backgroundColor: 'var(--color-card)', opacity: 0.92 }}
+                                                    title="More options"
+                                                    aria-label="More options"
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        setOpenImageMenuIndex(openImageMenuIndex === index ? null : index);
+                                                    }}
+                                                >
+                                                    <MoreHorizontal className="size-4" style={{ color: 'var(--color-foreground)' }} />
+                                                </button>
+                                                {openImageMenuIndex === index && (
+                                                    <div
+                                                        className="absolute right-0 top-8 z-30 w-40 overflow-hidden rounded-lg border shadow-lg"
+                                                        style={{ background: 'var(--color-card)', borderColor: 'var(--color-border)' }}
+                                                        onClick={(e) => e.stopPropagation()}
+                                                    >
+                                                        <button
+                                                            className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors hover:bg-muted"
+                                                            onClick={() => { setOpenImageMenuIndex(null); openLightbox(index); }}
+                                                        >
+                                                            <Maximize className="size-3.5" /> Expand
+                                                        </button>
+                                                        <button
+                                                            className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors hover:bg-muted"
+                                                            onClick={() => {
+                                                                setOpenImageMenuIndex(null);
+                                                                const encodedImageUrl = encodeURIComponent(image.url);
+                                                                const encodedTitle = encodeURIComponent(project.title);
+                                                                router.visit(`/canvas-editor?projectId=${project.id}&image=${encodedImageUrl}&title=${encodedTitle}&imageId=${image.id}`);
+                                                            }}
+                                                        >
+                                                            <Edit className="size-3.5" /> Edit in Canvas
+                                                        </button>
+                                                        <button
+                                                            className={`flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors hover:bg-muted ${regeneratingByImageId[image.id] ? 'cursor-not-allowed opacity-50' : ''}`}
+                                                            disabled={!!regeneratingByImageId[image.id]}
+                                                            onClick={() => { setOpenImageMenuIndex(null); regenerateImage(image.id); }}
+                                                        >
+                                                            <RotateCw className={`size-3.5 ${regeneratingByImageId[image.id] ? 'animate-spin' : ''}`} />
+                                                            {regeneratingByImageId[image.id] ? 'Regenerating…' : 'Regenerate'}
+                                                        </button>
+                                                        <button
+                                                            className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors hover:bg-muted"
+                                                            onClick={async () => {
+                                                                setOpenImageMenuIndex(null);
+                                                                try {
+                                                                    const response = await fetch(`/storage/${image.url}`);
+                                                                    const blob = await response.blob();
+                                                                    const url = URL.createObjectURL(blob);
+                                                                    const link = document.createElement('a');
+                                                                    link.href = url;
+                                                                    link.download = `${project.title}_image_${index + 1}.jpg`;
+                                                                    document.body.appendChild(link);
+                                                                    link.click();
+                                                                    document.body.removeChild(link);
+                                                                    URL.revokeObjectURL(url);
+                                                                } catch (error) {
+                                                                    console.error('Failed to download image:', error);
+                                                                }
+                                                            }}
+                                                        >
+                                                            <Download className="size-3.5" /> Download
+                                                        </button>
+                                                    </div>
+                                                )}
+                                            </div>
+
+                                            {/* Selection Indicator - Always visible when selected */}
+                                            {isSelected && (
+                                                <div className="absolute inset-0 bg-black/20 pointer-events-none" />
+                                            )}
+
+                                            {/* Hover Overlay */}
+                                            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none" />
+
+                                            {/* Checkbox - Always visible when selected, or on hover (above overlay) */}
+                                            <div className={`absolute left-3 top-3 z-20 ${isSelected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'} transition-opacity duration-200`}>
+                                                <button
+                                                    className="flex size-6 items-center justify-center rounded-xl transition-colors hover:scale-110"
+                                                    style={{
+                                                        backgroundColor: isSelected ? 'var(--color-primary)' : 'var(--color-card)',
+                                                    }}
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        setSelectedImages(prev =>
+                                                            prev.includes(index)
+                                                                ? prev.filter(i => i !== index)
+                                                                : [...prev, index]
+                                                        );
+                                                    }}
+                                                >
+                                                    {isSelected && <Check className="size-4" style={{ color: 'var(--color-primary-foreground)' }} />}
+                                                </button>
+                                            </div>
+
+                                            {/* Bottom Center - Action Icons (above overlay) */}
+                                            <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-20">
+                                                <button
+                                                    className="flex size-10 items-center justify-center rounded-full transition-all hover:scale-110 hover:shadow-lg"
+                                                    style={{ backgroundColor: 'var(--color-muted)' }}
+                                                    title="Expand"
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        openLightbox(index);
+                                                    }}
+                                                >
+                                                    <Maximize className="size-4" style={{ color: 'var(--color-foreground)' }} />
+                                                </button>
+                                                <button
+                                                    className="flex size-10 items-center justify-center rounded-full transition-all hover:scale-110 hover:shadow-lg"
+                                                    style={{ backgroundColor: 'var(--color-muted)' }}
+                                                    title="Edit"
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        // Open canvas editor with image
+                                                        const encodedImageUrl = encodeURIComponent(image.url);
+                                                        const encodedTitle = encodeURIComponent(project.title);
+                                                        router.visit(`/canvas-editor?projectId=${project.id}&image=${encodedImageUrl}&title=${encodedTitle}&imageId=${image.id}`);
+                                                    }}
+                                                >
+                                                    <Edit className="size-4" style={{ color: 'var(--color-foreground)' }} />
+                                                </button>
+                                                <button
+                                                    className={`flex size-10 items-center justify-center rounded-full transition-all hover:scale-110 hover:shadow-lg ${regeneratingByImageId[image.id] ? 'cursor-not-allowed opacity-60 hover:scale-100 hover:shadow-none' : ''}`}
+                                                    style={{ backgroundColor: 'var(--color-muted)' }}
+                                                    title="Regenerate"
+                                                    disabled={!!regeneratingByImageId[image.id]}
+                                                    aria-disabled={!!regeneratingByImageId[image.id]}
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        regenerateImage(image.id);
+                                                    }}
+                                                >
+                                                    <RotateCw className={`size-4 ${regeneratingByImageId[image.id] ? 'animate-spin' : ''}`} style={{ color: 'var(--color-foreground)' }} />
+                                                </button>
+                                                <button
+                                                    className="flex size-10 items-center justify-center rounded-full transition-all hover:scale-110 hover:shadow-lg"
+                                                    style={{ backgroundColor: 'var(--color-muted)' }}
+                                                    title="Download"
+                                                    onClick={async (e) => {
+                                                        e.stopPropagation();
+                                                        // Handle download
+                                                        try {
+                                                            const response = await fetch(`/storage/${image.url}`);
+                                                            const blob = await response.blob();
+                                                            const url = URL.createObjectURL(blob);
+                                                            const link = document.createElement('a');
+                                                            link.href = url;
+                                                            link.download = `${project.title}_image_${index + 1}.jpg`;
+                                                            document.body.appendChild(link);
+                                                            link.click();
+                                                            document.body.removeChild(link);
+                                                            URL.revokeObjectURL(url);
+                                                        } catch (error) {
+                                                            console.error('Failed to download image:', error);
+                                                        }
+                                                    }}
+                                                >
+                                                    <Download className="size-4" style={{ color: 'var(--color-foreground)' }} />
+                                                </button>
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                                {/* Skeleton slots for images still being generated */}
+                                {isGenerationPending && (() => {
+                                    // If we have CSV row titles, render titled skeletons matching by csv_row_index
+                                    if (csvRowTitles && csvRowTitles.length > 0) {
+                                        const completedIndices = new Set(
+                                            project.images
+                                                .map(img => img.metadata?.csv_row_index)
+                                                .filter((idx): idx is number => idx !== undefined && idx !== null)
+                                        );
+                                        const pendingItems = csvRowTitles
+                                            .map((title, idx) => ({ title, idx }))
+                                            .filter(({ idx }) => !completedIndices.has(idx));
+
+                                        return pendingItems.map(({ title, idx }) => (
+                                            <div
+                                                key={`skeleton-csv-${idx}`}
+                                                className="aspect-square overflow-hidden rounded-xl border bg-gray-100"
+                                            >
+                                                <div className="relative h-full w-full animate-pulse bg-gradient-to-br from-gray-100 via-gray-200 to-gray-100">
+                                                    <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-gray-300/80 to-transparent px-3 py-2">
+                                                        <p className="truncate text-xs font-medium text-gray-500">{title}</p>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        ));
+                                    }
+
+                                    // Fallback: generic count-based skeletons
+                                    const totalSlots = progress?.total ?? skeletonCount;
+                                    const pendingSlots = Math.max(0, totalSlots - project.images.length);
+                                    return Array.from({ length: pendingSlots }).map((_, i) => (
+                                        <div
+                                            key={`skeleton-${i}`}
+                                            className="aspect-square overflow-hidden rounded-xl border bg-gray-100"
                                         >
-                                            <Maximize className="size-4" style={{ color: 'var(--color-foreground)' }} />
-                                        </button>
-                                        <button 
-                                            className="flex size-10 items-center justify-center rounded-full transition-all hover:scale-110 hover:shadow-lg"
-                                            style={{ backgroundColor: 'var(--color-muted)' }}
-                                            title="Edit"
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                // Open canvas editor with image
-                                                const encodedImageUrl = encodeURIComponent(image.url);
-                                                const encodedTitle = encodeURIComponent(project.title);
-                                                router.visit(`/canvas-editor?projectId=${project.id}&image=${encodedImageUrl}&title=${encodedTitle}&imageId=${image.id}`);
-                                            }}
-                                        >
-                                            <Edit className="size-4" style={{ color: 'var(--color-foreground)' }} />
-                                        </button>
-                                        <button 
-                                            className={`flex size-10 items-center justify-center rounded-full transition-all hover:scale-110 hover:shadow-lg ${regeneratingByImageId[image.id] ? 'cursor-not-allowed opacity-60 hover:scale-100 hover:shadow-none' : ''}`}
-                                            style={{ backgroundColor: 'var(--color-muted)' }}
-                                            title="Regenerate"
-                                            disabled={!!regeneratingByImageId[image.id]}
-                                            aria-disabled={!!regeneratingByImageId[image.id]}
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                regenerateImage(image.id);
-                                            }}
-                                        >
-                                            <RotateCw className={`size-4 ${regeneratingByImageId[image.id] ? 'animate-spin' : ''}`} style={{ color: 'var(--color-foreground)' }} />
-                                        </button>
-                                        <button 
-                                            className="flex size-10 items-center justify-center rounded-full transition-all hover:scale-110 hover:shadow-lg"
-                                            style={{ backgroundColor: 'var(--color-muted)' }}
-                                            title="Download"
-                                            onClick={async (e) => {
-                                                e.stopPropagation();
-                                                // Handle download
-                                                try {
-                                                    const response = await fetch(`/storage/${image.url}`);
-                                                    const blob = await response.blob();
-                                                    const url = URL.createObjectURL(blob);
-                                                    const link = document.createElement('a');
-                                                    link.href = url;
-                                                    link.download = `${project.title}_image_${index + 1}.jpg`;
-                                                    document.body.appendChild(link);
-                                                    link.click();
-                                                    document.body.removeChild(link);
-                                                    URL.revokeObjectURL(url);
-                                                } catch (error) {
-                                                    console.error('Failed to download image:', error);
-                                                }
-                                            }}
-                                        >
-                                            <Download className="size-4" style={{ color: 'var(--color-foreground)' }} />
-                                        </button>
-                                    </div>
-                                </div>
-                            );
-                        })}
-                    </div>
+                                            <div className="h-full w-full animate-pulse bg-gradient-to-br from-gray-100 via-gray-200 to-gray-100" />
+                                        </div>
+                                    ));
+                                })()}
+                            </div>
+                        </>
                     ) : (
                         <div className="flex flex-col items-center justify-center py-16 text-center">
                             <p className="text-gray-500 mb-4">No images generated yet.</p>
@@ -1408,10 +1601,10 @@ export default function ProjectShow({ project, justCreated = false, expectedImag
                     )}
                 </div>
             </div>
-            
+
             {/* Lightbox Modal */}
             {lightboxOpen && project.images.length > 0 && (
-                <div 
+                <div
                     className="fixed inset-0 z-50 flex items-center justify-center bg-black/95"
                     onClick={closeLightbox}
                 >
@@ -1423,12 +1616,12 @@ export default function ProjectShow({ project, justCreated = false, expectedImag
                     >
                         <X className="size-6" />
                     </button>
-                    
+
                     {/* Image Counter */}
                     <div className="absolute left-1/2 top-6 z-50 -translate-x-1/2 rounded-full bg-white/10 px-4 py-2 text-sm text-white backdrop-blur-sm">
                         {lightboxImageIndex + 1} / {project.images.length}
                     </div>
-                    
+
                     {/* Previous Button */}
                     {project.images.length > 1 && (
                         <button
@@ -1442,7 +1635,7 @@ export default function ProjectShow({ project, justCreated = false, expectedImag
                             <ChevronLeft className="size-6" />
                         </button>
                     )}
-                    
+
                     {/* Next Button */}
                     {project.images.length > 1 && (
                         <button
@@ -1456,9 +1649,9 @@ export default function ProjectShow({ project, justCreated = false, expectedImag
                             <ChevronRight className="size-6" />
                         </button>
                     )}
-                    
+
                     {/* Main Image */}
-                    <div 
+                    <div
                         className="relative max-h-[90vh] max-w-[90vw]"
                         onClick={(e) => e.stopPropagation()}
                     >
@@ -1467,7 +1660,7 @@ export default function ProjectShow({ project, justCreated = false, expectedImag
                             alt={project.images[lightboxImageIndex].prompt || `${project.title} - Image ${lightboxImageIndex + 1}`}
                             className="max-h-[90vh] max-w-[90vw] object-contain"
                         />
-                        
+
                         {/* Image Actions */}
                         <div className="absolute bottom-6 left-1/2 flex -translate-x-1/2 items-center gap-3 rounded-full bg-white/10 p-3 backdrop-blur-sm">
                             <button
@@ -1482,7 +1675,7 @@ export default function ProjectShow({ project, justCreated = false, expectedImag
                             >
                                 <Edit className="size-4" />
                             </button>
-                            
+
                             <button
                                 className="flex size-10 items-center justify-center rounded-full bg-white/20 text-white transition-all hover:bg-white/30"
                                 title="Download"
@@ -1506,7 +1699,7 @@ export default function ProjectShow({ project, justCreated = false, expectedImag
                             >
                                 <Download className="size-4" />
                             </button>
-                            
+
                             <button
                                 className={`flex size-10 items-center justify-center rounded-full bg-white/20 text-white transition-all hover:bg-white/30 ${regeneratingByImageId[project.images[lightboxImageIndex].id] ? 'cursor-not-allowed opacity-60 hover:bg-white/20' : ''}`}
                                 title={regeneratingByImageId[project.images[lightboxImageIndex].id] ? 'Regenerating…' : 'Regenerate'}

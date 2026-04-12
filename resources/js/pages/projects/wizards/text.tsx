@@ -89,6 +89,9 @@ export default function TextWizard() {
                     console.error('[TextWizard] router.post error:', errors);
                     setIsSubmitting(false);
                 },
+                onFinish: () => {
+                    setIsSubmitting(false);
+                },
             });
         }
     };
@@ -108,60 +111,7 @@ export default function TextWizard() {
     return (
         <>
             <Head title="Text Wizard" />
-            
-                        {/* Loading Overlay During Submission */}
-                        {isSubmitting && (
-                            <div style={{
-                                position: 'fixed',
-                                top: 0,
-                                left: 0,
-                                right: 0,
-                                bottom: 0,
-                                background: 'rgba(0, 0, 0, 0.8)',
-                                zIndex: 9999,
-                                display: 'flex',
-                                flexDirection: 'column',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                backdropFilter: 'blur(4px)',
-                            }}>
-                                <div style={{
-                                    background: 'var(--color-card)',
-                                    borderRadius: '16px',
-                                    padding: '40px 48px',
-                                    maxWidth: '400px',
-                                    textAlign: 'center',
-                                    boxShadow: '0 20px 60px rgba(0, 0, 0, 0.3)',
-                                }}>
-                                    <div style={{
-                                        width: '64px',
-                                        height: '64px',
-                                        margin: '0 auto 24px',
-                                        border: '4px solid var(--color-muted)',
-                                        borderTopColor: 'hsl(var(--primary))',
-                                        borderRadius: '50%',
-                                        animation: 'spin 0.8s linear infinite',
-                                    }} />
-                                    <h3 style={{
-                                        fontSize: '20px',
-                                        fontWeight: 600,
-                                        color: 'var(--color-foreground)',
-                                        marginBottom: '12px',
-                                    }}>
-                                        Starting Generation...
-                                    </h3>
-                                    <p style={{
-                                        fontSize: '14px',
-                                        color: 'var(--color-muted-foreground)',
-                                        lineHeight: 1.6,
-                                        margin: 0,
-                                    }}>
-                                        Setting up your project and starting image generation. You'll be redirected to your project dashboard shortly.
-                                    </p>
-                                </div>
-                            </div>
-                        )}
-            
+
             <div style={{
                 fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", "Oxygen", "Ubuntu", "Cantarell", sans-serif',
                 background: 'var(--color-muted)',

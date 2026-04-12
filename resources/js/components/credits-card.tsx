@@ -9,14 +9,15 @@ export function CreditsCard() {
     const { auth } = usePage<SharedData>().props;
     const user = auth.user as typeof auth.user & {
         subscription_tier?: string;
+        subscription_plan_name?: string;
         credits_remaining?: number;
         credits_total?: number;
     };
 
     const creditsRemaining = user.credits_remaining ?? 0;
     const creditsTotal = user.credits_total ?? 10;
-    const tier = user.subscription_tier ?? 'free';
-    
+    const planName = user.subscription_plan_name ?? 'Beta';
+
     const isUnlimited = creditsTotal === 999999;
     const creditsUsed = isUnlimited ? 0 : Math.max(creditsTotal - creditsRemaining, 0);
     const usagePercent = isUnlimited || creditsTotal === 0 ? 0 : (creditsUsed / creditsTotal) * 100;
@@ -26,9 +27,7 @@ export function CreditsCard() {
             <div className="flex items-start justify-between">
                 <div className="flex items-center gap-1 text-muted-foreground">
                     <Info className="h-4 w-4" />
-                    <p className="text-sm font-medium">
-                        {tier === 'scale' ? 'Scale' : tier === 'growth' ? 'Growth' : tier === 'launch' ? 'Launch' : 'Free'} Plan
-                    </p>
+                    <p className="text-sm font-medium">{planName}</p>
                 </div>
             </div>
 
@@ -54,8 +53,8 @@ export function CreditsCard() {
                     size="sm"
                     className="w-full bg-sidebar-primary text-sidebar-primary-foreground hover:bg-neutral-900 hover:text-sidebar-primary-foreground/90 transition-colors duration-150"
                 >
-                    <Link href={tier === 'free' ? '/subscription/plans' : '/subscription'} prefetch>
-                        {tier === 'free' ? 'Upgrade Plan' : 'Manage Billing'}
+                    <Link href="/feedback" prefetch>
+                        Share Feedback
                     </Link>
                 </Button>
             </div>

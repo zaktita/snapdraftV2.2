@@ -18,9 +18,8 @@ export function UpgradeAlert({ title, message, currentTier, feature }: UpgradeAl
             <AlertDescription className="mt-2">
                 <p className="mb-3">{message}</p>
                 <Button asChild size="sm" className="gap-2">
-                    <Link href="/subscription/plans">
-                        <Crown className="h-4 w-4" />
-                        Upgrade Plan
+                    <Link href="/feedback">
+                        Share Feedback
                     </Link>
                 </Button>
             </AlertDescription>
@@ -41,28 +40,25 @@ export function TierLimitBadge({ currentValue, maxValue, label, unit = 'items' }
     const isAtLimit = currentValue >= maxValue;
 
     return (
-        <div className={`rounded-lg border p-3 ${
-            isAtLimit ? 'border-destructive bg-destructive/5' : 
-            isNearLimit ? 'border-warning bg-warning/5' : 
-            'border-border'
-        }`}>
+        <div className={`rounded-lg border p-3 ${isAtLimit ? 'border-destructive bg-destructive/5' :
+                isNearLimit ? 'border-warning bg-warning/5' :
+                    'border-border'
+            }`}>
             <div className="flex items-center justify-between mb-1">
                 <span className="text-sm font-medium">{label}</span>
-                <span className={`text-xs font-mono ${
-                    isAtLimit ? 'text-destructive' : 
-                    isNearLimit ? 'text-warning' : 
-                    'text-muted-foreground'
-                }`}>
+                <span className={`text-xs font-mono ${isAtLimit ? 'text-destructive' :
+                        isNearLimit ? 'text-warning' :
+                            'text-muted-foreground'
+                    }`}>
                     {currentValue} / {maxValue}
                 </span>
             </div>
             <div className="h-1.5 bg-muted rounded-full overflow-hidden">
-                <div 
-                    className={`h-full transition-all ${
-                        isAtLimit ? 'bg-destructive' : 
-                        isNearLimit ? 'bg-warning' : 
-                        'bg-primary'
-                    }`}
+                <div
+                    className={`h-full transition-all ${isAtLimit ? 'bg-destructive' :
+                            isNearLimit ? 'bg-warning' :
+                                'bg-primary'
+                        }`}
                     style={{ width: `${Math.min(percentage, 100)}%` }}
                 />
             </div>

@@ -23,7 +23,6 @@ class Subscription extends Model
         'lemonsqueezy_order_id',
         'lemonsqueezy_variant_id',
         'lemonsqueezy_product_id',
-        'name',
         // Subscription details
         'status',
         'starts_at',

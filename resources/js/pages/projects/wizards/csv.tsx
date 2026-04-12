@@ -1,30 +1,83 @@
 import { Head, Link, router, usePage } from '@inertiajs/react';
-import { ArrowLeft, ArrowRight, FileText, Grid, Image as ImageIcon, Upload, X, Clock, AlertCircle, Zap, Plus, Trash2, Edit3 } from 'lucide-react';
+import { ArrowLeft, ArrowRight, FileText, Grid, Image as ImageIcon, Upload, X, Clock, AlertCircle, Zap, Plus, Trash2, Edit3, ChevronDown, ChevronUp } from 'lucide-react';
 import { useState, useRef, DragEvent, ChangeEvent, useEffect } from 'react';
 import csv from '@/routes/projects/wizards/csv';
 
+function BrandReferenceTip() {
+    const [open, setOpen] = useState(false);
+    return (
+        <div style={{
+            marginBottom: '16px',
+            border: '1px solid var(--color-border)',
+            borderRadius: '8px',
+            overflow: 'hidden',
+        }}>
+            <button
+                type="button"
+                onClick={() => setOpen(p => !p)}
+                style={{
+                    width: '100%',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '10px 14px',
+                    background: 'var(--color-muted)',
+                    border: 'none',
+                    cursor: 'pointer',
+                    fontSize: '13px',
+                    fontWeight: 600,
+                    color: 'var(--color-foreground)',
+                    gap: '8px',
+                }}
+            >
+                <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <ImageIcon size={14} /> What makes a good reference image?
+                </span>
+                {open ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+            </button>
+            {open && (
+                <div style={{
+                    padding: '12px 14px',
+                    fontSize: '13px',
+                    color: 'var(--color-muted-foreground)',
+                    lineHeight: 1.6,
+                    background: 'var(--color-card)',
+                }}>
+                    <ul style={{ margin: 0, paddingLeft: '18px' }}>
+                        <li><strong>Showcase your brand</strong> — use real marketing images, hero shots, or product visuals.</li>
+                        <li><strong>Be consistent</strong> — images from the same campaign ensure coherent style extraction.</li>
+                        <li><strong>Include typography</strong> — images with your brand fonts help the AI match your text style.</li>
+                        <li><strong>Vary the content</strong> — include different compositions so the AI captures the full style range.</li>
+                        <li><strong>Avoid watermarks</strong> — clean images produce better style extraction.</li>
+                    </ul>
+                </div>
+            )}
+        </div>
+    );
+}
+
 const formatPresetOptions = [
-    { value: '', label: 'Auto (AI chooses)' },
-    { value: 'instagram_square', label: 'Instagram — Square (1:1)' },
-    { value: 'instagram_portrait', label: 'Instagram — Portrait (4:5)' },
-    { value: 'instagram_story', label: 'Instagram — Story/Reel (9:16)' },
-    { value: 'instagram_landscape', label: 'Instagram — Landscape (16:9)' },
+    { value: '', label: 'Auto — AI chooses best format' },
+    { value: 'instagram_square', label: '■  Instagram — Square (1:1)' },
+    { value: 'instagram_portrait', label: '▮  Instagram — Portrait (4:5)' },
+    { value: 'instagram_story', label: '▌  Instagram — Story / Reel (9:16)' },
+    { value: 'instagram_landscape', label: '▬  Instagram — Landscape (16:9)' },
 
-    { value: 'facebook_square', label: 'Facebook — Square (1:1)' },
-    { value: 'facebook_link', label: 'Facebook — Link/Post (1.91:1)' },
-    { value: 'facebook_story', label: 'Facebook — Story (9:16)' },
-    { value: 'facebook_landscape', label: 'Facebook — Landscape (16:9)' },
+    { value: 'facebook_square', label: '■  Facebook — Square (1:1)' },
+    { value: 'facebook_link', label: '▬  Facebook — Link / Post (1.91:1)' },
+    { value: 'facebook_story', label: '▌  Facebook — Story (9:16)' },
+    { value: 'facebook_landscape', label: '▬  Facebook — Landscape (16:9)' },
 
-    { value: 'linkedin_square', label: 'LinkedIn — Square (1:1)' },
-    { value: 'linkedin_landscape', label: 'LinkedIn — Post (1.91:1)' },
+    { value: 'linkedin_square', label: '■  LinkedIn — Square (1:1)' },
+    { value: 'linkedin_landscape', label: '▬  LinkedIn — Post (1.91:1)' },
 
-    { value: 'x_square', label: 'X — Square (1:1)' },
-    { value: 'x_landscape', label: 'X — Landscape (16:9)' },
+    { value: 'x_square', label: '■  X — Square (1:1)' },
+    { value: 'x_landscape', label: '▬  X — Landscape (16:9)' },
 
-    { value: 'tiktok_video', label: 'TikTok — Video (9:16)' },
-    { value: 'youtube_thumbnail', label: 'YouTube — Thumbnail (16:9)' },
-    { value: 'pinterest_pin', label: 'Pinterest — Pin (2:3)' },
-    { value: 'pinterest_square', label: 'Pinterest — Square (1:1)' },
+    { value: 'tiktok_video', label: '▌  TikTok — Video (9:16)' },
+    { value: 'youtube_thumbnail', label: '▬  YouTube — Thumbnail (16:9)' },
+    { value: 'pinterest_pin', label: '▮  Pinterest — Pin (2:3)' },
+    { value: 'pinterest_square', label: '■  Pinterest — Square (1:1)' },
 ];
 
 interface CSVRow {
@@ -82,13 +135,14 @@ export default function CSVWizard() {
     const [showError, setShowError] = useState(false);
     const [localError, setLocalError] = useState<string | null>(null);
     const [imageDragOver, setImageDragOver] = useState(false);
-    
+    const [showSkipNotice, setShowSkipNotice] = useState(false);
+
     const csvInputRef = useRef<HTMLInputElement>(null);
     const imageInputRef = useRef<HTMLInputElement>(null);
 
     const debug = (...args: any[]) => {
         if (!import.meta.env.DEV) return;
-         
+
         console.log('[CSVWizard]', ...args);
     };
 
@@ -274,15 +328,15 @@ export default function CSVWizard() {
         setFileName(file.name);
         setCsvFile(file);
         const reader = new FileReader();
-        
+
         reader.onload = (e) => {
             const text = e.target?.result as string;
             const data = parseCSV(text);
             setCsvData(data);
-            
+
             // Initialize selected rows
             setSelectedRows(new Set(data.map((_, index) => index)));
-            
+
             setUploadComplete(true);
 
             debug('handleFileUpload: complete', {
@@ -296,7 +350,7 @@ export default function CSVWizard() {
             setLocalError('Failed to read the file. Please try a different CSV file.');
             setShowError(true);
         };
-        
+
         reader.readAsText(file);
     };
 
@@ -319,7 +373,7 @@ export default function CSVWizard() {
         e.preventDefault();
         e.stopPropagation();
         setDragOver(false);
-        
+
         const files = e.dataTransfer.files;
         if (files.length > 0) {
             const file = files[0];
@@ -385,7 +439,7 @@ export default function CSVWizard() {
         const newData = [...csvData];
         newData[rowIndex][header] = value;
         setCsvData(newData);
-        
+
         // Regenerate CSV file
         if (newData.length === 0) return;
         const headers = Object.keys(newData[0]);
@@ -581,6 +635,23 @@ export default function CSVWizard() {
             return;
         }
 
+        // ── Credit check — block before submission so the user doesn't wait ──
+        const creditsRemaining = page.props.auth?.user?.credits_remaining ?? 0;
+        if (creditsRemaining === 0) {
+            setLocalError('You have no credits remaining. Please subscribe or upgrade to generate images.');
+            setShowError(true);
+            debug('submitToBackend: blocked - no credits', { creditsRemaining });
+            return;
+        }
+        if (selectedData.length > creditsRemaining) {
+            setLocalError(
+                `Not enough credits. You selected ${selectedData.length} rows but only have ${creditsRemaining} credit(s) remaining. Deselect some rows to continue.`
+            );
+            setShowError(true);
+            debug('submitToBackend: blocked - insufficient credits', { selected: selectedData.length, creditsRemaining });
+            return;
+        }
+
         const csvHeaders = Object.keys(csvData[0]);
         const filteredCsvContent = [
             csvHeaders.join(','),
@@ -658,10 +729,10 @@ export default function CSVWizard() {
         debug('nextStep', { from: currentStep });
         // Step 1: Project Name - must have name
         if (currentStep === 1 && !projectName.trim()) return;
-        
+
         // Step 2: CSV Upload - must have data
         if (currentStep === 2 && !csvData.length) return;
-        
+
         // Step 4: References - require 3 images minimum
         if (currentStep === 4 && styleImageFiles.length < 3) {
             setLocalError('Please upload at least 3 style reference images to continue.');
@@ -672,6 +743,8 @@ export default function CSVWizard() {
         // If on step 2 and upload is complete, skip to step 4 (style references)
         if (currentStep === 2 && uploadComplete) {
             setCurrentStep(4);
+            setShowSkipNotice(true);
+            setTimeout(() => setShowSkipNotice(false), 4000);
             debug('nextStep: skipping to step 4 (uploadComplete)');
         } else if (currentStep < 5) {
             setCurrentStep(currentStep + 1);
@@ -714,60 +787,7 @@ export default function CSVWizard() {
     return (
         <>
             <Head title="Create CSV Project" />
-            
-                        {/* Loading Overlay During Submission */}
-                        {isSubmitting && (
-                            <div style={{
-                                position: 'fixed',
-                                top: 0,
-                                left: 0,
-                                right: 0,
-                                bottom: 0,
-                                background: 'rgba(0, 0, 0, 0.8)',
-                                zIndex: 9999,
-                                display: 'flex',
-                                flexDirection: 'column',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                backdropFilter: 'blur(4px)',
-                            }}>
-                                <div style={{
-                                    background: 'var(--color-card)',
-                                    borderRadius: '16px',
-                                    padding: '40px 48px',
-                                    maxWidth: '400px',
-                                    textAlign: 'center',
-                                    boxShadow: '0 20px 60px rgba(0, 0, 0, 0.3)',
-                                }}>
-                                    <div style={{
-                                        width: '64px',
-                                        height: '64px',
-                                        margin: '0 auto 24px',
-                                        border: '4px solid var(--color-muted)',
-                                        borderTopColor: 'hsl(var(--primary))',
-                                        borderRadius: '50%',
-                                        animation: 'spin 0.8s linear infinite',
-                                    }} />
-                                    <h3 style={{
-                                        fontSize: '20px',
-                                        fontWeight: 600,
-                                        color: 'var(--color-foreground)',
-                                        marginBottom: '12px',
-                                    }}>
-                                        Starting Generation...
-                                    </h3>
-                                    <p style={{
-                                        fontSize: '14px',
-                                        color: 'var(--color-muted-foreground)',
-                                        lineHeight: 1.6,
-                                        margin: 0,
-                                    }}>
-                                        Setting up your project and queuing {selectedRows.size} image{selectedRows.size !== 1 ? 's' : ''} for generation. You'll be redirected to your project dashboard shortly.
-                                    </p>
-                                </div>
-                            </div>
-                        )}
-            
+
             <div style={{
                 fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", "Oxygen", "Ubuntu", "Cantarell", sans-serif',
                 background: 'var(--color-muted)',
@@ -791,23 +811,40 @@ export default function CSVWizard() {
                         padding: '32px 40px',
                         borderBottom: '1px solid var(--color-border)'
                     }}>
-                        <Link 
-                            href="/projects" 
-                            style={{
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                gap: '6px',
-                                fontSize: '13px',
-                                color: 'var(--color-muted-foreground)',
-                                textDecoration: 'none',
-                                marginBottom: '16px',
-                                transition: 'all 0.2s ease-out'
-                            }}
-                        >
-                            <ArrowLeft size={14} />
-                            Back to Projects
-                        </Link>
-                        
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                            <Link
+                                href="/projects"
+                                style={{
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '6px',
+                                    fontSize: '13px',
+                                    color: 'var(--color-muted-foreground)',
+                                    textDecoration: 'none',
+                                    transition: 'all 0.2s ease-out'
+                                }}
+                            >
+                                <ArrowLeft size={14} />
+                                Back to Projects
+                            </Link>
+                            {page.props.auth?.user?.credits_remaining !== undefined && (
+                                <div style={{
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '6px',
+                                    fontSize: '12px',
+                                    fontWeight: 600,
+                                    padding: '4px 10px',
+                                    borderRadius: '20px',
+                                    background: (page.props.auth.user.credits_remaining ?? 0) > 0 ? 'hsl(var(--primary) / 0.1)' : 'hsl(var(--destructive) / 0.1)',
+                                    color: (page.props.auth.user.credits_remaining ?? 0) > 0 ? 'var(--color-primary)' : 'hsl(var(--destructive))'
+                                }}>
+                                    <Zap size={12} />
+                                    {page.props.auth.user.credits_remaining ?? 0} credits remaining
+                                </div>
+                            )}
+                        </div>
+
                         {/* Error Alert */}
                         {showError && errorMessage && (
                             <div style={{
@@ -821,9 +858,9 @@ export default function CSVWizard() {
                                 gap: '12px'
                             }}>
                                 <AlertCircle size={18} style={{ color: 'hsl(var(--destructive))', flexShrink: 0 }} />
-                                <p style={{ 
-                                    margin: 0, 
-                                    fontSize: '14px', 
+                                <p style={{
+                                    margin: 0,
+                                    fontSize: '14px',
                                     color: 'hsl(var(--destructive))',
                                     lineHeight: 1.5,
                                     flex: 1
@@ -832,7 +869,7 @@ export default function CSVWizard() {
                                 </p>
                                 {(errorMessage.toLowerCase().includes('credit') || errorMessage.toLowerCase().includes('upgrade') || errorMessage.toLowerCase().includes('subscribe')) && (
                                     <a
-                                        href="/subscription/plans"
+                                        href="/feedback"
                                         style={{
                                             display: 'inline-flex',
                                             alignItems: 'center',
@@ -848,7 +885,7 @@ export default function CSVWizard() {
                                             flexShrink: 0,
                                         }}
                                     >
-                                        Upgrade →
+                                        Share Feedback →
                                     </a>
                                 )}
                                 <button
@@ -869,7 +906,7 @@ export default function CSVWizard() {
                                 </button>
                             </div>
                         )}
-                        
+
                         <h1 style={{
                             fontSize: '24px',
                             fontWeight: 600,
@@ -902,14 +939,14 @@ export default function CSVWizard() {
                                 // Map the internal step + uploadComplete flag to a 1-5 visual segment
                                 const currentSegment =
                                     currentStep === 1 ? 1
-                                    : currentStep === 2 && !uploadComplete ? 2
-                                    : currentStep === 2 && uploadComplete ? 3
-                                    : currentStep === 4 ? 4
-                                    : 5; // step 5
+                                        : currentStep === 2 && !uploadComplete ? 2
+                                            : currentStep === 2 && uploadComplete ? 3
+                                                : currentStep === 4 ? 4
+                                                    : 5; // step 5
 
                                 return [1, 2, 3, 4, 5].map((seg) => {
                                     const isCompleted = seg < currentSegment;
-                                    const isCurrent   = seg === currentSegment;
+                                    const isCurrent = seg === currentSegment;
                                     return (
                                         <div
                                             key={seg}
@@ -991,13 +1028,13 @@ export default function CSVWizard() {
                                 {!uploadComplete ? (
                                     <>
                                         {/* Tab Switcher */}
-                                            <div style={{
-                                                display: 'flex',
-                                                gap: '8px',
-                                                marginBottom: '24px',
-                                                borderBottom: '1px solid var(--color-border)',
-                                                paddingBottom: '0'
-                                            }}>
+                                        <div style={{
+                                            display: 'flex',
+                                            gap: '8px',
+                                            marginBottom: '24px',
+                                            borderBottom: '1px solid var(--color-border)',
+                                            paddingBottom: '0'
+                                        }}>
                                             <button
                                                 onClick={() => setUploadMode('upload')}
                                                 style={{
@@ -1068,7 +1105,7 @@ export default function CSVWizard() {
                                                         Download CSV Template
                                                     </button>
                                                 </div>
-                                                <div 
+                                                <div
                                                     onClick={() => csvInputRef.current?.click()}
                                                     onDragOver={handleDragOver}
                                                     onDragLeave={handleDragLeave}
@@ -1094,12 +1131,12 @@ export default function CSVWizard() {
                                                         Supports CSV files of any size — all rows are loaded and selectable
                                                     </div>
                                                 </div>
-                                                <input 
+                                                <input
                                                     ref={csvInputRef}
-                                                    type="file" 
-                                                    accept=".csv" 
+                                                    type="file"
+                                                    accept=".csv"
                                                     onChange={handleFileInputChange}
-                                                    style={{ display: 'none' }} 
+                                                    style={{ display: 'none' }}
                                                 />
                                             </>
                                         ) : (
@@ -1326,8 +1363,8 @@ export default function CSVWizard() {
                                                 <thead style={{ background: 'var(--color-muted)' }}>
                                                     <tr>
                                                         <th style={{ padding: '14px 16px', textAlign: 'center', borderBottom: '1px solid var(--color-border)', width: '40px' }}>
-                                                            <input 
-                                                                type="checkbox" 
+                                                            <input
+                                                                type="checkbox"
                                                                 checked={selectedRows.size === csvData.length}
                                                                 onChange={(e) => toggleAllRows(e.target.checked)}
                                                                 style={{ width: '17px', height: '17px', cursor: 'pointer', accentColor: 'var(--color-primary)' }}
@@ -1339,7 +1376,7 @@ export default function CSVWizard() {
                                                                     <div style={{ textTransform: 'uppercase', fontSize: '11px', letterSpacing: '0.5px', color: 'var(--color-muted-foreground)', fontWeight: 600 }}>
                                                                         {header}
                                                                     </div>
-                                                                    <select 
+                                                                    <select
                                                                         value={columnMappings[header] || 'Ignore this column'}
                                                                         onChange={(e) => updateMapping(header, e.target.value)}
                                                                         style={{
@@ -1372,8 +1409,8 @@ export default function CSVWizard() {
                                                     {csvData.map((row, rowIndex) => (
                                                         <tr key={rowIndex} style={{ transition: 'background-color 0.15s ease' }}>
                                                             <td style={{ padding: '14px 16px', textAlign: 'center', borderBottom: '1px solid var(--color-border)' }}>
-                                                                <input 
-                                                                    type="checkbox" 
+                                                                <input
+                                                                    type="checkbox"
                                                                     checked={selectedRows.has(rowIndex)}
                                                                     onChange={() => toggleRow(rowIndex)}
                                                                     style={{ width: '17px', height: '17px', cursor: 'pointer', accentColor: 'var(--color-primary)' }}
@@ -1385,7 +1422,7 @@ export default function CSVWizard() {
                                                                     <td key={header} style={{ padding: '14px 16px', borderBottom: '1px solid var(--color-border)' }}>
                                                                         {isFormat ? (
                                                                             <select
-                                                                                        value={row[header] || ''}
+                                                                                value={row[header] || ''}
                                                                                 onChange={(e) => updateCellValue(rowIndex, header, e.target.value)}
                                                                                 style={{
                                                                                     width: '100%',
@@ -1431,7 +1468,7 @@ export default function CSVWizard() {
                                                                         // Remove row from csvData
                                                                         const newData = csvData.filter((_, i) => i !== rowIndex);
                                                                         setCsvData(newData);
-                                                                        
+
                                                                         // Update selected rows
                                                                         const newSelectedRows = new Set<number>();
                                                                         selectedRows.forEach(index => {
@@ -1442,7 +1479,7 @@ export default function CSVWizard() {
                                                                             }
                                                                         });
                                                                         setSelectedRows(newSelectedRows);
-                                                                        
+
                                                                         // Regenerate CSV file
                                                                         if (newData.length > 0) {
                                                                             const headers = Object.keys(newData[0]);
@@ -1496,7 +1533,30 @@ export default function CSVWizard() {
                         {/* Step 4: Style References (Required — min 3, max 10) */}
                         {currentStep === 4 && (
                             <div style={{ animation: 'fadeIn 0.3s ease' }}>
-                                <div 
+                                {/* Auto-skip notice */}
+                                {showSkipNotice && (
+                                    <div style={{
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '8px',
+                                        padding: '10px 14px',
+                                        marginBottom: '16px',
+                                        background: 'hsl(var(--primary) / 0.08)',
+                                        border: '1px solid hsl(var(--primary) / 0.25)',
+                                        borderRadius: '8px',
+                                        fontSize: '13px',
+                                        color: 'var(--color-primary)',
+                                        fontWeight: 500,
+                                    }}>
+                                        <Grid size={14} style={{ flexShrink: 0 }} />
+                                        CSV loaded with {csvData.length} rows. Now add your brand style references.
+                                    </div>
+                                )}
+
+                                {/* What makes a good reference — collapsible tip */}
+                                <BrandReferenceTip />
+
+                                <div
                                     onClick={() => imageInputRef.current?.click()}
                                     onDragOver={handleImageDragOver}
                                     onDragLeave={handleImageDragLeave}
@@ -1528,13 +1588,13 @@ export default function CSVWizard() {
                                         </div>
                                     )}
                                 </div>
-                                <input 
+                                <input
                                     ref={imageInputRef}
-                                    type="file" 
-                                    accept="image/*" 
+                                    type="file"
+                                    accept="image/*"
                                     multiple
                                     onChange={handleImageUpload}
-                                    style={{ display: 'none' }} 
+                                    style={{ display: 'none' }}
                                 />
 
                                 <div style={{
@@ -1552,7 +1612,7 @@ export default function CSVWizard() {
                                             border: '1px solid var(--color-border)'
                                         }}>
                                             <img src={src} alt={`Style ${index + 1}`} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                                            <div 
+                                            <div
                                                 onClick={() => removeImage(index)}
                                                 style={{
                                                     position: 'absolute',
@@ -1673,7 +1733,7 @@ export default function CSVWizard() {
                         justifyContent: 'space-between',
                         alignItems: 'center'
                     }}>
-                        <button 
+                        <button
                             onClick={previousStep}
                             style={{
                                 padding: '10px 24px',
@@ -1694,7 +1754,7 @@ export default function CSVWizard() {
                             <ArrowLeft size={16} />
                             Previous
                         </button>
-                        <button 
+                        <button
                             onClick={nextStep}
                             disabled={
                                 (currentStep === 1 && !projectName.trim()) ||

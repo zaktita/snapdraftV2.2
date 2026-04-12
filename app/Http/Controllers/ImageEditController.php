@@ -2,10 +2,10 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Image;
+use App\Services\AI\AIServiceManager;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Http;
-use App\Services\AI\AIServiceManager;
 
 class ImageEditController extends Controller
 {
@@ -22,9 +22,17 @@ class ImageEditController extends Controller
     public function generateWithMask(Request $request)
     {
         $validated = $request->validate([
-            'image'  => 'required|string',
-            'prompt' => 'required|string',
+            'image'    => 'required|string|max:14000000', // ~10 MB
+            'prompt'   => 'required|string|max:2000',
+            'image_id' => 'nullable|integer|exists:images,id',
         ]);
+
+        if (!empty($validated['image_id'])) {
+            $this->authorize('update', Image::findOrFail($validated['image_id']));
+        }
+
+        $user           = $request->user();
+        $creditDeducted = false;
 
         try {
             Log::info('[replace-text] Starting', ['prompt' => $validated['prompt']]);
@@ -47,6 +55,11 @@ class ImageEditController extends Controller
             Log::info('[replace-text] Original dimensions', ['w' => $originalW, 'h' => $originalH]);
             Log::info('[replace-text] Calling Gemini via editBase64');
 
+            if ($user->hasActiveSubscription()) {
+                $user->useCredit();
+                $creditDeducted = true;
+            }
+
             $resultBase64 = $this->aiService->editBase64(
                 $imageBase64,
                 $validated['prompt'],
@@ -64,6 +77,9 @@ class ImageEditController extends Controller
             ]);
 
         } catch (\Throwable $e) {
+            if ($creditDeducted) {
+                try { $user->refundCredit(); } catch (\Throwable) {}
+            }
             Log::error('[replace-text] Error: ' . $e->getMessage());
             return response()->json([
                 'message' => 'Replace text failed',
@@ -73,126 +89,18 @@ class ImageEditController extends Controller
     }
 
     /**
-     * Test Gemini inpainting with simple example.
-     */
-    public function testInpaint()
-    {
-        Log::info('[test-inpaint] Starting test');
-        
-        try {
-            // Create test image (red square)
-            $img = imagecreatetruecolor(512, 512);
-            $red = imagecolorallocate($img, 255, 0, 0);
-            imagefilledrectangle($img, 0, 0, 512, 512, $red);
-            ob_start();
-            imagepng($img);
-            $imgData = ob_get_clean();
-            imagedestroy($img);
-            
-            // Create mask (white circle in center)
-            $mask = imagecreatetruecolor(512, 512);
-            $black = imagecolorallocate($mask, 0, 0, 0);
-            $white = imagecolorallocate($mask, 255, 255, 255);
-            imagefilledrectangle($mask, 0, 0, 512, 512, $black);
-            imagefilledellipse($mask, 256, 256, 200, 200, $white);
-            ob_start();
-            imagepng($mask);
-            $maskData = ob_get_clean();
-            imagedestroy($mask);
-            
-            $originalBase64 = base64_encode($imgData);
-            $maskBase64 = base64_encode($maskData);
-            
-            $prompt = "Edit this image: replace the circular area (shown in white in the mask) with a beautiful blue flower. Keep the red background unchanged.";
-            
-            Log::info('[test-inpaint] Calling Gemini');
-            
-            $apiKey = config('services.gemini.api_key');
-            $imageModel = config('services.gemini.image_model', 'gemini-2.5-flash-image-preview');
-            
-            $response = Http::timeout(120)
-                ->post("https://generativelanguage.googleapis.com/v1beta/models/{$imageModel}:generateContent?key={$apiKey}", [
-                    'contents' => [
-                        [
-                            'role' => 'user',
-                            'parts' => [
-                                ['text' => $prompt],
-                                [
-                                    'inlineData' => [
-                                        'mimeType' => 'image/png',
-                                        'data' => $originalBase64
-                                    ]
-                                ],
-                                [
-                                    'inlineData' => [
-                                        'mimeType' => 'image/png',
-                                        'data' => $maskBase64
-                                    ]
-                                ]
-                            ]
-                        ]
-                    ],
-                    'generationConfig' => [
-                        'temperature' => 1.0,
-                        'topK' => 40,
-                        'topP' => 0.95,
-                        'maxOutputTokens' => 8192,
-                    ]
-                ]);
-
-            if (!$response->successful()) {
-                Log::error('[test-inpaint] API error', ['body' => $response->body()]);
-                return response()->json([
-                    'success' => false,
-                    'error' => $response->body(),
-                    'status' => $response->status()
-                ]);
-            }
-
-            $result = $response->json();
-            
-            // Extract generated image
-            if (isset($result['candidates'][0]['content']['parts'])) {
-                foreach ($result['candidates'][0]['content']['parts'] as $part) {
-                    if (isset($part['inlineData']['data'])) {
-                        Log::info('[test-inpaint] Success!');
-                        return response()->json([
-                            'success' => true,
-                            'original' => 'data:image/png;base64,' . $originalBase64,
-                            'mask' => 'data:image/png;base64,' . $maskBase64,
-                            'generated' => 'data:image/png;base64,' . $part['inlineData']['data'],
-                            'prompt' => $prompt
-                        ]);
-                    }
-                }
-            }
-            
-            Log::error('[test-inpaint] No image in response', ['result' => $result]);
-            return response()->json([
-                'success' => false,
-                'error' => 'No image in response',
-                'response' => $result
-            ]);
-            
-        } catch (\Throwable $e) {
-            Log::error('[test-inpaint] Exception: ' . $e->getMessage());
-            return response()->json([
-                'success' => false,
-                'error' => $e->getMessage()
-            ]);
-        }
-    }
-
-    /**
      * Expand/outpaint an image using AI to generate additional content around the edges.
      */
     public function expandImage(Request $request)
     {
         $validated = $request->validate([
-            'image' => 'required|string',
+            'image' => 'required|string|max:14000000', // ~10 MB
             'direction' => 'required|in:all,top,bottom,left,right',
             'expansionRatio' => 'nullable|numeric|min:1.2|max:2.0',
         ]);
+
+        $user = $request->user();
+        $creditDeducted = false;
 
         try {
             Log::info('[expand-image] Starting', ['direction' => $validated['direction']]);
@@ -276,6 +184,11 @@ class ImageEditController extends Controller
 
             Log::info('[expand-image] Calling Google Gemini for outpainting');
 
+            if ($user->hasActiveSubscription()) {
+                $user->useCredit();
+                $creditDeducted = true;
+            }
+
             // Call GoogleGeminiService for outpainting
             $resultBase64 = $this->aiService->outpaint(
                 $expandedBase64,
@@ -293,6 +206,9 @@ class ImageEditController extends Controller
             ]);
 
         } catch (\Throwable $e) {
+            if ($creditDeducted) {
+                try { $user->refundCredit(); } catch (\Throwable) {}
+            }
             Log::error('[expand-image] Error: ' . $e->getMessage());
             return response()->json([
                 'message' => 'Image expansion failed',
@@ -308,7 +224,7 @@ class ImageEditController extends Controller
     public function upscaleImage(Request $request)
     {
         $validated = $request->validate([
-            'image' => 'required|string',
+            'image' => 'required|string|max:14000000', // ~10 MB
             'scale' => 'nullable|numeric|min:1.5|max:4.0',
         ]);
 
@@ -389,8 +305,11 @@ class ImageEditController extends Controller
     public function removeBackground(Request $request)
     {
         $validated = $request->validate([
-            'image' => 'required|string',
+            'image' => 'required|string|max:14000000', // ~10 MB
         ]);
+
+        $user = $request->user();
+        $creditDeducted = false;
 
         try {
             Log::info('[remove-background] Starting');
@@ -410,12 +329,20 @@ class ImageEditController extends Controller
             $width = imagesx($img);
             $height = imagesy($img);
 
+            if ($user->hasActiveSubscription()) {
+                $user->useCredit();
+                $creditDeducted = true;
+            }
+
             Log::info('[remove-background] Using improved background removal algorithm');
             
             // Use improved local background removal that preserves transparency and dimensions
             return $this->improvedBackgroundRemoval($img, $width, $height);
 
         } catch (\Throwable $e) {
+            if ($creditDeducted) {
+                try { $user->refundCredit(); } catch (\Throwable) {}
+            }
             Log::error('[remove-background] Error: ' . $e->getMessage());
             return response()->json([
                 'message' => 'Background removal failed',
@@ -439,12 +366,15 @@ class ImageEditController extends Controller
     public function resizeCanvas(Request $request)
     {
         $validated = $request->validate([
-            'image' => 'required|string',
+            'image' => 'required|string|max:14000000', // ~10 MB
             'targetWidth' => 'required|integer|min:1|max:8192',
             'targetHeight' => 'required|integer|min:1|max:8192',
             'offsetX' => 'required|integer',
             'offsetY' => 'required|integer',
         ]);
+
+        $user = $request->user();
+        $creditDeducted = false;
 
         try {
             Log::info('[resize-canvas] Starting', [
@@ -478,6 +408,11 @@ class ImageEditController extends Controller
             $expandsBottom = ($offsetY + $srcH) > $dstH;
 
             $needsOutpaint = $dstW > $srcW || $dstH > $srcH || $expandsLeft || $expandsTop || $expandsRight || $expandsBottom;
+
+            if ($needsOutpaint && $user->hasActiveSubscription()) {
+                $user->useCredit();
+                $creditDeducted = true;
+            }
 
             if (!$needsOutpaint) {
                 // Pure cropping (no AI). Copy the intersecting region from source to target.
@@ -578,6 +513,9 @@ class ImageEditController extends Controller
             ]);
 
         } catch (\Throwable $e) {
+            if ($creditDeducted) {
+                try { $user->refundCredit(); } catch (\Throwable) {}
+            }
             Log::error('[resize-canvas] Error: ' . $e->getMessage());
             return response()->json([
                 'message' => 'Resize failed',
@@ -795,9 +733,9 @@ class ImageEditController extends Controller
     public function generateFromPrompt(Request $request)
     {
         $validated = $request->validate([
-            'image' => 'required|string',
-            'mask' => 'required|string',
-            'prompt' => 'required|string',
+            'image'  => 'required|string|max:14000000', // ~10 MB
+            'mask'   => 'required|string|max:14000000', // ~10 MB
+            'prompt' => 'required|string|max:2000',
         ]);
 
         try {
@@ -850,8 +788,16 @@ class ImageEditController extends Controller
         set_time_limit(180);
 
         $validated = $request->validate([
-            'image' => 'required|string',
+            'image'    => 'required|string|max:14000000', // ~10 MB
+            'image_id' => 'nullable|integer|exists:images,id',
         ]);
+
+        if (!empty($validated['image_id'])) {
+            $this->authorize('update', Image::findOrFail($validated['image_id']));
+        }
+
+        $user           = $request->user();
+        $creditDeducted = false;
 
         try {
             Log::info('[erase] Starting with green-highlighted image');
@@ -875,6 +821,10 @@ class ImageEditController extends Controller
             if ($originalW) Log::info('[erase] Original dimensions', ['w' => $originalW, 'h' => $originalH]);
 
             // Call Gemini to erase green-highlighted areas
+            if ($user->hasActiveSubscription()) {
+                $user->useCredit();
+                $creditDeducted = true;
+            }
             $generatedBase64 = $this->aiService->eraseGreenHighlights($imageBase64);
 
             // Resize result back to original dimensions if Gemini changed them
@@ -888,6 +838,9 @@ class ImageEditController extends Controller
                 'generatedImage' => 'data:image/png;base64,' . $generatedBase64,
             ]);
         } catch (\Throwable $e) {
+            if ($creditDeducted) {
+                try { $user->refundCredit(); } catch (\Throwable) {}
+            }
             Log::error('[erase] Error: ' . $e->getMessage());
             return response()->json([
                 'message' => 'Erase operation failed',
@@ -904,9 +857,17 @@ class ImageEditController extends Controller
     public function aiEditImage(Request $request)
     {
         $validated = $request->validate([
-            'image'  => 'required|string',
-            'prompt' => 'required|string',
+            'image'    => 'required|string|max:14000000', // ~10 MB
+            'prompt'   => 'required|string|max:2000',
+            'image_id' => 'nullable|integer|exists:images,id',
         ]);
+
+        if (!empty($validated['image_id'])) {
+            $this->authorize('update', Image::findOrFail($validated['image_id']));
+        }
+
+        $user           = $request->user();
+        $creditDeducted = false;
 
         try {
             $prompt = $validated['prompt'];
@@ -929,6 +890,11 @@ class ImageEditController extends Controller
 
             Log::info('[ai-edit-image] Original dimensions', ['w' => $originalW, 'h' => $originalH]);
 
+            if ($user->hasActiveSubscription()) {
+                $user->useCredit();
+                $creditDeducted = true;
+            }
+
             $resultBase64 = $this->aiService->editBase64($imageBase64, $prompt, null);
 
             // Resize result back to original dimensions if they differ
@@ -941,6 +907,9 @@ class ImageEditController extends Controller
                 'prompt'         => $prompt,
             ]);
         } catch (\Throwable $e) {
+            if ($creditDeducted) {
+                try { $user->refundCredit(); } catch (\Throwable) {}
+            }
             Log::error('[ai-edit-image] Error: ' . $e->getMessage());
             return response()->json([
                 'message' => 'AI edit failed',

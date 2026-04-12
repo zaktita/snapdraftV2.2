@@ -52,15 +52,15 @@ return [
         // Vision/analysis model — used for brand reference image analysis
         'vision_model' => env('GEMINI_VISION_MODEL', 'gemini-3.1-pro-preview'),
         // Image generation model (default for most tasks)
-        'image_model' => env('GEMINI_IMAGE_MODEL', 'gemini-3-pro-image-preview'),
+        'image_model' => env('GEMINI_IMAGE_MODEL', 'gemini-3.1-flash-image-preview'),
         // Text-to-image model (no references)
         // Text-to-image model (used when no reference images are supplied)
         // Align fallback name with service default; update .env if Google changes naming.
         'text_to_image_model' => env('GEMINI_TEXT_TO_IMAGE_MODEL', 'imagen-3.0-generate-001'),
         // Text-accurate model (4x credits). Prefer stable non-preview for reliability.
-        'text_accurate_model' => env('GEMINI_TEXT_ACCURATE_MODEL', 'gemini-3.1-pro-preview-exp'),
+        'text_accurate_model' => env('GEMINI_TEXT_ACCURATE_MODEL', 'gemini-3.1-flash-image-preview'),
         // Step-2 prompt crafting model: cluster selection + image text per CSV row
-        'prompt_model' => env('GEMINI_PROMPT_MODEL', 'gemini-3.1-pro-preview'),
+        'prompt_model' => env('GEMINI_PROMPT_MODEL', 'gemini-3-flash-preview'),
         'rate_limit' => env('GEMINI_RATE_LIMIT', 30), // Requests per minute
     ],
 
@@ -73,6 +73,17 @@ return [
         'prompt_models' => env('OPENROUTER_PROMPT_MODELS', 'google/gemini-3.1-pro-preview,openai/gpt-4o-mini'),
         'site_url' => env('APP_URL'),
         'site_name' => env('APP_NAME', 'SnapDraft'),
+    ],
+
+    'ai' => [
+        // Primary provider for generation/editing; fallback provider is automatic per call.
+        'preferred' => env('AI_PROVIDER', 'gemini'),
+        'enable_fallback' => env('AI_ENABLE_FALLBACK', true),
+        'timeout_seconds' => env('AI_TIMEOUT_SECONDS', 180),
+
+        // CSV pipeline tuning.
+        'csv_batch_concurrency' => env('AI_CSV_BATCH_CONCURRENCY', 1),
+        'csv_batch_delay_seconds' => env('AI_CSV_BATCH_DELAY_SECONDS', 2),
     ],
 
     /*
@@ -91,6 +102,7 @@ return [
         'webhook_secret' => env('LEMON_SQUEEZY_WEBHOOK_SECRET'),
         'signing_secret' => env('LEMON_SQUEEZY_WEBHOOK_SECRET'), // Alias for consistency
         'test_mode' => env('LEMON_SQUEEZY_TEST_MODE', false),
+        'verify_ssl' => env('LEMON_SQUEEZY_VERIFY_SSL', true), // Set to false in .env for local XAMPP dev only
         'variants' => [
             // Beta plan (single plan for beta launch)
             'beta_monthly' => env('LEMON_SQUEEZY_BETA_MONTHLY_VARIANT_ID'),
@@ -102,6 +114,10 @@ return [
         'client_id'     => env('GOOGLE_CLIENT_ID'),
         'client_secret' => env('GOOGLE_CLIENT_SECRET'),
         'redirect'      => env('GOOGLE_REDIRECT_URI', '/auth/google/callback'),
+    ],
+
+    'fal' => [
+        'api_key' => env('FAL_API_KEY'),
     ],
 
 ];

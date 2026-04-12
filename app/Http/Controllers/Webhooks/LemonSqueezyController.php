@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Plan;
 use App\Models\Subscription;
 use App\Models\User;
+use App\Services\PostHogService;
 use Illuminate\Http\Request;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Log;
@@ -16,7 +17,6 @@ class LemonSqueezyController extends Controller
     {
         Log::info('🍋 Lemon Squeezy webhook received', [
             'event' => $request->input('meta.event_name'),
-            'payload' => $request->all(),
         ]);
 
         // Verify webhook signature
@@ -26,7 +26,12 @@ class LemonSqueezyController extends Controller
         }
 
         $eventName = $request->input('meta.event_name');
-        $data = $request->input('data');
+        $data      = $request->input('data');
+
+        if (empty($eventName) || empty($data) || !is_array($data)) {
+            Log::warning('❌ Malformed Lemon Squeezy webhook payload');
+            return response()->json(['message' => 'Invalid payload'], 422);
+        }
 
         try {
             switch ($eventName) {
@@ -85,10 +90,10 @@ class LemonSqueezyController extends Controller
     {
         $secret = config('services.lemonsqueezy.webhook_secret');
         
-        // Skip signature verification if no secret is configured (development mode)
+        // Reject webhooks if no secret is configured — never skip verification
         if (empty($secret)) {
-            Log::warning('⚠️ Webhook secret not configured - skipping signature verification');
-            return true;
+            Log::error('❌ Webhook secret not configured - rejecting webhook for security');
+            return false;
         }
 
         $signature = $request->header('X-Signature');
@@ -109,7 +114,6 @@ class LemonSqueezyController extends Controller
     {
         Log::info('📦 Processing order_created', [
             'order_id' => $data['id'],
-            'user_email' => $data['attributes']['user_email'] ?? null,
         ]);
 
         // Orders are typically one-time purchases
@@ -151,6 +155,10 @@ class LemonSqueezyController extends Controller
             'plan_id' => $plan->id,
         ]);
 
+        $billingPeriod = $customData['billing_period'] ?? 'monthly';
+        $price         = ($attributes['first_subscription_item']['price'] ?? 0) / 100;
+        $currency      = strtoupper($attributes['first_subscription_item']['currency'] ?? 'EUR');
+
         Subscription::create([
             'user_id' => $userId,
             'plan_id' => $plan->id,
@@ -160,16 +168,23 @@ class LemonSqueezyController extends Controller
             'lemonsqueezy_product_id' => $attributes['product_id'],
             'lemonsqueezy_variant_id' => $attributes['variant_id'],
             'status' => $attributes['status'],
-            'billing_period' => $customData['billing_period'] ?? 'monthly',
+            'billing_period' => $billingPeriod,
             'starts_at' => $attributes['created_at'] ? Carbon::parse($attributes['created_at']) : now(),
             'trial_ends_at' => $attributes['trial_ends_at'] ? Carbon::parse($attributes['trial_ends_at']) : null,
             'renews_at' => $attributes['renews_at'] ? Carbon::parse($attributes['renews_at']) : null,
             'ends_at' => $attributes['ends_at'] ? Carbon::parse($attributes['ends_at']) : null,
-            'price' => ($attributes['first_subscription_item']['price'] ?? 0) / 100, // Convert cents to dollars
-            'amount_paid' => ($attributes['first_subscription_item']['price'] ?? 0) / 100,
-            'currency' => strtoupper($attributes['first_subscription_item']['currency'] ?? 'EUR'),
+            'price' => $price,
+            'amount_paid' => $price,
+            'currency' => $currency,
             'customer_portal_url' => $attributes['urls']['customer_portal'] ?? null,
             'update_payment_url' => $attributes['urls']['update_payment_method'] ?? null,
+        ]);
+
+        app(PostHogService::class)->capture((string) $userId, 'subscription_created', [
+            'plan'           => $tier,
+            'billing_period' => $billingPeriod,
+            'price'          => $price,
+            'currency'       => $currency,
         ]);
 
         Log::info('🎉 Subscription created successfully', ['user_id' => $userId]);
@@ -220,6 +235,11 @@ class LemonSqueezyController extends Controller
             'status' => 'cancelled',
             'cancelled_at' => now(),
             'ends_at' => $attributes['ends_at'] ? Carbon::parse($attributes['ends_at']) : now(),
+        ]);
+
+        app(PostHogService::class)->capture((string) $subscription->user_id, 'subscription_cancelled', [
+            'plan'            => $subscription->plan?->slug,
+            'billing_period'  => $subscription->billing_period,
         ]);
 
         Log::info('❌ Subscription cancelled', ['subscription_id' => $subscription->id]);
@@ -347,6 +367,11 @@ class LemonSqueezyController extends Controller
 
         $subscription->update([
             'status' => 'past_due',
+        ]);
+
+        app(PostHogService::class)->capture((string) $subscription->user_id, 'subscription_payment_failed', [
+            'plan'           => $subscription->plan?->slug,
+            'billing_period' => $subscription->billing_period,
         ]);
 
         Log::warning('⚠️ Subscription payment failed', ['subscription_id' => $subscription->id]);

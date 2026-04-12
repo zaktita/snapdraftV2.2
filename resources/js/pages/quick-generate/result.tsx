@@ -60,8 +60,9 @@ export default function QuickGenerateResult({ session, project, image, reference
     };
 
     const handleEditInCanvas = () => {
-        // Navigate to canvas editor with this image
-        router.visit(`/canvas-editor?project=${project.id}&image=${image.id}`);
+        const encodedImageUrl = encodeURIComponent(image.url);
+        const encodedTitle = encodeURIComponent(project.name);
+        router.visit(`/canvas-editor?projectId=${project.id}&image=${encodedImageUrl}&title=${encodedTitle}&imageId=${image.id}`);
     };
 
     const handleGenerateAnother = () => {

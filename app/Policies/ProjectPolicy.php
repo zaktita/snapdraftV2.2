@@ -9,6 +9,18 @@ use Illuminate\Auth\Access\Response;
 class ProjectPolicy
 {
     /**
+     * Deny all actions for suspended users.
+     */
+    public function before(User $user, string $ability): ?bool
+    {
+        if ($user->is_suspended) {
+            return false;
+        }
+
+        return null;
+    }
+
+    /**
      * Determine whether the user can view any models.
      */
     public function viewAny(User $user): bool

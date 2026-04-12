@@ -3,7 +3,7 @@ import AppLayout from '@/layouts/app-layout';
 import { type BreadcrumbItem } from '@/types';
 import { dashboard } from '@/routes';
 import { Button } from '@/components/ui/button';
-import { CheckCircle, ArrowRight } from 'lucide-react';
+import { CheckCircle, ArrowRight, Edit, Download, RefreshCw } from 'lucide-react';
 
 const breadcrumbs: BreadcrumbItem[] = [
     { title: 'Dashboard', href: dashboard().url },
@@ -109,8 +109,19 @@ export default function CsvWizardResult({ session, project, urls, summary, failu
                         View Project
                         <ArrowRight className="ml-2 h-4 w-4" />
                     </Button>
+                    {images.length > 0 && (
+                        <Button variant="outline" onClick={() => {
+                            const firstImage = images[0];
+                            const encodedUrl = encodeURIComponent(firstImage.url);
+                            const encodedTitle = encodeURIComponent(project.title);
+                            router.visit(`/canvas-editor?projectId=${project.id}&image=${encodedUrl}&title=${encodedTitle}&imageId=${firstImage.id}`);
+                        }}>
+                            <Edit className="mr-2 h-4 w-4" />
+                            Edit in Canvas
+                        </Button>
+                    )}
                     <Button variant="outline" onClick={() => router.visit('/projects/create/csv')}>
-                        Create Another CSV Project
+                        Create Another
                     </Button>
                     <div className="text-muted-foreground text-sm">
                         Session #{session.id} • Project #{session.project_id}{' '}
@@ -151,10 +162,51 @@ export default function CsvWizardResult({ session, project, urls, summary, failu
 
                 {!!failures?.length && (
                     <div className="rounded-lg border bg-card p-6 shadow-sm">
-                        <h3 className="mb-2 font-semibold">Failed Items</h3>
-                        <p className="text-muted-foreground mb-4 text-sm">
-                            Showing up to {failures.length} most recent failures.
-                        </p>
+                        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+                            <div>
+                                <h3 className="font-semibold">Failed Items ({failures.length})</h3>
+                                <p className="text-muted-foreground mt-1 text-sm">
+                                    These rows could not be generated. Fix the data and re-upload.
+                                </p>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => {
+                                        const headers = ['title', 'caption', 'description', 'format', 'error'];
+                                        const rows = (failures ?? []).map(f => [
+                                            f.title ?? '',
+                                            f.caption ?? '',
+                                            f.description ?? '',
+                                            f.format ?? '',
+                                            f.error_message ?? '',
+                                        ]);
+                                        const escapeCsv = (v: string) => `"${String(v).replaceAll('"', '""')}"`;
+                                        const csv = [headers.join(','), ...rows.map(r => r.map(escapeCsv).join(','))].join('\n');
+                                        const blob = new Blob([csv], { type: 'text/csv' });
+                                        const url = URL.createObjectURL(blob);
+                                        const a = document.createElement('a');
+                                        a.href = url;
+                                        a.download = `failed_rows_session_${session.id}.csv`;
+                                        document.body.appendChild(a);
+                                        a.click();
+                                        a.remove();
+                                        URL.revokeObjectURL(url);
+                                    }}
+                                >
+                                    <Download className="mr-1.5 h-3.5 w-3.5" />
+                                    Export failures CSV
+                                </Button>
+                                <Button
+                                    size="sm"
+                                    onClick={() => router.visit('/projects/create/csv')}
+                                >
+                                    <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
+                                    Retry in CSV Wizard
+                                </Button>
+                            </div>
+                        </div>
                         <div className="space-y-3">
                             {failures.map((f) => (
                                 <div key={f.id} className="rounded-md border p-4">
@@ -185,7 +237,12 @@ export default function CsvWizardResult({ session, project, urls, summary, failu
 
                 {images.length > 0 && (
                     <div className="rounded-lg border bg-card p-6 shadow-sm">
-                        <h3 className="mb-4 font-semibold">Latest Images</h3>
+                        <div className="mb-4 flex items-center justify-between">
+                            <h3 className="font-semibold">Latest Images</h3>
+                            <Button variant="ghost" size="sm" onClick={() => router.visit(urls.project)}>
+                                View all in project <ArrowRight className="ml-1.5 h-3.5 w-3.5" />
+                            </Button>
+                        </div>
                         <div className="grid grid-cols-2 gap-3 md:grid-cols-4 lg:grid-cols-6">
                             {images.slice(0, 12).map((img) => (
                                 <div key={img.id} className="overflow-hidden rounded-md border">
@@ -216,22 +273,22 @@ export default function CsvWizardResult({ session, project, urls, summary, failu
                                                         ? img.metadata.reference_cluster
                                                         : (img.metadata?.selected_images?.length
                                                             ? img.metadata.selected_images
-                                                                  .map((i) => brandReferences[i])
-                                                                  .filter(Boolean)
-                                                                  .map((r, idx) => ({
-                                                                      id: r.id,
-                                                                      url: r.url,
-                                                                      thumbnail_url: r.thumbnail_url,
-                                                                      order: r.order,
-                                                                      index: idx,
-                                                                  }))
+                                                                .map((i) => brandReferences[i])
+                                                                .filter(Boolean)
+                                                                .map((r, idx) => ({
+                                                                    id: r.id,
+                                                                    url: r.url,
+                                                                    thumbnail_url: r.thumbnail_url,
+                                                                    order: r.order,
+                                                                    index: idx,
+                                                                }))
                                                             : brandReferences.map((r, idx) => ({
-                                                                  id: r.id,
-                                                                  url: r.url,
-                                                                  thumbnail_url: r.thumbnail_url,
-                                                                  order: r.order,
-                                                                  index: idx,
-                                                              }))))
+                                                                id: r.id,
+                                                                url: r.url,
+                                                                thumbnail_url: r.thumbnail_url,
+                                                                order: r.order,
+                                                                index: idx,
+                                                            }))))
                                                         .slice(0, 10)
                                                         .map((ref) => (
                                                             <img

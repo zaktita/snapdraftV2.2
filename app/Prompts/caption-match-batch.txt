@@ -1,0 +1,15 @@
+Match each CSV row to exactly one cluster using this priority:
+1. Vibe/style fit → 2. Typography/composition fit → 3. Content-strategy intent fit
+
+Clusters:
+{cluster_context}
+
+CSV rows:
+{rows_context}
+
+For each row, also generate short on-image overlay text derived from the caption (punchy, 3-8 words).
+
+Rules:
+- Include every row exactly once.
+- Choose only valid cluster indices (0 to {max_cluster_index}).
+- overlay_text must be usable directly on a social media image.

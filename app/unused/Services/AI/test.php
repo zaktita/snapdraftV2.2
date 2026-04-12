@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Wizards;
 
 use App\Http\Controllers\Controller;
 use App\Services\AI\BrandReferenceAnalyzer;
+use App\Services\AI\FalBrandAnalyzer;
 use App\Services\AI\GoogleGeminiService;
 use App\Services\CaptionAnalyzer;
 use App\Services\IntelligentReferenceSelector;
@@ -14,16 +15,13 @@ use Inertia\Inertia;
 
 class BrandAnalysisWizardController extends Controller
 {
-    // Alias for the second analyzer slot (lab/testing — falls back to Gemini analyzer)
-    protected BrandReferenceAnalyzer $gpt52Analyzer;
-
     public function __construct(
         protected BrandReferenceAnalyzer $analyzer,
+        protected FalBrandAnalyzer $gpt52Analyzer,
         protected GoogleGeminiService $generator,
         protected CaptionAnalyzer $captionAnalyzer,
         protected IntelligentReferenceSelector $referenceSelector
     ) {
-        $this->gpt52Analyzer = $analyzer;
     }
 
     /**
@@ -66,7 +64,7 @@ class BrandAnalysisWizardController extends Controller
 
             $storedReferences[$index] = [
                 'path' => $storedPath,
-                'url' => Storage::url($storedPath),
+                'url' => 'http://127.0.0.1:8000/storage/' . $storedPath,
                 'name' => $file->getClientOriginalName(),
             ];
         }
@@ -152,14 +150,16 @@ class BrandAnalysisWizardController extends Controller
             $geminiPrompt,
             array_slice($geminiSelectedPaths, 0, 5),
             [],
-            $format
+            $format,
+            false
         );
 
         $falGeneration = $this->generator->generateWithReferences(
             $falPrompt,
             array_slice($falSelectedPaths, 0, 5),
             [],
-            $format
+            $format,
+            false
         );
 
         return Inertia::render('projects/wizards/brand-analysis', [
@@ -249,13 +249,14 @@ class BrandAnalysisWizardController extends Controller
             $prompt,
             $referencePaths,
             [],
-            $format
+            $format,
+            false
         );
 
         $references = collect($referencePaths)->map(function ($path) {
             return [
                 'path' => $path,
-                'url' => Storage::url($path),
+                'url' => 'http://127.0.0.1:8000/storage/' . $path,
                 'name' => basename($path),
             ];
         })->all();

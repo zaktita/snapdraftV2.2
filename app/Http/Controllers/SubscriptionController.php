@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Plan;
+use App\Services\PostHogService;
 use App\Services\SubscriptionService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -238,9 +239,9 @@ class SubscriptionController extends Controller
     public function upgrade(Request $request)
     {
         Log::info('🚀 Subscription upgrade request received', [
-            'request_data' => $request->all(),
+            'tier' => $request->input('tier'),
+            'billing_period' => $request->input('billing_period'),
             'user_id' => Auth::id(),
-            'ip' => $request->ip(),
         ]);
 
         $request->validate([
@@ -315,8 +316,8 @@ class SubscriptionController extends Controller
                 'Authorization' => 'Bearer ' . $apiKey,
             ]);
 
-            // Disable SSL verification in local development (temporary fix for cacert.pem issues)
-            if (app()->environment('local')) {
+            // Disable SSL verification only when explicitly configured (e.g. local XAMPP dev)
+            if (!config('services.lemonsqueezy.verify_ssl', true)) {
                 $httpClient = $httpClient->withOptions(['verify' => false]);
             }
 
@@ -360,10 +361,15 @@ class SubscriptionController extends Controller
             }
 
             $checkoutUrl = $response->json('data.attributes.url');
-            
+
             if (empty($checkoutUrl)) {
                 return back()->with('error', 'Failed to create checkout session. Please try again.');
             }
+
+            app(PostHogService::class)->capture((string) $user->id, 'upgrade_checkout_started', [
+                'plan'           => $tier,
+                'billing_period' => $billingPeriod,
+            ]);
 
             // Redirect to Lemon Squeezy checkout
             return Inertia::location($checkoutUrl);
@@ -399,8 +405,8 @@ class SubscriptionController extends Controller
                 'Authorization' => 'Bearer ' . $apiKey,
             ]);
 
-            // Disable SSL verification in local development (temporary fix for cacert.pem issues)
-            if (app()->environment('local')) {
+            // Disable SSL verification only when explicitly configured (e.g. local XAMPP dev)
+            if (!config('services.lemonsqueezy.verify_ssl', true)) {
                 $httpClient = $httpClient->withOptions(['verify' => false]);
             }
 
@@ -436,9 +442,8 @@ class SubscriptionController extends Controller
             'amount' => 'required|integer|min:1|max:1000',
         ]);
 
-        // TODO: Implement credit pack purchases
-        // This would use the Payment\LemonSqueezyController for one-time orders
-        
-        return back()->with('info', 'Credit purchasing will be available soon.');
+        // Credits are included with your plan and reset automatically on your monthly renewal date.
+        // One-time credit top-up packs are not available during the beta period.
+        return back()->with('info', 'Your credits reset automatically each month with your plan. One-time credit top-ups are not available during the beta period — your next batch will be available at your renewal date.');
     }
 }

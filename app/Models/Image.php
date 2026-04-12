@@ -69,28 +69,36 @@ class Image extends Model
     {
         // Update project's images count when image is created
         static::created(function (Image $image) {
-            $image->project->updateImagesCount();
-            
-            // Set as featured image if it's the first one
-            if ($image->project->images_count === 1) {
-                $image->project->updateFeaturedImage();
+            $project = $image->project;
+            if (! $project) {
+                return;
+            }
+            $project->updateImagesCount();
+
+            // Set as featured image if it's the first one (refresh to get updated count)
+            $project->refresh();
+            if ($project->images_count === 1) {
+                $project->updateFeaturedImage();
             }
         });
 
         // Update project's images count when image is deleted
         static::deleted(function (Image $image) {
-            $image->project->updateImagesCount();
-            
-            // Update featured image if needed
-            $image->project->updateFeaturedImage();
-            
-            // Delete the actual files from storage
+            $project = $image->project;
+
+            // Delete the actual files from storage first (doesn't need project)
             if ($image->url) {
                 Storage::disk('public')->delete($image->url);
             }
             if ($image->thumbnail_url) {
                 Storage::disk('public')->delete($image->thumbnail_url);
             }
+
+            if (! $project) {
+                return;
+            }
+            $project->updateImagesCount();
+            $project->updateFeaturedImage();
         });
     }
 }

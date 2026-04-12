@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { AlertCircle, Sparkles, AlertTriangle, Maximize2 } from 'lucide-react';
+import { AlertCircle, Sparkles, AlertTriangle, Maximize2, Zap } from 'lucide-react';
 
 interface PromptModalProps {
     isOpen: boolean;
@@ -11,14 +11,14 @@ interface PromptModalProps {
     defaultValue?: string;
 }
 
-export function PromptModal({ 
-    isOpen, 
-    onClose, 
-    onSubmit, 
-    title, 
-    description, 
-    placeholder, 
-    defaultValue = '' 
+export function PromptModal({
+    isOpen,
+    onClose,
+    onSubmit,
+    title,
+    description,
+    placeholder,
+    defaultValue = ''
 }: PromptModalProps) {
     const [value, setValue] = useState(defaultValue);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -53,7 +53,7 @@ export function PromptModal({
     if (!isOpen) return null;
 
     return (
-        <div 
+        <div
             style={{
                 position: 'fixed',
                 inset: 0,
@@ -167,17 +167,20 @@ export function PromptModal({
                     <button
                         onClick={handleSubmit}
                         style={{
-                            padding: '10px 20px',
+                            padding: '10px 24px',
                             fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", "Oxygen", "Ubuntu", "Cantarell", sans-serif',
                             fontSize: '14px',
                             fontWeight: 500,
-                            borderRadius: '6px',
+                            borderRadius: '8px',
                             cursor: 'pointer',
-                            transition: 'all 0.2s ease',
+                            transition: 'all 0.2s ease-out',
                             outline: 'none',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '8px',
                             background: 'var(--color-primary)',
                             color: 'var(--color-primary-foreground)',
-                            border: '1px solid var(--color-primary)'
+                            border: '1px solid var(--color-primary)',
                         }}
                         onMouseEnter={(e) => {
                             e.currentTarget.style.background = 'color-mix(in oklab, var(--color-primary), black 10%)';
@@ -188,7 +191,8 @@ export function PromptModal({
                             e.currentTarget.style.borderColor = 'var(--color-primary)';
                         }}
                     >
-                        Generate
+                        Generate (1 credit)
+                        <Zap size={16} />
                     </button>
                 </div>
             </div>
@@ -242,7 +246,7 @@ export function AlertModal({ isOpen, onClose, title, message, type = 'info' }: A
     const color = colors[type];
 
     return (
-        <div 
+        <div
             style={{
                 position: 'fixed',
                 inset: 0,
@@ -340,12 +344,12 @@ interface ConfirmModalProps {
     isDanger?: boolean;
 }
 
-export function ConfirmModal({ 
-    isOpen, 
-    onClose, 
-    onConfirm, 
-    title, 
-    message, 
+export function ConfirmModal({
+    isOpen,
+    onClose,
+    onConfirm,
+    title,
+    message,
     confirmText = 'Confirm',
     cancelText = 'Cancel',
     isDanger = false
@@ -363,7 +367,7 @@ export function ConfirmModal({
     if (!isOpen) return null;
 
     return (
-        <div 
+        <div
             style={{
                 position: 'fixed',
                 inset: 0,
@@ -490,18 +494,18 @@ interface UpscaleModalProps {
     isLoading?: boolean;
 }
 
-export function UpscaleModal({ 
-    isOpen, 
-    selectedFactor, 
-    onClose, 
-    onSelectFactor, 
+export function UpscaleModal({
+    isOpen,
+    selectedFactor,
+    onClose,
+    onSelectFactor,
     onConfirm,
-    isLoading = false 
+    isLoading = false
 }: UpscaleModalProps) {
     if (!isOpen) return null;
 
     return (
-        <div 
+        <div
             style={{
                 position: 'fixed',
                 inset: 0,
@@ -562,54 +566,54 @@ export function UpscaleModal({
                     {[2, 4].map((factor) => {
                         const creditCost = factor === 2 ? 1 : 2;
                         return (
-                        <button
-                            key={factor}
-                            onClick={() => onSelectFactor(factor)}
-                            disabled={isLoading}
-                            style={{
-                                flex: 1,
-                                padding: '14px 16px',
-                                fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", "Oxygen", "Ubuntu", "Cantarell", sans-serif',
-                                fontSize: '14px',
-                                fontWeight: selectedFactor === factor ? 600 : 500,
-                                borderRadius: '8px',
-                                cursor: isLoading ? 'not-allowed' : 'pointer',
-                                transition: 'all 0.2s ease',
-                                outline: 'none',
-                                border: '1.5px solid',
-                                background: selectedFactor === factor ? 'var(--color-primary)' : 'transparent',
-                                borderColor: selectedFactor === factor ? 'var(--color-primary)' : 'var(--color-border)',
-                                color: selectedFactor === factor ? 'var(--color-primary-foreground)' : 'var(--color-foreground)',
-                                opacity: isLoading ? 0.5 : 1,
-                                display: 'flex',
-                                flexDirection: 'column',
-                                alignItems: 'center',
-                                gap: '6px',
-                                boxShadow: selectedFactor === factor ? '0 0 0 3px color-mix(in oklab, var(--color-primary), transparent 85%)' : 'none'
-                            }}
-                            onMouseEnter={(e) => {
-                                if (!isLoading && selectedFactor !== factor) {
-                                    e.currentTarget.style.borderColor = 'var(--color-primary)';
-                                    e.currentTarget.style.background = 'color-mix(in oklab, var(--color-primary), transparent 95%)';
-                                }
-                            }}
-                            onMouseLeave={(e) => {
-                                if (selectedFactor !== factor) {
-                                    e.currentTarget.style.background = 'transparent';
-                                    e.currentTarget.style.borderColor = 'var(--color-border)';
-                                }
-                            }}
-                        >
-                            <span style={{ fontSize: '16px', fontWeight: 600 }}>{factor}x</span>
-                            <span style={{
-                                fontSize: '12px',
-                                opacity: 0.8,
-                                fontWeight: 400
-                            }}>
-                                {creditCost} {creditCost === 1 ? 'credit' : 'credits'}
-                            </span>
-                        </button>
-                    );
+                            <button
+                                key={factor}
+                                onClick={() => onSelectFactor(factor)}
+                                disabled={isLoading}
+                                style={{
+                                    flex: 1,
+                                    padding: '14px 16px',
+                                    fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", "Oxygen", "Ubuntu", "Cantarell", sans-serif',
+                                    fontSize: '14px',
+                                    fontWeight: selectedFactor === factor ? 600 : 500,
+                                    borderRadius: '8px',
+                                    cursor: isLoading ? 'not-allowed' : 'pointer',
+                                    transition: 'all 0.2s ease',
+                                    outline: 'none',
+                                    border: '1.5px solid',
+                                    background: selectedFactor === factor ? 'var(--color-primary)' : 'transparent',
+                                    borderColor: selectedFactor === factor ? 'var(--color-primary)' : 'var(--color-border)',
+                                    color: selectedFactor === factor ? 'var(--color-primary-foreground)' : 'var(--color-foreground)',
+                                    opacity: isLoading ? 0.5 : 1,
+                                    display: 'flex',
+                                    flexDirection: 'column',
+                                    alignItems: 'center',
+                                    gap: '6px',
+                                    boxShadow: selectedFactor === factor ? '0 0 0 3px color-mix(in oklab, var(--color-primary), transparent 85%)' : 'none'
+                                }}
+                                onMouseEnter={(e) => {
+                                    if (!isLoading && selectedFactor !== factor) {
+                                        e.currentTarget.style.borderColor = 'var(--color-primary)';
+                                        e.currentTarget.style.background = 'color-mix(in oklab, var(--color-primary), transparent 95%)';
+                                    }
+                                }}
+                                onMouseLeave={(e) => {
+                                    if (selectedFactor !== factor) {
+                                        e.currentTarget.style.background = 'transparent';
+                                        e.currentTarget.style.borderColor = 'var(--color-border)';
+                                    }
+                                }}
+                            >
+                                <span style={{ fontSize: '16px', fontWeight: 600 }}>{factor}x</span>
+                                <span style={{
+                                    fontSize: '12px',
+                                    opacity: 0.8,
+                                    fontWeight: 400
+                                }}>
+                                    {creditCost} {creditCost === 1 ? 'credit' : 'credits'}
+                                </span>
+                            </button>
+                        );
                     })}
                 </div>
 

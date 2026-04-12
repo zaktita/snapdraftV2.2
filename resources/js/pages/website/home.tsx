@@ -1,492 +1,582 @@
-import { Head, Link } from '@inertiajs/react';
-import { useState } from 'react';
-import {
-    ArrowRight,
-    Check,
-    ChevronDown,
-    ChevronUp,
-    FileSpreadsheet,
-    ImageIcon,
-    Layers,
-    Paintbrush,
-    Sparkles,
-    Upload,
-    Zap,
-} from 'lucide-react';
+import { useInView } from '@/hooks/use-in-view';
+import { cn } from '@/lib/utils';
 import { login, register } from '@/routes';
+import { Head, Link, router } from '@inertiajs/react';
+import { ArrowRight, CheckCircle2 } from 'lucide-react';
+import { type FormEvent, useEffect, useRef, useState } from 'react';
 
-const FEATURES = [
-    {
-        icon: Paintbrush,
-        title: 'Brand DNA Extraction',
-        description:
-            'Upload 5–10 reference images and our AI extracts your exact color palette, typography style, and composition rules automatically.',
-    },
-    {
-        icon: FileSpreadsheet,
-        title: 'CSV-Powered Batch Generation',
-        description:
-            'Provide a CSV with title, description, and format columns. One row = one visual. Generate up to 25 brand-consistent outputs in a single run.',
-    },
-    {
-        icon: Layers,
-        title: 'Canvas Editor',
-        description:
-            'Fine-tune any generated image with AI-powered erase, text replacement, and in-painting — directly in the browser.',
-    },
-    {
-        icon: ImageIcon,
-        title: 'Multiple Output Formats',
-        description:
-            'Generate social posts, banners, product cards, ads, and more — all matched to your brand style from a single batch.',
-    },
-];
+/* ── Scroll-reveal wrapper ── */
 
-const STEPS = [
-    {
-        number: '01',
-        title: 'Upload Brand References',
-        description:
-            'Drag in 5–10 images that represent your brand — product photos, past ads, mood board images. Our AI studies them to extract your visual identity.',
-        icon: Upload,
-    },
-    {
-        number: '02',
-        title: 'Upload Your CSV',
-        description:
-            'Prepare a simple CSV with three columns: title, description, and format. Each row becomes one generated visual.',
-        icon: FileSpreadsheet,
-    },
-    {
-        number: '03',
-        title: 'Get Brand-Consistent Visuals',
-        description:
-            'SnapDraft generates every image in your brand style — colors, typography, layout — consistently across your entire batch.',
-        icon: Sparkles,
-    },
-];
+function Reveal({
+    children,
+    className,
+    delay = 0,
+}: {
+    children: React.ReactNode;
+    className?: string;
+    delay?: number;
+}) {
+    const { ref, inView } = useInView<HTMLDivElement>();
+    return (
+        <div
+            ref={ref}
+            className={cn('reveal', inView && 'revealed', className)}
+            style={delay ? { transitionDelay: `${delay}ms` } : undefined}
+        >
+            {children}
+        </div>
+    );
+}
 
-const FAQS = [
-    {
-        question: 'What file types can I use as brand references?',
-        answer:
-            'JPG, PNG, and WebP are all supported. We recommend using 5–10 high-quality images that best represent your brand style — product shots, past campaigns, or design system examples all work well.',
-    },
-    {
-        question: 'How does the CSV format work?',
-        answer:
-            'Your CSV needs three columns: title (the name of the visual), description (what it should show), and format (e.g. "social post", "banner", "product card"). Download the template from the CSV Wizard for a ready-to-fill example.',
-    },
-    {
-        question: 'How many images can I generate per batch?',
-        answer:
-            'The SnapDraft Beta plan supports up to 25 rows per CSV run and 100 credits per month. Each generated image costs 1 credit.',
-    },
-    {
-        question: 'Can I edit the generated images?',
-        answer:
-            'Yes. Every generated image can be opened in the Canvas Editor where you can use AI-powered erase, replace text, and in-painting tools to fine-tune the result.',
-    },
-    {
-        question: 'Is there a free trial?',
-        answer:
-            'Yes — the SnapDraft Beta plan includes a 7-day free trial. No credit card required to start. You\'ll be charged $29/month after the trial ends if you choose to continue.',
-    },
-];
+/* ── CSRF helper ── */
+function csrfToken(): string {
+    if (typeof document === 'undefined') return '';
+    return (
+        document
+            .querySelector('meta[name="csrf-token"]')
+            ?.getAttribute('content') ?? ''
+    );
+}
+
+/* ── Page ── */
 
 export default function HomePage() {
-    const [openFaq, setOpenFaq] = useState<number | null>(null);
+    const [scrolled, setScrolled] = useState(false);
+    const [openFaq, setOpenFaq] = useState(0);
+    const [showWaitlistCard, setShowWaitlistCard] = useState(false);
+    const [showInviteRequiredNotice, setShowInviteRequiredNotice] =
+        useState(false);
+
+    // Invite code form
+    const [inviteCode, setInviteCode] = useState('');
+    const [inviteError, setInviteError] = useState('');
+    const [inviteLoading, setInviteLoading] = useState(false);
+
+    // Waitlist form
+    const [waitlistEmail, setWaitlistEmail] = useState('');
+    const [waitlistDone, setWaitlistDone] = useState(false);
+    const [waitlistError, setWaitlistError] = useState('');
+    const [waitlistLoading, setWaitlistLoading] = useState(false);
+
+    const inviteRef = useRef<HTMLInputElement>(null);
+    const waitlistRef = useRef<HTMLInputElement>(null);
+
+    useEffect(() => {
+        const onScroll = () => setScrolled(window.scrollY > 20);
+        window.addEventListener('scroll', onScroll, { passive: true });
+        return () => window.removeEventListener('scroll', onScroll);
+    }, []);
+
+    useEffect(() => {
+        if (typeof window === 'undefined') return;
+
+        const params = new URLSearchParams(window.location.search);
+        if (params.get('invite') === 'required') {
+            setShowInviteRequiredNotice(true);
+        }
+    }, []);
+
+    function openWaitlistCard() {
+        setShowWaitlistCard(true);
+
+        // Let the card render before trying to focus the email input.
+        requestAnimationFrame(() => {
+            waitlistRef.current?.focus();
+            document
+                .getElementById('hero-forms')
+                ?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        });
+    }
+
+    async function handleInvite(e: FormEvent) {
+        e.preventDefault();
+        const code = inviteCode.trim().toUpperCase();
+        if (!code) return;
+        setInviteError('');
+        setInviteLoading(true);
+        try {
+            const res = await fetch(
+                `/invite/validate?code=${encodeURIComponent(code)}`,
+            );
+            const data = await res.json();
+            if (data.valid) {
+                router.visit(
+                    `${register().url}?invite=${encodeURIComponent(code)}`,
+                );
+            } else {
+                setInviteError(
+                    data.message || 'Invalid or expired invite code.',
+                );
+            }
+        } catch {
+            setInviteError('Something went wrong. Please try again.');
+        } finally {
+            setInviteLoading(false);
+        }
+    }
+
+    async function handleWaitlist(e: FormEvent) {
+        e.preventDefault();
+        const email = waitlistEmail.trim();
+        if (!email) return;
+        setWaitlistError('');
+        setWaitlistLoading(true);
+        try {
+            const res = await fetch('/waitlist', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    Accept: 'application/json',
+                    'X-CSRF-TOKEN': csrfToken(),
+                },
+                body: JSON.stringify({ email }),
+            });
+            if (res.ok) {
+                setWaitlistDone(true);
+            } else {
+                const data = await res.json();
+                setWaitlistError(
+                    data.errors?.email?.[0] || 'Please enter a valid email.',
+                );
+            }
+        } catch {
+            setWaitlistError('Something went wrong. Please try again.');
+        } finally {
+            setWaitlistLoading(false);
+        }
+    }
+
+    const steps = [
+        {
+            num: '01',
+            iconSrc: '/images/landing/upload.png',
+            title: 'Upload brand references',
+            desc: 'Add 5-10 images that represent your style. We extract color, composition, and typography cues.',
+        },
+        {
+            num: '02',
+            iconSrc: '/images/landing/csv.png',
+            title: 'Drop in your CSV',
+            desc: 'Use title, description, and format columns. Each row becomes one generated visual.',
+        },
+        {
+            num: '03',
+            iconSrc: '/images/landing/generate.png',
+            title: 'Generate & refine',
+            desc: 'Download consistent images in batch, then fine-tune any result in the Canvas Editor.',
+        },
+    ];
+
+    const betaPerks = [
+        {
+            iconSrc: '/images/landing/full product.png',
+            title: 'Full product access',
+            desc: 'Every feature unlocked — CSV batch generation, brand analysis, Canvas Editor, and more.',
+        },
+        {
+            iconSrc: '/images/landing/access.png',
+            title: 'Direct founder access',
+            desc: 'Report bugs, suggest features, and chat directly with the person building it.',
+        },
+        {
+            iconSrc: '/images/landing/discount.png',
+            title: 'Keep your discount',
+            desc: 'Beta testers lock in a special rate when SnapDraft launches publicly.',
+        },
+    ];
 
     return (
-        <>
-            <Head title="SnapDraft — Brand-consistent visuals from your CSV" />
+        <div className="sd-home">
+            <Head title="SnapDraft — Closed Beta · 20 spots" />
 
-            {/* ── NAV ── */}
-            <header className="sticky top-0 z-50 border-b border-slate-200 bg-white/95 backdrop-blur-sm">
-                <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-                    <nav className="flex h-16 items-center justify-between">
-                        <Link href="/" className="flex items-center gap-2">
-                            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-600">
-                                <Zap className="h-4 w-4 text-white" />
-                            </div>
-                            <span className="text-lg font-bold text-slate-900">SnapDraft</span>
+            {/* ── Nav ── */}
+            <header
+                className={cn(
+                    'sd-nav-wrap',
+                    scrolled && 'sd-nav-wrap-scrolled',
+                )}
+            >
+                <nav className="sd-nav">
+                    <Link href="/" className="sd-logo">
+                        <img
+                            src="/SnapdraftLogo.png"
+                            alt="SnapDraft"
+                            className="sd-logo-image"
+                        />
+                    </Link>
+                    <ul className="sd-nav-links">
+                        <li>
+                            <a href="#how">How it works</a>
+                        </li>
+                        <li>
+                            <a href="#beta">Beta perks</a>
+                        </li>
+                        <li>
+                            <a href="#faq">FAQ</a>
+                        </li>
+                    </ul>
+                    <div className="sd-nav-end">
+                        <Link href={login().url} className="sd-btn-sm-ghost">
+                            Sign in
                         </Link>
-
-                        <div className="hidden items-center gap-8 md:flex">
-                            <a href="#features" className="text-sm font-medium text-slate-600 transition-colors hover:text-slate-900">
-                                Features
-                            </a>
-                            <a href="#how-it-works" className="text-sm font-medium text-slate-600 transition-colors hover:text-slate-900">
-                                How it works
-                            </a>
-                            <a href="#pricing" className="text-sm font-medium text-slate-600 transition-colors hover:text-slate-900">
-                                Pricing
-                            </a>
-                            <a href="#faq" className="text-sm font-medium text-slate-600 transition-colors hover:text-slate-900">
-                                FAQ
-                            </a>
-                        </div>
-
-                        <div className="flex items-center gap-3">
-                            <Link
-                                href={login().url}
-                                className="hidden text-sm font-medium text-slate-600 transition-colors hover:text-slate-900 sm:block"
-                            >
-                                Sign in
-                            </Link>
-                            <Link
-                                href={register().url}
-                                className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white transition-all hover:bg-indigo-700 hover:shadow-md hover:shadow-indigo-600/25"
-                            >
-                                Start free trial
-                            </Link>
-                        </div>
-                    </nav>
-                </div>
+                        <button
+                            type="button"
+                            className="sd-btn-sm"
+                            onClick={openWaitlistCard}
+                        >
+                            Join waitlist
+                            <ArrowRight size={14} />
+                        </button>
+                    </div>
+                </nav>
             </header>
 
-            {/* ── HERO ── */}
-            <section className="relative overflow-hidden bg-gradient-to-b from-indigo-50 via-white to-white py-20 lg:py-28">
-                {/* background decoration */}
-                <div className="pointer-events-none absolute inset-0 overflow-hidden">
-                    <div className="absolute -top-40 right-0 h-[500px] w-[500px] rounded-full bg-indigo-100/60 blur-3xl" />
-                    <div className="absolute bottom-0 left-0 h-[300px] w-[300px] rounded-full bg-violet-100/50 blur-3xl" />
-                </div>
-
-                <div className="relative mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-                    <div className="mx-auto max-w-3xl text-center">
-                        <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-indigo-200 bg-indigo-50 px-4 py-1.5 text-sm font-medium text-indigo-700">
-                            <Sparkles className="h-3.5 w-3.5" />
-                            Now in Beta — 7-day free trial
-                        </div>
-
-                        <h1 className="text-4xl font-bold tracking-tight text-slate-900 sm:text-5xl lg:text-6xl">
-                            Brand-consistent visuals{' '}
-                            <span className="bg-gradient-to-r from-indigo-600 to-violet-600 bg-clip-text text-transparent">
-                                from your CSV
-                            </span>
-                            , in minutes
-                        </h1>
-
-                        <p className="mx-auto mt-6 max-w-2xl text-lg leading-relaxed text-slate-600">
-                            Upload your brand reference images, drop in a CSV of your content, and SnapDraft generates a full batch of on-brand visuals — consistently styled, ready to use.
-                        </p>
-
-                        <div className="mt-10 flex flex-col items-center justify-center gap-4 sm:flex-row">
-                            <Link
-                                href={register().url}
-                                className="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-indigo-600/25 transition-all hover:bg-indigo-700 hover:shadow-indigo-600/40"
-                            >
-                                Start free trial
-                                <ArrowRight className="h-4 w-4" />
-                            </Link>
-                            <a
-                                href="#how-it-works"
-                                className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-6 py-3 text-sm font-semibold text-slate-700 transition-all hover:border-slate-300 hover:shadow-sm"
-                            >
-                                See how it works
-                            </a>
-                        </div>
-
-                        <p className="mt-4 text-xs text-slate-500">
-                            No credit card required · 7-day free trial · Cancel anytime
-                        </p>
-                    </div>
-
-                    {/* Mock UI Card */}
-                    <div className="mx-auto mt-16 max-w-4xl">
-                        <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl shadow-slate-200/60">
-                            {/* mock toolbar */}
-                            <div className="flex items-center gap-2 border-b border-slate-100 bg-slate-50 px-4 py-3">
-                                <div className="h-3 w-3 rounded-full bg-red-400" />
-                                <div className="h-3 w-3 rounded-full bg-yellow-400" />
-                                <div className="h-3 w-3 rounded-full bg-green-400" />
-                                <div className="mx-3 h-5 flex-1 rounded bg-slate-200" />
-                            </div>
-                            {/* mock content */}
-                            <div className="grid grid-cols-3 gap-4 p-6 sm:grid-cols-4 lg:grid-cols-6">
-                                {Array.from({ length: 12 }).map((_, i) => (
-                                    <div
-                                        key={i}
-                                        className="aspect-square rounded-xl"
-                                        style={{
-                                            background: `hsl(${230 + (i % 4) * 15}, ${60 + (i % 3) * 10}%, ${85 + (i % 3) * 4}%)`,
-                                        }}
-                                    />
-                                ))}
-                            </div>
-                            <div className="flex items-center justify-between border-t border-slate-100 bg-slate-50 px-6 py-3">
-                                <span className="text-xs text-slate-500">12 visuals generated · brand style applied</span>
-                                <span className="rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-700">Complete</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </section>
-
-            {/* ── SOCIAL PROOF BAR ── */}
-            <section className="border-y border-slate-100 bg-slate-50 py-8">
-                <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-                    <p className="text-center text-sm font-medium text-slate-500">
-                        Trusted by early adopters to generate brand-consistent content at scale
-                    </p>
-                    <div className="mt-6 grid grid-cols-2 gap-6 text-center sm:grid-cols-4">
-                        {[
-                            { value: '10x', label: 'Faster than manual design' },
-                            { value: '25+', label: 'Visuals per CSV batch' },
-                            { value: '100%', label: 'Brand style consistency' },
-                            { value: '7-day', label: 'Free trial, no card needed' },
-                        ].map((stat) => (
-                            <div key={stat.label}>
-                                <div className="text-2xl font-bold text-indigo-600">{stat.value}</div>
-                                <div className="mt-1 text-xs text-slate-500">{stat.label}</div>
-                            </div>
-                        ))}
-                    </div>
-                </div>
-            </section>
-
-            {/* ── HOW IT WORKS ── */}
-            <section id="how-it-works" className="py-20 lg:py-28">
-                <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-                    <div className="mb-16 text-center">
-                        <h2 className="text-3xl font-bold tracking-tight text-slate-900 sm:text-4xl">
-                            From CSV to visuals in 3 steps
-                        </h2>
-                        <p className="mx-auto mt-4 max-w-xl text-lg text-slate-600">
-                            No design skills required. Just brand references and a spreadsheet.
-                        </p>
-                    </div>
-
-                    <div className="grid gap-8 lg:grid-cols-3">
-                        {STEPS.map((step, i) => (
-                            <div key={i} className="relative rounded-2xl border border-slate-100 bg-white p-8 shadow-sm">
-                                {/* connector line */}
-                                {i < STEPS.length - 1 && (
-                                    <div className="absolute -right-4 top-12 hidden h-0.5 w-8 bg-indigo-200 lg:block" />
+            {/* ── Hero ── */}
+            <section className="sd-hero-shell">
+                <div className="sd-hero-glow" aria-hidden="true" />
+                <div className="sd-hero">
+                    <div className="sd-hero-grid">
+                        <div className="sd-hero-copy">
+                            <Reveal>
+                                <div className="sd-hero-badge">
+                                    <span className="sd-badge-dot" />
+                                    Closed Beta — 20 spots only
+                                </div>
+                            </Reveal>
+                            <Reveal delay={60}>
+                                <h1>
+                                    Help us build
+                                    <br />
+                                    the future of
+                                    <br />
+                                    <em>brand visuals</em>
+                                </h1>
+                            </Reveal>
+                            <Reveal delay={120}>
+                                <p className="sd-hero-desc">
+                                    SnapDraft turns a CSV and a few reference
+                                    images into a full batch of on-brand
+                                    visuals. We need 20 testers to push it to
+                                    its limits before launch.
+                                </p>
+                                {showInviteRequiredNotice && (
+                                    <p className="sd-invite-required-msg">
+                                        A valid invite code is required to
+                                        create an account.
+                                    </p>
                                 )}
-                                <div className="mb-4 flex items-center gap-3">
-                                    <span className="text-4xl font-black text-indigo-100">{step.number}</span>
-                                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-600">
-                                        <step.icon className="h-5 w-5 text-white" />
-                                    </div>
+                            </Reveal>
+
+                            <Reveal delay={180}>
+                                <div className="sd-hero-forms" id="hero-forms">
+                                    <form
+                                        onSubmit={handleInvite}
+                                        className="sd-hero-inline-form"
+                                    >
+                                        <input
+                                            ref={inviteRef}
+                                            type="text"
+                                            placeholder="Have an invite code? XXXX-XXXX"
+                                            value={inviteCode}
+                                            onChange={(e) =>
+                                                setInviteCode(e.target.value)
+                                            }
+                                            autoComplete="off"
+                                            spellCheck={false}
+                                            className="sd-code-input"
+                                        />
+                                        <button
+                                            type="submit"
+                                            disabled={inviteLoading}
+                                        >
+                                            {inviteLoading
+                                                ? 'Checking…'
+                                                : 'Redeem'}
+                                        </button>
+                                    </form>
+                                    {inviteError && (
+                                        <p className="sd-hero-inline-error">
+                                            {inviteError}
+                                        </p>
+                                    )}
+
+                                    {showWaitlistCard && (
+                                        <div className="sd-waitlist-inline-wrap">
+                                            {waitlistDone ? (
+                                                <p className="sd-hero-card-msg sd-hero-card-msg--success">
+                                                    <CheckCircle2 size={16} />
+                                                    You&apos;re on the list —
+                                                    we&apos;ll email you when a
+                                                    spot opens.
+                                                </p>
+                                            ) : (
+                                                <>
+                                                    <form
+                                                        onSubmit={
+                                                            handleWaitlist
+                                                        }
+                                                        className="sd-hero-inline-form sd-hero-inline-form-waitlist"
+                                                    >
+                                                        <input
+                                                            ref={waitlistRef}
+                                                            type="email"
+                                                            placeholder="Join the waitlist with your email"
+                                                            value={
+                                                                waitlistEmail
+                                                            }
+                                                            onChange={(e) =>
+                                                                setWaitlistEmail(
+                                                                    e.target
+                                                                        .value,
+                                                                )
+                                                            }
+                                                        />
+                                                        <button
+                                                            type="submit"
+                                                            disabled={
+                                                                waitlistLoading
+                                                            }
+                                                        >
+                                                            {waitlistLoading
+                                                                ? 'Joining…'
+                                                                : 'Join waitlist'}
+                                                        </button>
+                                                    </form>
+                                                    {waitlistError && (
+                                                        <p className="sd-hero-inline-error">
+                                                            {waitlistError}
+                                                        </p>
+                                                    )}
+                                                </>
+                                            )}
+                                        </div>
+                                    )}
                                 </div>
-                                <h3 className="text-lg font-semibold text-slate-900">{step.title}</h3>
-                                <p className="mt-2 text-sm leading-relaxed text-slate-600">{step.description}</p>
-                            </div>
-                        ))}
-                    </div>
+                            </Reveal>
 
-                    <div className="mt-12 text-center">
-                        <Link
-                            href={register().url}
-                            className="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-6 py-3 text-sm font-semibold text-white transition-all hover:bg-indigo-700"
-                        >
-                            Try it free
-                            <ArrowRight className="h-4 w-4" />
-                        </Link>
-                    </div>
-                </div>
-            </section>
-
-            {/* ── FEATURES ── */}
-            <section id="features" className="bg-slate-50 py-20 lg:py-28">
-                <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-                    <div className="mb-16 text-center">
-                        <h2 className="text-3xl font-bold tracking-tight text-slate-900 sm:text-4xl">
-                            Everything you need to scale visual content
-                        </h2>
-                        <p className="mx-auto mt-4 max-w-xl text-lg text-slate-600">
-                            SnapDraft handles brand analysis, generation, and editing in one workflow.
-                        </p>
-                    </div>
-
-                    <div className="grid gap-6 sm:grid-cols-2">
-                        {FEATURES.map((feature, i) => (
-                            <div
-                                key={i}
-                                className="rounded-2xl border border-slate-200 bg-white p-8 transition-all hover:border-indigo-200 hover:shadow-md"
-                            >
-                                <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-indigo-50">
-                                    <feature.icon className="h-6 w-6 text-indigo-600" />
+                            <Reveal delay={240}>
+                                <div className="sd-hero-trust">
+                                    <span>Free during beta</span>
+                                    <span className="sd-hero-trust-dot" />
+                                    <span>No credit card</span>
+                                    <span className="sd-hero-trust-dot" />
+                                    <span>Direct line to the founder</span>
                                 </div>
-                                <h3 className="text-lg font-semibold text-slate-900">{feature.title}</h3>
-                                <p className="mt-2 text-sm leading-relaxed text-slate-600">{feature.description}</p>
-                            </div>
-                        ))}
-                    </div>
-                </div>
-            </section>
-
-            {/* ── PRICING ── */}
-            <section id="pricing" className="py-20 lg:py-28">
-                <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-                    <div className="mb-12 text-center">
-                        <h2 className="text-3xl font-bold tracking-tight text-slate-900 sm:text-4xl">
-                            Simple, transparent pricing
-                        </h2>
-                        <p className="mx-auto mt-4 max-w-xl text-lg text-slate-600">
-                            One plan. Everything included. Start with a 7-day free trial.
-                        </p>
-                    </div>
-
-                    <div className="mx-auto max-w-md">
-                        <div className="relative overflow-hidden rounded-2xl border-2 border-indigo-600 bg-white shadow-xl shadow-indigo-600/10">
-                            {/* popular badge */}
-                            <div className="bg-indigo-600 py-2 text-center">
-                                <span className="text-xs font-semibold uppercase tracking-wider text-white">
-                                    SnapDraft Beta
-                                </span>
-                            </div>
-
-                            <div className="p-8">
-                                <div className="flex items-end gap-1">
-                                    <span className="text-5xl font-bold text-slate-900">$29</span>
-                                    <span className="mb-2 text-slate-500">/month</span>
-                                </div>
-                                <p className="mt-2 text-sm text-slate-500">after 7-day free trial</p>
-
-                                <ul className="mt-8 space-y-3">
-                                    {[
-                                        '100 credits per month',
-                                        'Up to 25 rows per CSV batch',
-                                        'Up to 10 active projects',
-                                        'Brand DNA analysis from reference images',
-                                        'Canvas Editor (erase, replace text, AI edit)',
-                                        'JPG, PNG, WebP reference support',
-                                        'Bulk download of generated images',
-                                        'Priority processing',
-                                    ].map((item) => (
-                                        <li key={item} className="flex items-start gap-3 text-sm text-slate-700">
-                                            <Check className="mt-0.5 h-4 w-4 flex-shrink-0 text-indigo-600" />
-                                            {item}
-                                        </li>
-                                    ))}
-                                </ul>
-
-                                <Link
-                                    href={register().url}
-                                    className="mt-8 block w-full rounded-xl bg-indigo-600 py-3 text-center text-sm font-semibold text-white transition-all hover:bg-indigo-700 hover:shadow-lg hover:shadow-indigo-600/30"
-                                >
-                                    Start free trial — no card needed
-                                </Link>
-
-                                <p className="mt-3 text-center text-xs text-slate-400">Cancel anytime before trial ends</p>
-                            </div>
+                            </Reveal>
                         </div>
+
+                        <Reveal className="sd-hero-image-wrap" delay={120}>
+                            <img
+                                src="/images/landing/hero_image.png"
+                                alt="SnapDraft visual generation preview"
+                                className="sd-hero-image"
+                            />
+                        </Reveal>
+                    </div>
+                </div>
+            </section>
+
+            {/* ── Stats ── */}
+            <section className="sd-stats-strip">
+                <div className="sd-stats-inner">
+                    {[
+                        { val: '20', label: 'Beta spots' },
+                        { val: 'Free', label: 'No cost during beta' },
+                        { val: '~30d', label: 'Before public launch' },
+                        { val: 'You', label: 'Shape the product' },
+                    ].map((s) => (
+                        <div className="sd-stat-cell" key={s.label}>
+                            <div className="sd-stat-num">{s.val}</div>
+                            <div className="sd-stat-lbl">{s.label}</div>
+                        </div>
+                    ))}
+                </div>
+            </section>
+
+            {/* ── How it works ── */}
+            <section className="sd-section" id="how">
+                <Reveal>
+                    <div className="sd-sec-eyebrow">How it works</div>
+                    <h2 className="sd-sec-title">
+                        From CSV to visuals <strong>in 3 steps</strong>
+                    </h2>
+                    <p className="sd-sec-sub">
+                        No design skills required. Just brand references and a
+                        spreadsheet.
+                    </p>
+                </Reveal>
+                <div className="sd-steps-grid">
+                    {steps.map((step, i) => (
+                        <Reveal key={step.num} delay={i * 100}>
+                            <div className="sd-step-card">
+                                <div className="sd-step-head">
+                                    <span className="sd-step-ico">
+                                        <img
+                                            src={step.iconSrc}
+                                            alt={step.title}
+                                            className="sd-card-icon"
+                                        />
+                                    </span>
+                                    <span className="sd-step-num">
+                                        {step.num}
+                                    </span>
+                                </div>
+                                <h3>{step.title}</h3>
+                                <p>{step.desc}</p>
+                            </div>
+                        </Reveal>
+                    ))}
+                </div>
+            </section>
+
+            {/* ── Beta perks (dark) ── */}
+            <section className="sd-section-dark" id="beta">
+                <div className="sd-section-dark-inner">
+                    <Reveal>
+                        <div className="sd-sec-eyebrow">Beta perks</div>
+                        <h2 className="sd-sec-title">
+                            What you get as a <em>beta tester</em>
+                        </h2>
+                    </Reveal>
+                    <div className="sd-feature-grid">
+                        {betaPerks.map((perk, i) => (
+                            <Reveal key={perk.title} delay={i * 100}>
+                                <div className="sd-feature-card">
+                                    <span className="sd-feature-ico">
+                                        <img
+                                            src={perk.iconSrc}
+                                            alt={perk.title}
+                                            className="sd-card-icon"
+                                        />
+                                    </span>
+                                    <h3>{perk.title}</h3>
+                                    <p>{perk.desc}</p>
+                                </div>
+                            </Reveal>
+                        ))}
                     </div>
                 </div>
             </section>
 
             {/* ── FAQ ── */}
-            <section id="faq" className="bg-slate-50 py-20 lg:py-28">
-                <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-                    <div className="mb-12 text-center">
-                        <h2 className="text-3xl font-bold tracking-tight text-slate-900 sm:text-4xl">
-                            Frequently asked questions
-                        </h2>
-                    </div>
-
-                    <div className="mx-auto max-w-2xl space-y-3">
-                        {FAQS.map((faq, i) => (
-                            <div key={i} className="overflow-hidden rounded-xl border border-slate-200 bg-white">
+            <section className="sd-section" id="faq">
+                <Reveal>
+                    <div className="sd-sec-eyebrow">FAQ</div>
+                    <h2 className="sd-sec-title">
+                        Frequently asked <em>questions</em>
+                    </h2>
+                </Reveal>
+                <div className="sd-faq-wrap">
+                    {[
+                        {
+                            q: 'What is the closed beta?',
+                            a: "We're inviting 20 people to test SnapDraft before the public launch. You'll get full access to every feature for free, and your feedback will directly shape the product.",
+                        },
+                        {
+                            q: 'Is it really free?',
+                            a: "Yes. During the beta there's no charge and no credit card required. We just want your honest feedback.",
+                        },
+                        {
+                            q: 'How does the CSV format work?',
+                            a: 'Use title, description, and format columns. Each row is turned into one generated visual matching your brand style.',
+                        },
+                        {
+                            q: 'Can I edit the generated images?',
+                            a: 'Yes. Use the Canvas Editor to replace text, swap objects, and fine-tune any result.',
+                        },
+                        {
+                            q: 'What happens after the beta ends?',
+                            a: 'Beta testers get early access to the paid plans at a discounted rate. Your projects and assets carry over.',
+                        },
+                    ].map((item, idx) => {
+                        const isOpen = openFaq === idx;
+                        return (
+                            <div
+                                key={item.q}
+                                className={cn('sd-faq-item', isOpen && 'open')}
+                            >
                                 <button
-                                    onClick={() => setOpenFaq(openFaq === i ? null : i)}
-                                    className="flex w-full items-center justify-between px-6 py-5 text-left transition-colors hover:bg-slate-50"
+                                    type="button"
+                                    className="sd-faq-btn"
+                                    onClick={() =>
+                                        setOpenFaq(isOpen ? -1 : idx)
+                                    }
                                 >
-                                    <span className="font-medium text-slate-900">{faq.question}</span>
-                                    {openFaq === i ? (
-                                        <ChevronUp className="h-4 w-4 flex-shrink-0 text-slate-400" />
-                                    ) : (
-                                        <ChevronDown className="h-4 w-4 flex-shrink-0 text-slate-400" />
-                                    )}
+                                    <span>{item.q}</span>
+                                    <span className="sd-faq-ico">+</span>
                                 </button>
-                                {openFaq === i && (
-                                    <div className="border-t border-slate-100 bg-slate-50 px-6 py-4">
-                                        <p className="text-sm leading-relaxed text-slate-600">{faq.answer}</p>
-                                    </div>
-                                )}
+                                <div className="sd-faq-ans">{item.a}</div>
                             </div>
-                        ))}
-                    </div>
+                        );
+                    })}
                 </div>
             </section>
 
-            {/* ── BOTTOM CTA ── */}
-            <section className="bg-indigo-600 py-20">
-                <div className="mx-auto max-w-7xl px-4 text-center sm:px-6 lg:px-8">
-                    <h2 className="text-3xl font-bold tracking-tight text-white sm:text-4xl">
-                        Ready to generate your first batch?
+            {/* ── CTA ── */}
+            <section className="sd-cta">
+                <Reveal>
+                    <h2>
+                        20 spots. <em>Be one of them.</em>
                     </h2>
-                    <p className="mx-auto mt-4 max-w-xl text-lg text-indigo-100">
-                        Start your free 7-day trial today. No credit card required.
+                    <p>
+                        Free during beta. No credit card. Your feedback shapes
+                        the product.
                     </p>
-                    <div className="mt-8 flex flex-col items-center justify-center gap-4 sm:flex-row">
-                        <Link
-                            href={register().url}
-                            className="inline-flex items-center gap-2 rounded-lg bg-white px-6 py-3 text-sm font-semibold text-indigo-600 transition-all hover:bg-indigo-50 hover:shadow-lg"
+                    <div className="sd-cta-row">
+                        <button
+                            type="button"
+                            className="sd-btn-hero"
+                            onClick={openWaitlistCard}
                         >
-                            Start free trial
-                            <ArrowRight className="h-4 w-4" />
-                        </Link>
+                            Join waitlist
+                            <ArrowRight size={16} />
+                        </button>
                         <Link
                             href={login().url}
-                            className="text-sm font-medium text-indigo-100 transition-colors hover:text-white"
+                            className="sd-btn-hero-ghost sd-btn-hero-ghost-inv"
                         >
                             Already have an account? Sign in
                         </Link>
                     </div>
-                </div>
+                </Reveal>
             </section>
 
-            {/* ── FOOTER ── */}
-            <footer className="bg-slate-900 py-12 text-slate-400">
-                <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-                    <div className="grid gap-8 sm:grid-cols-3">
-                        <div>
-                            <div className="flex items-center gap-2">
-                                <div className="flex h-7 w-7 items-center justify-center rounded-md bg-indigo-600">
-                                    <Zap className="h-3.5 w-3.5 text-white" />
-                                </div>
-                                <span className="font-bold text-white">SnapDraft</span>
-                            </div>
-                            <p className="mt-3 text-sm leading-relaxed">
-                                AI-powered visual content generation for brands that need consistency at scale.
-                            </p>
-                        </div>
-
-                        <div>
-                            <h4 className="mb-3 text-sm font-semibold text-white">Product</h4>
-                            <ul className="space-y-2 text-sm">
-                                <li><a href="#features" className="transition-colors hover:text-white">Features</a></li>
-                                <li><a href="#how-it-works" className="transition-colors hover:text-white">How it works</a></li>
-                                <li><a href="#pricing" className="transition-colors hover:text-white">Pricing</a></li>
-                                <li><a href="#faq" className="transition-colors hover:text-white">FAQ</a></li>
-                            </ul>
-                        </div>
-
-                        <div>
-                            <h4 className="mb-3 text-sm font-semibold text-white">Account</h4>
-                            <ul className="space-y-2 text-sm">
-                                <li>
-                                    <Link href={register().url} className="transition-colors hover:text-white">
-                                        Create account
-                                    </Link>
-                                </li>
-                                <li>
-                                    <Link href={login().url} className="transition-colors hover:text-white">
-                                        Sign in
-                                    </Link>
-                                </li>
-                            </ul>
-                        </div>
+            {/* ── Footer ── */}
+            <footer className="sd-footer">
+                <div className="sd-footer-grid">
+                    <div>
+                        <Link href="/" className="sd-logo sd-logo-light">
+                            <img
+                                src="/SnapdraftLogo.png"
+                                alt="SnapDraft"
+                                className="sd-logo-image"
+                            />
+                        </Link>
+                        <p>
+                            AI-powered visual content generation — currently in
+                            closed beta.
+                        </p>
                     </div>
-
-                    <div className="mt-10 border-t border-slate-800 pt-8 text-center text-xs">
-                        © {new Date().getFullYear()} SnapDraft. All rights reserved.
+                    <div>
+                        <h5>Product</h5>
+                        <a href="#how">How it works</a>
+                        <a href="#beta">Beta perks</a>
+                        <a href="#faq">FAQ</a>
+                    </div>
+                    <div>
+                        <h5>Account</h5>
+                        <Link href={register().url}>Create account</Link>
+                        <Link href={login().url}>Sign in</Link>
                     </div>
                 </div>
+                <div className="sd-footer-bottom">
+                    <span>
+                        © {new Date().getFullYear()} SnapDraft. All rights
+                        reserved.
+                    </span>
+                    <span>Privacy · Terms</span>
+                </div>
             </footer>
-        </>
+        </div>
     );
 }

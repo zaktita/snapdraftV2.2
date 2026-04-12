@@ -4,14 +4,22 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\StoreProjectRequest;
 use App\Http\Requests\UpdateProjectRequest;
+use App\Jobs\AnalyzeBrandJob;
+use App\Jobs\DispatchGenerationBatchJob;
+use App\Jobs\MatchCaptionsJob;
+use App\Models\CsvWizardSession;
+use App\Models\GenerationHistory;
 use App\Models\Project;
+use App\Services\AI\ImageGeneratorService;
 use App\Services\FileUploadService;
+use App\Services\PostHogService;
 use Illuminate\Http\Request;
-use Inertia\Inertia;
-use Inertia\Response;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\Redirect;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
+use Inertia\Inertia;
+use Inertia\Response;
 
 class ProjectController extends Controller
 {
@@ -137,6 +145,11 @@ class ProjectController extends Controller
             }
         }
 
+        app(PostHogService::class)->capture((string) Auth::id(), 'project_created', [
+            'project_id' => $project->id,
+            'format'     => $project->format,
+        ]);
+
         return redirect()->route('projects.show', $project->id)
             ->with('success', 'Project created successfully!');
     }
@@ -158,18 +171,52 @@ class ProjectController extends Controller
             ->whereIn('status', ['pending', 'processing'])
             ->exists();
 
-        // Calculate progress for active/recent batch (last 5 mins)
+        // Calculate progress using the current batch's history IDs.
+        // Always compute when history_ids exist so the frontend can show
+        // completion or failure states even after all jobs finish.
         $progress = null;
-        if ($hasPendingGenerations) {
-            $recentGenerations = $project->generationHistory()
-                ->where('created_at', '>=', now()->subMinutes(5))
+        $currentHistoryIds = array_values($project->settings['history_ids'] ?? []);
+
+        if (!empty($currentHistoryIds)) {
+            $currentGenerations = $project->generationHistory()
+                ->whereIn('id', $currentHistoryIds)
                 ->get();
-            
+
+            $failureReasons = $currentGenerations
+                ->where('status', 'failed')
+                ->values()
+                ->map(fn ($h) => [
+                    'title'   => $h->parameters['title'] ?? null,
+                    'message' => $h->error_message ?? 'Generation failed',
+                ])
+                ->toArray();
+
             $progress = [
-                'total' => $recentGenerations->count(),
-                'completed' => $recentGenerations->where('status', 'completed')->count(),
-                'failed' => $recentGenerations->where('status', 'failed')->count(),
-                'pending' => $recentGenerations->whereIn('status', ['pending', 'processing'])->count(),
+                'total'           => $currentGenerations->count(),
+                'completed'       => $currentGenerations->where('status', 'completed')->count(),
+                'failed'          => $currentGenerations->where('status', 'failed')->count(),
+                'pending'         => $currentGenerations->whereIn('status', ['pending', 'processing'])->count(),
+                'failure_reasons' => $failureReasons,
+            ];
+        } elseif ($hasPendingGenerations) {
+            // Fallback for legacy projects without history_ids
+            $allGenerations = $project->generationHistory()->get();
+
+            $failureReasons = $allGenerations
+                ->where('status', 'failed')
+                ->values()
+                ->map(fn ($h) => [
+                    'title'   => $h->parameters['title'] ?? null,
+                    'message' => $h->error_message ?? 'Generation failed',
+                ])
+                ->toArray();
+
+            $progress = [
+                'total'           => $allGenerations->count(),
+                'completed'       => $allGenerations->where('status', 'completed')->count(),
+                'failed'          => $allGenerations->where('status', 'failed')->count(),
+                'pending'         => $allGenerations->whereIn('status', ['pending', 'processing'])->count(),
+                'failure_reasons' => $failureReasons,
             ];
         }
 
@@ -192,14 +239,19 @@ class ProjectController extends Controller
                         'thumbnail_url' => $image->thumbnail_url ?: $image->url,
                         'prompt' => $image->prompt,
                         'is_favorite' => $image->is_favorite,
+                        'metadata' => $image->metadata,
                     ];
                 }),
             ],
             // Pass optimistic UI flags from query params
             'justCreated' => $request->query('justCreated', false),
             'expectedImages' => (int) $request->query('expectedImages', 0),
+            'batchCompleted' => $request->boolean('batchCompleted'),
             'hasPendingGenerations' => $hasPendingGenerations,
             'progress' => $progress,
+            'csvRowTitles' => ($hasPendingGenerations || ($progress && ($progress['pending'] > 0 || $progress['failed'] > 0)))
+                ? array_values(array_column($project->settings['csv_data'] ?? [], 'title'))
+                : null,
         ]);
     }
 
@@ -242,7 +294,12 @@ class ProjectController extends Controller
     {
         $project = Project::findOrFail($id);
         $this->authorize('delete', $project);
-        
+
+        app(PostHogService::class)->capture((string) Auth::id(), 'project_deleted', [
+            'project_id'   => $project->id,
+            'images_count' => $project->images()->count(),
+        ]);
+
         $project->delete();
 
         return redirect()->route('projects.index')
@@ -271,35 +328,206 @@ class ProjectController extends Controller
         $project = Project::findOrFail($id);
         $this->authorize('update', $project);
 
-        // Determine wizard type from project settings
+        $user = Auth::user();
+
+        // ── New CSV file uploaded from "Generate More" modal ──────────────
+        if ($request->hasFile('csv_file')) {
+            $request->validate([
+                'csv_file' => ['required', 'file', 'mimetypes:text/csv,text/plain,application/csv,application/vnd.ms-excel'],
+            ]);
+
+            $columnMappings = json_decode($request->input('column_mappings', '{}'), true) ?? [];
+            $csvRows = $this->parseCsvForGeneration($request->file('csv_file'), $columnMappings);
+
+            if (empty($csvRows)) {
+                return back()->withErrors(['csv_file' => 'The CSV file contains no valid rows.']);
+            }
+
+            return $this->dispatchCsvPipeline($project, $user, $csvRows);
+        }
+
+        // ── No CSV file: regenerate from existing project data ────────────
         $wizardType = $project->settings['wizard_type'] ?? null;
 
         if (!$wizardType) {
             return back()->with('error', 'Unable to determine project type for generation.');
         }
 
-        // Queue appropriate generation job based on wizard type
         switch ($wizardType) {
             case 'csv':
-                // For CSV wizard, regenerate all CSV rows
-                if (isset($project->settings['csv_data'])) {
-                    \App\Jobs\GenerateBatchImagesJob::dispatch($project);
-                    return back()->with('success', 'Batch generation started! Images will appear shortly.');
-                } else {
+                if (!isset($project->settings['csv_data'])) {
                     return back()->with('error', 'CSV data not found for this project.');
                 }
-
-            case 'images':
-            case 'text':
-                // For Images/Text wizard, generate a single new image using project description
-                $prompt = $project->description;
-                $format = $project->settings['format'] ?? 'square';
-                \App\Jobs\GenerateSingleImageJob::dispatch($project, $prompt, $format);
-                return back()->with('success', 'Image generation started! Check back soon.');
+                return $this->dispatchCsvPipeline($project, $user, $project->settings['csv_data']);
 
             default:
                 return back()->with('error', 'Unknown project type.');
         }
+    }
+
+    /**
+     * Create GenerationHistory records, a CsvWizardSession, and dispatch
+     * the generation pipeline for the given CSV rows.
+     */
+    private function dispatchCsvPipeline(Project $project, $user, array $csvRows)
+    {
+        $historyIds = [];
+        foreach ($csvRows as $i => $row) {
+            $history = GenerationHistory::create([
+                'user_id'    => $user->id,
+                'project_id' => $project->id,
+                'ai_model'   => config('services.gemini.image_model', 'gemini-2.5-flash-image'),
+                'prompt'     => $row['title'],
+                'status'     => 'pending',
+                'parameters' => [
+                    'csv_row_index' => $i,
+                    'title'         => $row['title'],
+                    'format'        => $row['format'] ?? 'square',
+                    'wizard_type'   => 'csv',
+                ],
+            ]);
+            $historyIds[$i] = $history->id;
+        }
+
+        // Ensure ref_paths are populated from brand references if missing
+        $refPaths = $project->settings['ref_paths'] ?? [];
+        if (empty($refPaths)) {
+            $refPaths = $project->brandReferences()->pluck('url')->toArray();
+        }
+
+        if (empty($refPaths)) {
+            return back()->with('error', 'No brand reference images found. Please upload reference images first.');
+        }
+
+        $project->update([
+            'settings' => array_merge($project->settings ?? [], [
+                'wizard_type' => 'csv',
+                'csv_data'    => $csvRows,
+                'history_ids' => $historyIds,
+                'ref_paths'   => $refPaths,
+            ]),
+        ]);
+
+        $session = CsvWizardSession::create([
+            'user_id'    => $user->id,
+            'project_id' => $project->id,
+            'status'     => 'pending',
+            'total_jobs' => count($csvRows),
+        ]);
+
+        // Skip brand analysis if cluster_result already exists
+        $hasCluster = !empty($project->settings['cluster_result']);
+
+        if ($hasCluster) {
+            Bus::chain([
+                new MatchCaptionsJob($project->id, $session->id),
+                new DispatchGenerationBatchJob($project->id, $session->id),
+            ])->dispatch();
+        } else {
+            Bus::chain([
+                new AnalyzeBrandJob($project->id, $session->id),
+                new MatchCaptionsJob($project->id, $session->id),
+                new DispatchGenerationBatchJob($project->id, $session->id),
+            ])->dispatch();
+        }
+
+        return back()->with(['success' => 'Batch generation started!', 'generating' => true]);
+    }
+
+    /**
+     * Parse a CSV file into normalised rows for generation.
+     */
+    private function parseCsvForGeneration(\Illuminate\Http\UploadedFile $file, array $columnMappings): array
+    {
+        $content = file_get_contents($file->getRealPath());
+        $content = ltrim($content, "\xEF\xBB\xBF");
+
+        $lines = array_filter(array_map('trim', explode("\n", $content)));
+        $lines = array_values($lines);
+
+        if (count($lines) < 2) {
+            return [];
+        }
+
+        $headers = str_getcsv(array_shift($lines));
+
+        // Build reverse map from column mappings
+        $titleCol   = $this->findMappedColumn($columnMappings, 'Product Title');
+        $captionCol = $this->findMappedColumn($columnMappings, 'Image Prompt');
+        $formatCol  = $this->findMappedColumn($columnMappings, 'Format');
+
+        // Fallback: auto-detect columns by header name
+        if (!$titleCol) {
+            foreach ($headers as $h) {
+                $lower = strtolower(trim($h));
+                if (str_contains($lower, 'title') || str_contains($lower, 'name')) {
+                    $titleCol = trim($h);
+                    break;
+                }
+            }
+            $titleCol = $titleCol ?: ($headers[0] ?? null);
+        }
+        if (!$captionCol) {
+            foreach ($headers as $h) {
+                $lower = strtolower(trim($h));
+                if (str_contains($lower, 'description') || str_contains($lower, 'prompt') || str_contains($lower, 'caption')) {
+                    $captionCol = trim($h);
+                    break;
+                }
+            }
+        }
+        if (!$formatCol) {
+            foreach ($headers as $h) {
+                $lower = strtolower(trim($h));
+                if (str_contains($lower, 'format')) {
+                    $formatCol = trim($h);
+                    break;
+                }
+            }
+        }
+
+        $rows = [];
+        foreach ($lines as $line) {
+            if (empty(trim($line))) {
+                continue;
+            }
+
+            $values = str_getcsv($line);
+            $row    = array_combine($headers, array_pad($values, count($headers), ''));
+            if (!$row) {
+                continue;
+            }
+
+            $title   = trim($row[$titleCol] ?? '');
+            $caption = $captionCol ? trim($row[$captionCol] ?? '') : $title;
+            $format  = $formatCol ? strtolower(trim($row[$formatCol] ?? 'square')) : 'square';
+
+            if (empty($title)) {
+                continue;
+            }
+
+            if (!in_array($format, ['square', 'portrait', 'landscape'], true)) {
+                $format = 'square';
+            }
+
+            $rows[] = [
+                'title'   => $title,
+                'caption' => $caption ?: $title,
+                'format'  => $format,
+            ];
+        }
+
+        return $rows;
+    }
+
+    private function findMappedColumn(array $columnMappings, string $semanticName): ?string
+    {
+        foreach ($columnMappings as $csvColumn => $mapped) {
+            if ($mapped === $semanticName) {
+                return $csvColumn;
+            }
+        }
+        return null;
     }
 
     /**
@@ -333,17 +561,91 @@ class ProjectController extends Controller
             $expectedTotal = 1; // Single image for images/text wizard
         }
 
+        $doneGenerations = $completedGenerations + $failedGenerations;
+        $pendingGenerations = max(0, $expectedTotal - $doneGenerations);
+        $isComplete = $expectedTotal > 0
+            ? ($doneGenerations >= $expectedTotal && $processingGenerations === 0)
+            : ($processingGenerations === 0);
+
+        // ── Phase detection (v2 pipeline) ────────────────────────────────────
+        $settings = $project->settings ?? [];
+
+        // Brand analysis phase
+        if (!empty($settings['brand_analysis_failed'])) {
+            $brandAnalysisPhase = 'failed';
+        } elseif (!empty($settings['brand_analyzed_at'])) {
+            $brandAnalysisPhase = 'completed';
+        } else {
+            $brandAnalysisPhase = 'pending';
+        }
+
+        // Image generation phase (derived from history counts)
+        if ($totalGenerations === 0) {
+            $imageGenerationPhase = 'pending';
+        } elseif ($completedGenerations + $failedGenerations >= $expectedTotal) {
+            $imageGenerationPhase = 'completed';
+        } else {
+            $imageGenerationPhase = 'processing';
+        }
+
+        // Pipeline version — detect from the most recent history item with parameters
+        $pipelineVersion = null;
+        $clusterValidated = null;
+        $recentHistory = $project->generationHistory()
+            ->whereNotNull('parameters')
+            ->orderByDesc('created_at')
+            ->value('parameters');
+        if (is_array($recentHistory) && isset($recentHistory['pipeline_version'])) {
+            $pipelineVersion = $recentHistory['pipeline_version'];
+        }
+
+        // Cluster validation status from brand style
+        $brandStyle = $settings['brand_style'] ?? null;
+        if (is_array($brandStyle) && isset($brandStyle['pipeline_validation'])) {
+            $clusterValidated = (bool) ($brandStyle['pipeline_validation']['valid'] ?? false);
+        }
+
+        // Collect per-item failure reasons for the current batch
+        $failureReasons = [];
+        if ($failedGenerations > 0) {
+            $failureReasons = $project->generationHistory()
+                ->where('status', 'failed')
+                ->select(['id', 'error_message', 'parameters'])
+                ->get()
+                ->map(fn ($h) => [
+                    'title'   => is_array($h->parameters) ? ($h->parameters['title'] ?? null) : null,
+                    'message' => $h->error_message ?? 'Generation failed',
+                ])
+                ->values()
+                ->toArray();
+        }
+
+        // Brand analysis error if present
+        $brandAnalysisError = !empty($settings['brand_analysis_error'])
+            ? $settings['brand_analysis_error']
+            : null;
+
         return response()->json([
             'project_id' => $project->id,
             'expected_total' => $expectedTotal,
             'completed' => $completedGenerations,
             'failed' => $failedGenerations,
             'processing' => $processingGenerations,
+            'pending' => $pendingGenerations,
             'total' => $totalGenerations,
             'progress_percentage' => $expectedTotal > 0 
-                ? round(($completedGenerations / $expectedTotal) * 100, 2) 
+                ? round(min(100, ($doneGenerations / $expectedTotal) * 100), 2)
                 : 0,
-            'is_complete' => $completedGenerations >= $expectedTotal,
+            'is_complete' => $isComplete,
+            'failure_reasons' => $failureReasons,
+            'brand_analysis_error' => $brandAnalysisError,
+            // v2 pipeline optional fields (null when not applicable)
+            'pipeline_version' => $pipelineVersion,
+            'cluster_validated' => $clusterValidated,
+            'phases' => [
+                'brand_analysis' => $brandAnalysisPhase,
+                'image_generation' => $imageGenerationPhase,
+            ],
         ]);
     }
 }

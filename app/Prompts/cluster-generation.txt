@@ -1,0 +1,26 @@
+Generate a {format_description} social media post image ({aspect_ratio} aspect ratio) that matches the EXACT style of the reference images.
+Study the references carefully — your output must mirror their background, typography, layout, spacing, and mood.
+
+STYLE ANCHOR:
+- Background: {background_treatment}
+- Dominant Color: {dominant_color}
+- Palette: {palette}
+- Typography: {typography_style}
+- Text Placement: {text_placement}
+
+LAYOUT:
+- Composition: {composition_type}
+- Reproduce the spatial hierarchy, negative-space behavior, and padding from the references precisely.
+
+CONTENT:
+- Headline text to render on the image: "{overlay_text}"
+- Cluster style: {cluster_name}
+
+GLOBAL BRAND RULES:
+{rules_block}
+
+EXCLUSIONS:
+- No colors outside the palette above unless clearly present in references.
+- No generic stock-photo aesthetics.
+- No elements, textures, or decorative shapes not visible in references.
+- No watermarks, signatures, or artifacts.

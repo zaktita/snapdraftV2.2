@@ -15,17 +15,18 @@ class EnsureUserHasCredits
      */
     public function handle(Request $request, Closure $next): Response
     {
-        // Bypass credit check in local/testing environments so development works without a paid plan
-        if (app()->environment('local', 'testing')) {
-            return $next($request);
-        }
-
         $user = $request->user();
 
-        if (!$user || !$user->hasCredits()) {
-            // Redirect to plans page — better UX than a dead-end back()
-            return redirect()->route('subscription.plans')
-                ->with('error', 'You have no credits remaining. Please subscribe to continue generating images.');
+        // No active subscription — send to dashboard
+        if (!$user || !$user->hasActiveSubscription()) {
+            return redirect()->route('dashboard')
+                ->with('error', 'You need a beta invite to access this feature. Check your email for your invite code.');
+        }
+
+        // Credits exhausted
+        if (!$user->hasCredits()) {
+            return redirect()->route('dashboard')
+                ->with('error', "You've used all your credits. Share your feedback and we'll top you up.");
         }
 
         return $next($request);

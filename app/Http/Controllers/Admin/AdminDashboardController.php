@@ -11,6 +11,7 @@ use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Password;
 use App\Http\Controllers\Controller;
 use Inertia\Inertia;
@@ -155,17 +156,33 @@ class AdminDashboardController extends Controller
             'is_suspended'      => true,
             'suspension_reason' => $request->input('reason', 'Suspended by admin'),
         ]);
+        Log::info('[admin] User suspended', [
+            'admin_id'   => Auth::id(),
+            'target_id'  => $user->id,
+            'target_email' => $user->email,
+            'reason'     => $request->input('reason', 'Suspended by admin'),
+        ]);
         return back()->with('success', 'User suspended.');
     }
 
     public function reactivateUser(User $user)
     {
         $user->update(['is_suspended' => false, 'suspension_reason' => null]);
+        Log::info('[admin] User reactivated', [
+            'admin_id'     => Auth::id(),
+            'target_id'    => $user->id,
+            'target_email' => $user->email,
+        ]);
         return back()->with('success', 'User reactivated.');
     }
 
     public function deleteUser(User $user)
     {
+        Log::warning('[admin] User deleted', [
+            'admin_id'     => Auth::id(),
+            'target_id'    => $user->id,
+            'target_email' => $user->email,
+        ]);
         $user->delete();
         return back()->with('success', 'User deleted.');
     }
@@ -178,6 +195,11 @@ class AdminDashboardController extends Controller
 
     public function impersonateUser(User $user)
     {
+        Log::warning('[admin] Impersonation started', [
+            'admin_id'     => Auth::id(),
+            'target_id'    => $user->id,
+            'target_email' => $user->email,
+        ]);
         session(['impersonating_user_id' => Auth::id()]);
         Auth::login($user);
         return redirect('/dashboard')->with('success', 'Impersonating ' . $user->name);
@@ -188,8 +210,20 @@ class AdminDashboardController extends Controller
         $adminId = session()->pull('impersonating_user_id');
         if ($adminId) {
             $admin = User::find($adminId);
-            if ($admin) {
+            if ($admin && $admin->is_admin) {
+                Log::info('[admin] Impersonation ended', [
+                    'admin_id'          => $adminId,
+                    'impersonated_user' => Auth::id(),
+                ]);
                 Auth::login($admin);
+            } else {
+                Log::warning('[admin] Invalid impersonation stop attempt', [
+                    'claimed_admin_id'  => $adminId,
+                    'impersonated_user' => Auth::id(),
+                ]);
+                Auth::logout();
+                $request->session()->invalidate();
+                return redirect('/login');
             }
         }
         return redirect('/admin')->with('success', 'Stopped impersonation.');
@@ -318,6 +352,13 @@ class AdminDashboardController extends Controller
         }
 
         $sub->update(['capabilities' => $caps]);
+        Log::info('[admin] Credits adjusted', [
+            'admin_id'   => Auth::id(),
+            'target_id'  => $user->id,
+            'operation'  => $request->input('operation'),
+            'amount'     => $delta,
+            'new_balance' => $caps['credits_remaining'],
+        ]);
         return back()->with('success', 'Credits adjusted.');
     }
 
@@ -348,6 +389,11 @@ class AdminDashboardController extends Controller
 
     public function deleteProject(Project $project)
     {
+        Log::warning('[admin] Project deleted', [
+            'admin_id'   => Auth::id(),
+            'project_id' => $project->id,
+            'owner_id'   => $project->user_id,
+        ]);
         $project->delete();
         return back()->with('success', 'Project deleted.');
     }

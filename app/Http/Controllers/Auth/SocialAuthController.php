@@ -3,7 +3,10 @@
 namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
+use App\Models\BetaInvite;
 use App\Models\User;
+use App\Services\PostHogService;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 use Laravel\Socialite\Facades\Socialite;
@@ -13,8 +16,16 @@ class SocialAuthController extends Controller
     /**
      * Redirect to Google OAuth.
      */
-    public function redirect()
+    public function redirect(Request $request)
     {
+        $code = strtoupper(trim((string) $request->query('invite', '')));
+
+        if ($code !== '') {
+            $request->session()->put('oauth_invite_code', $code);
+        } else {
+            $request->session()->forget('oauth_invite_code');
+        }
+
         return Socialite::driver('google')->redirect();
     }
 
@@ -56,7 +67,17 @@ class SocialAuthController extends Controller
             return redirect()->intended(route('dashboard'));
         }
 
-        // 3. Brand new user — create account
+        // 3. Brand new user — require a valid invite code
+        $inviteCode = strtoupper(trim((string) session()->pull('oauth_invite_code', '')));
+        $invite = $inviteCode !== '' ? BetaInvite::where('code', $inviteCode)->first() : null;
+
+        if (! $invite || ! $invite->isValid()) {
+            return redirect()->route('home')->withErrors([
+                'invite_code' => 'A valid invite code is required to create an account.',
+            ]);
+        }
+
+        // 4. Brand new user — create account
         $user = User::create([
             'name'              => $googleUser->getName(),
             'email'             => $googleUser->getEmail(),
@@ -64,6 +85,19 @@ class SocialAuthController extends Controller
             'avatar'            => $googleUser->getAvatar(),
             'email_verified_at' => now(), // Google already verified the email
             'password'          => null,  // No password for OAuth-only users
+        ]);
+
+        $invite->redeem($user);
+
+        $posthog = app(PostHogService::class);
+        $posthog->identify((string) $user->id, [
+            'email'         => $user->email,
+            'name'          => $user->name,
+            'created_at'    => $user->created_at,
+        ]);
+        $posthog->capture((string) $user->id, 'user_signed_up', [
+            'signup_method' => 'google_invite_code',
+            'email'         => $user->email,
         ]);
 
         Auth::login($user, remember: true);

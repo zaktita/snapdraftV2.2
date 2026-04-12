@@ -1,5 +1,10 @@
 import { useEffect, useState, useRef } from 'react';
 
+export interface GenerationProgressPhases {
+    brand_analysis: 'pending' | 'processing' | 'completed' | 'failed';
+    image_generation: 'pending' | 'processing' | 'completed';
+}
+
 export interface GenerationProgress {
     project_id: number;
     expected_total: number;
@@ -9,6 +14,10 @@ export interface GenerationProgress {
     total: number;
     progress_percentage: number;
     is_complete: boolean;
+    // v2 pipeline optional fields — null when not applicable
+    pipeline_version?: string | null;
+    cluster_validated?: boolean | null;
+    phases?: GenerationProgressPhases | null;
 }
 
 /**
@@ -21,7 +30,7 @@ export interface GenerationProgress {
  * @returns Progress data and loading state
  */
 export function useGenerationProgress(
-    projectId: number | null, 
+    projectId: number | null,
     enabled = true,
     onComplete?: () => void
 ) {
@@ -29,10 +38,10 @@ export function useGenerationProgress(
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [wasGenerating, setWasGenerating] = useState(false);
-    
+
     // Use ref for callback to avoid adding it to dependencies
     const onCompleteRef = useRef(onComplete);
-    
+
     useEffect(() => {
         onCompleteRef.current = onComplete;
     }, [onComplete]);
@@ -59,15 +68,15 @@ export function useGenerationProgress(
                 }
 
                 const data = await response.json();
-                
+
                 if (isMounted) {
                     const isCurrentlyGenerating = !data.is_complete && data.processing > 0;
-                    
+
                     // Check if generation just completed
                     if (wasGenerating && data.is_complete && onCompleteRef.current) {
                         onCompleteRef.current();
                     }
-                    
+
                     setProgress(data);
                     setWasGenerating(isCurrentlyGenerating);
                     setError(null);

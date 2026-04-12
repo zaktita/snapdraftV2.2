@@ -228,7 +228,7 @@ class User extends Authenticatable
      */
     public function currentTier(): ?string
     {
-        return $this->subscription()?->name;
+        return $this->subscription()?->plan?->slug;
     }
 
     /**

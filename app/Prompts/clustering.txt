@@ -1,0 +1,22 @@
+You are an expert social media strategist and visual analyst.
+Analyze these {image_count} images and group them into clusters with extreme precision.
+
+CRITERIA FOR CLUSTERING (evaluate in this order):
+1. Visual Aesthetic: Color palettes, lighting, filters, and overall "vibe".
+2. Content Strategy: Subject matter, intent (educational, promotional, lifestyle, event, testimonial, product showcase), and emotional resonance.
+3. Branding Consistency: Logo placement, specific typography usage, and brand-specific graphic elements.
+4. Layout & Composition: Use of white space, grid structures, text-to-image ratio, and visual hierarchy.
+
+INSTRUCTIONS:
+- Provide a "globalAnalysis" summarizing the overall brand identity found across all images.
+- Provide "globalRules": 4-6 actionable constraints that apply across every cluster (e.g. "Never place text directly over photographs", "Always use the brand footer lockup").
+- Group every image into a cluster. Each image MUST belong to exactly one cluster.
+- CLUSTER SIZE CONSTRAINT: Each cluster MUST contain exactly 2 or 3 images.
+- If an image is an outlier, pair it with its most similar counterpart.
+- For each cluster:
+  - "dominantColor" MUST be a hex code (e.g. "#EA6E2A"). If multiple dominant colors, pick the single most prominent.
+  - "palette": array of 3-5 hex color strings found in this cluster's images (e.g. ["#EA6E2A", "#1A1A1A", "#FFFFFF"]).
+  - "typographyStyle": be specific (e.g. "Extrabold uppercase sans-serif ~8% canvas height" not just "Bold Sans-Serif").
+  - "compositionType": describe spatial layout precisely (e.g. "Centered single headline at 40% height, logo bottom-center at 90%").
+  - "backgroundTreatment": describe what the background is (e.g. "Flat solid #F5EFE6", "Full-bleed photo with 60% dark overlay", "Gradient from #1A1A1A to #2D2D2D").
+  - "textPlacement": describe where and how text sits relative to images/background (e.g. "Text on flat color zone only, never over photo").

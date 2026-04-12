@@ -15,6 +15,8 @@ return [
 
     'name' => env('APP_NAME', 'Laravel'),
 
+    'feedback_email' => env('FEEDBACK_EMAIL', 'contact@snapdraft.com'),
+
     /*
     |--------------------------------------------------------------------------
     | Application Environment

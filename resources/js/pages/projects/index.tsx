@@ -5,6 +5,14 @@ import {
     CardContent,
 } from '@/components/ui/card';
 import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+} from '@/components/ui/dialog';
+import {
     DropdownMenu,
     DropdownMenuContent,
     DropdownMenuItem,
@@ -24,6 +32,7 @@ import { create as create_project } from '@/routes/projects';
 import { type BreadcrumbItem, type SharedData } from '@/types';
 import { Head, Link, router, usePage } from '@inertiajs/react';
 import {
+    AlertTriangle,
     ArrowUpDown,
     Check,
     CheckCircle,
@@ -82,19 +91,21 @@ export default function ProjectsIndex({ projects: projectsData = [] }: ProjectsP
     const page = usePage<SharedData>();
     const urlParams = new URLSearchParams(window.location.search);
     const filterParam = urlParams.get('filter') as FilterTab | null;
-    
+
     // Extract projects array from paginated data or use directly if array
     const projects = Array.isArray(projectsData) ? projectsData : projectsData.data;
     const pagination = !Array.isArray(projectsData) ? projectsData : null;
-    
+
     const [viewMode, setViewMode] = useState<ViewMode>('grid');
     const [activeTab, setActiveTab] = useState<FilterTab>(filterParam || 'all');
     const [sortBy, setSortBy] = useState<SortOption>('date-desc');
     const flashSuccess = page.props.flash?.success;
     const [showSuccess, setShowSuccess] = useState(!!flashSuccess);
-    
+
     // Local state to track optimistic favorite updates
     const [optimisticFavorites, setOptimisticFavorites] = useState<Record<number, boolean>>({});
+    const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null);
+    const projectToDelete = projects.find((p) => p.id === deleteConfirmId);
 
     // Auto-hide success message after 5 seconds
     useEffect(() => {
@@ -151,36 +162,36 @@ export default function ProjectsIndex({ projects: projectsData = [] }: ProjectsP
         const date = new Date(dateString);
         const now = new Date();
         const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000);
-        
+
         // Less than a minute
         if (diffInSeconds < 60) {
             return 'a few seconds ago';
         }
-        
+
         // Less than an hour
         const diffInMinutes = Math.floor(diffInSeconds / 60);
         if (diffInMinutes < 60) {
             return `${diffInMinutes} min ago`;
         }
-        
+
         // Less than a day
         const diffInHours = Math.floor(diffInMinutes / 60);
         if (diffInHours < 24) {
             return `${diffInHours} hour${diffInHours > 1 ? 's' : ''} ago`;
         }
-        
+
         // Less than a week
         const diffInDays = Math.floor(diffInHours / 24);
         if (diffInDays < 7) {
             return `${diffInDays} day${diffInDays > 1 ? 's' : ''} ago`;
         }
-        
+
         // Less than a month
         const diffInWeeks = Math.floor(diffInDays / 7);
         if (diffInWeeks < 4) {
             return `${diffInWeeks} week${diffInWeeks > 1 ? 's' : ''} ago`;
         }
-        
+
         // Default to date format
         return date.toLocaleDateString('en-US', {
             day: 'numeric',
@@ -192,18 +203,18 @@ export default function ProjectsIndex({ projects: projectsData = [] }: ProjectsP
     const handleToggleFavorite = (projectId: number, e: React.MouseEvent) => {
         e.preventDefault();
         e.stopPropagation();
-        
+
         // Get current favorite state (from optimistic state or original project data)
         const project = projects.find(p => p.id === projectId);
         const currentState = optimisticFavorites[projectId] ?? project?.is_favorite ?? false;
         const newState = !currentState;
-        
+
         // Optimistically update the UI immediately
         setOptimisticFavorites(prev => ({
             ...prev,
             [projectId]: newState
         }));
-        
+
         // Send request to backend
         router.post(`/projects/${projectId}/toggle-favorite`, {}, {
             preserveScroll: true,
@@ -227,11 +238,15 @@ export default function ProjectsIndex({ projects: projectsData = [] }: ProjectsP
     };
 
     const handleDelete = (projectId: number) => {
-        if (confirm('Are you sure you want to delete this project? This will delete all images in the project.')) {
-            router.delete(`/projects/${projectId}`, {
-                preserveScroll: true,
-            });
-        }
+        setDeleteConfirmId(projectId);
+    };
+
+    const confirmDelete = () => {
+        if (deleteConfirmId === null) return;
+        router.delete(`/projects/${deleteConfirmId}`, {
+            preserveScroll: true,
+            onFinish: () => setDeleteConfirmId(null),
+        });
     };
 
     const handleRename = (projectId: number, newTitle: string) => {
@@ -306,10 +321,10 @@ export default function ProjectsIndex({ projects: projectsData = [] }: ProjectsP
                                 {/* Sort Button */}
                                 <DropdownMenu>
                                     <DropdownMenuTrigger asChild>
-                                        <Button 
-                                            variant="ghost" 
-                                            size="sm" 
-                                            className="h-9 justify-start gap-2 px-3 font-medium" 
+                                        <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            className="h-9 justify-start gap-2 px-3 font-medium"
                                             style={{ color: '#505050' }}
                                         >
                                             <ChevronsUpDown className="size-4" />
@@ -318,7 +333,7 @@ export default function ProjectsIndex({ projects: projectsData = [] }: ProjectsP
                                     </DropdownMenuTrigger>
                                     <DropdownMenuContent align="end" className="w-48">
                                         {sortOptions.map((option) => (
-                                            <DropdownMenuItem 
+                                            <DropdownMenuItem
                                                 key={option.value}
                                                 onClick={() => setSortBy(option.value)}
                                                 className="gap-2"
@@ -351,7 +366,7 @@ export default function ProjectsIndex({ projects: projectsData = [] }: ProjectsP
                                 </div>
 
                                 {/* New Project Button */}
-                                <Button 
+                                <Button
                                     onClick={() => router.visit(create_project().url)}
                                     className="h-9 gap-2 px-4 font-medium"
                                     style={{ backgroundColor: '#191919', color: 'white' }}
@@ -368,12 +383,11 @@ export default function ProjectsIndex({ projects: projectsData = [] }: ProjectsP
                                 <Link
                                     key={tab.key}
                                     href={tab.href}
-                                    className={`rounded-lg px-4 py-2.5 text-sm font-medium transition-colors ${
-                                        activeTab === tab.key
+                                    className={`rounded-lg px-4 py-2.5 text-sm font-medium transition-colors ${activeTab === tab.key
                                             ? 'text-white'
                                             : 'hover:bg-gray-50'
-                                    }`}
-                                    style={activeTab === tab.key 
+                                        }`}
+                                    style={activeTab === tab.key
                                         ? { backgroundColor: '#191919' }
                                         : { color: '#505050' }
                                     }
@@ -444,6 +458,35 @@ export default function ProjectsIndex({ projects: projectsData = [] }: ProjectsP
                     </div>
                 </div>
             </div>
+
+            {/* Delete confirmation modal */}
+            <Dialog open={deleteConfirmId !== null} onOpenChange={(open) => { if (!open) setDeleteConfirmId(null); }}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle className="flex items-center gap-2">
+                            <AlertTriangle className="size-5 text-destructive" />
+                            Delete project?
+                        </DialogTitle>
+                        <DialogDescription>
+                            {projectToDelete ? (
+                                <>
+                                    <span className="font-medium text-foreground">&ldquo;{projectToDelete.title}&rdquo;</span> and all of its generated images will be permanently deleted. This cannot be undone.
+                                </>
+                            ) : (
+                                'This project and all of its generated images will be permanently deleted. This cannot be undone.'
+                            )}
+                        </DialogDescription>
+                    </DialogHeader>
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setDeleteConfirmId(null)}>
+                            Cancel
+                        </Button>
+                        <Button variant="destructive" onClick={confirmDelete}>
+                            Delete project
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </AppLayout>
     );
 }
@@ -536,7 +579,7 @@ function ProjectCard({ project, formatDate, onToggleFavorite, onDelete, onRename
 
     return (
         <Link href={`/projects/${project.id}`}>
-            <div 
+            <div
                 className="group cursor-pointer rounded-xl overflow-hidden bg-background border border-border hover:border-border/60 transition-all"
                 onMouseEnter={() => setShowActions(true)}
                 onMouseLeave={() => setShowActions(false)}
@@ -544,8 +587,8 @@ function ProjectCard({ project, formatDate, onToggleFavorite, onDelete, onRename
                 {/* Image Container */}
                 <div className="aspect-[4/3] bg-muted relative overflow-hidden">
                     {project.featured_image ? (
-                        <img 
-                            src={`/storage/${project.featured_image}`} 
+                        <img
+                            src={`/storage/${project.featured_image}`}
                             alt={project.title}
                             className="h-full w-full object-cover"
                         />
@@ -560,16 +603,15 @@ function ProjectCard({ project, formatDate, onToggleFavorite, onDelete, onRename
                             </div>
                         </div>
                     )}
-                    
+
                     {/* Dark overlay on hover */}
                     <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors pointer-events-none" />
-                    
+
                     {/* Favorite Icon - Top Right on Hover */}
                     <button
                         onClick={(e) => onToggleFavorite(project.id, e)}
-                        className={`absolute top-3 right-3 rounded-full p-2 bg-background/90 backdrop-blur-sm shadow-sm transition-all ${
-                            showActions ? 'opacity-100' : 'opacity-0'
-                        }`}
+                        className={`absolute top-3 right-3 rounded-full p-2 bg-background/90 backdrop-blur-sm shadow-sm transition-all ${showActions ? 'opacity-100' : 'opacity-0'
+                            }`}
                         title="Toggle favorite"
                     >
                         {isFavorite ? (
@@ -579,7 +621,7 @@ function ProjectCard({ project, formatDate, onToggleFavorite, onDelete, onRename
                         )}
                     </button>
                 </div>
-                
+
                 {/* Card Content */}
                 <div className="p-4">
                     <div className="flex items-start justify-between gap-2">
@@ -600,14 +642,14 @@ function ProjectCard({ project, formatDate, onToggleFavorite, onDelete, onRename
                                     {project.title}
                                 </h3>
                             )}
-                            
+
                             <p className="text-xs text-muted-foreground">
                                 Edited {formatDate(project.updated_at)}
                             </p>
                         </div>
 
                         {/* Three Dots Menu */}
-                        <div 
+                        <div
                             ref={dropdownRef}
                             className={`relative flex-shrink-0 transition-all ${showActions ? 'opacity-100' : 'opacity-0'}`}
                         >
@@ -618,12 +660,11 @@ function ProjectCard({ project, formatDate, onToggleFavorite, onDelete, onRename
                             >
                                 <MoreHorizontal className="size-4" />
                             </button>
-                            
+
                             {/* Dropdown Menu */}
-                            <div 
-                                className={`absolute right-0 bottom-full mb-1 w-40 rounded-lg bg-background border border-border shadow-lg py-1 z-10 ${
-                                    showDropdown ? 'block' : 'hidden'
-                                }`}
+                            <div
+                                className={`absolute right-0 bottom-full mb-1 w-40 rounded-lg bg-background border border-border shadow-lg py-1 z-10 ${showDropdown ? 'block' : 'hidden'
+                                    }`}
                             >
                                 <button
                                     onClick={handleRename}
@@ -736,7 +777,7 @@ function ProjectListItem({ project, formatDate, onToggleFavorite, onDelete, onRe
 
     return (
         <Link href={`/projects/${project.id}`}>
-            <div 
+            <div
                 className="group cursor-pointer rounded-lg bg-background border border-border hover:border-border/60 transition-all p-4"
                 onMouseEnter={() => setShowActions(true)}
                 onMouseLeave={() => setShowActions(false)}
@@ -745,8 +786,8 @@ function ProjectListItem({ project, formatDate, onToggleFavorite, onDelete, onRe
                     {/* Thumbnail */}
                     <div className="h-16 w-24 shrink-0 overflow-hidden rounded-lg bg-muted relative">
                         {project.featured_image ? (
-                            <img 
-                                src={`/storage/${project.featured_image}`} 
+                            <img
+                                src={`/storage/${project.featured_image}`}
                                 alt={project.title}
                                 className="h-full w-full object-cover"
                             />
@@ -791,9 +832,8 @@ function ProjectListItem({ project, formatDate, onToggleFavorite, onDelete, onRe
                             {/* Favorite Icon */}
                             <button
                                 onClick={(e) => onToggleFavorite(project.id, e)}
-                                className={`rounded-full p-1.5 hover:bg-muted transition-all ${
-                                    showActions ? 'opacity-100' : 'opacity-0'
-                                }`}
+                                className={`rounded-full p-1.5 hover:bg-muted transition-all ${showActions ? 'opacity-100' : 'opacity-0'
+                                    }`}
                                 title="Toggle favorite"
                             >
                                 {isFavorite ? (
@@ -804,7 +844,7 @@ function ProjectListItem({ project, formatDate, onToggleFavorite, onDelete, onRe
                             </button>
 
                             {/* Three Dots Menu */}
-                            <div 
+                            <div
                                 ref={dropdownRef}
                                 className={`relative transition-all ${showActions ? 'opacity-100' : 'opacity-0'}`}
                             >
@@ -815,12 +855,11 @@ function ProjectListItem({ project, formatDate, onToggleFavorite, onDelete, onRe
                                 >
                                     <MoreHorizontal className="size-4" />
                                 </button>
-                                
+
                                 {/* Dropdown Menu */}
-                                <div 
-                                    className={`absolute right-0 top-full mt-1 w-40 rounded-lg bg-background border border-border shadow-lg py-1 z-10 ${
-                                        showDropdown ? 'block' : 'hidden'
-                                    }`}
+                                <div
+                                    className={`absolute right-0 top-full mt-1 w-40 rounded-lg bg-background border border-border shadow-lg py-1 z-10 ${showDropdown ? 'block' : 'hidden'
+                                        }`}
                                 >
                                     <button
                                         onClick={handleRename}

@@ -32,13 +32,9 @@ class QuickGenerateController extends Controller
      */
     public function store(Request $request)
     {
-        Log::info('🚀 QuickGenerateController::store called');
-        Log::info('📋 Request data:', [
-            'has_reference_images' => $request->hasFile('reference_images'),
+        Log::info('QuickGenerateController: store called', [
             'reference_count' => $request->hasFile('reference_images') ? count($request->file('reference_images')) : 0,
-            'caption' => $request->input('caption'),
             'format' => $request->input('format'),
-            'all_inputs' => $request->all(),
         ]);
 
         set_time_limit(300);
@@ -51,7 +47,7 @@ class QuickGenerateController extends Controller
             'format' => 'required|string|in:1:1,4:5,3:4,2:3,9:16,3:2,4:3,5:4,16:9',
         ]);
 
-        Log::info('✅ Validation passed', ['validated' => array_keys($validated)]);
+        Log::info('QuickGenerateController: validation passed');
 
         try {
             // Create project

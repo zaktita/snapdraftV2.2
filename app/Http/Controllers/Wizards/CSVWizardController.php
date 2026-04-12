@@ -3,486 +3,258 @@
 namespace App\Http\Controllers\Wizards;
 
 use App\Http\Controllers\Controller;
-use App\Jobs\GenerateBatchImagesJob;
+use App\Jobs\AnalyzeBrandJob;
+use App\Jobs\DispatchGenerationBatchJob;
+use App\Jobs\MatchCaptionsJob;
+use App\Models\BrandReference;
 use App\Models\CsvWizardSession;
+use App\Models\GenerationHistory;
 use App\Models\Project;
-use App\Services\AI\BrandReferenceAnalyzer;
 use App\Services\FileUploadService;
+use App\Services\PostHogService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Bus;
-use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Storage;
-use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 
 class CSVWizardController extends Controller
 {
     public function __construct(
         protected FileUploadService $fileUploadService,
-        protected BrandReferenceAnalyzer $brandAnalyzer
     ) {}
 
     /**
-     * Process the CSV wizard form submission.
+     * Handle the CSV wizard form submission.
+     * Creates project, uploads refs, dispatches the 3-phase generation pipeline,
+     * then redirects directly to the project show page.
+     *
+     * @route POST /projects/wizards/csv
      */
     public function store(Request $request)
     {
-        Gate::authorize('create', Project::class);
-
-        $validated = $request->validate([
-            'project_name' => 'required|string|max:255',
-            'csv_file' => 'required|file|mimes:csv,txt|max:10240', // Max 10MB
-            'reference_images' => 'required|array|min:3|max:10',
-            'reference_images.*' => 'required|image|mimes:jpeg,jpg,png,webp|max:10240',
-            'product_images' => 'nullable|array|max:5',
-            'product_images.*' => 'nullable|image|mimes:jpeg,jpg,png,webp|max:10240',
-            'column_mappings' => 'nullable|string', // JSON: frontend column mapping overrides
+        $request->validate([
+            'project_name'      => ['required', 'string', 'max:255'],
+            'csv_file'          => ['required', 'file', 'mimetypes:text/csv,text/plain,application/csv,application/vnd.ms-excel'],
+            'column_mappings'   => ['required', 'string'],
+            'reference_images'  => ['required', 'array', 'min:3', 'max:10'],
+            'reference_images.*' => ['required', 'file', 'image', 'max:10240'],
         ]);
 
-        // Brand analysis + file uploads involve external AI calls that can take 60-120s.
-        // Disable the default PHP execution time limit for this request only.
-        set_time_limit(0);
+        $user           = Auth::user();
+        $columnMappings = json_decode($request->input('column_mappings'), true) ?? [];
 
-        $project = null;
+        // ── 1. Parse CSV ─────────────────────────────────────────────────────
+        $csvRows = $this->parseCsvRows($request->file('csv_file'), $columnMappings);
 
-        try {
-            // Create the project
-            $project = Auth::user()->projects()->create([
-                'name' => $validated['project_name'],
-                'title' => $validated['project_name'], // title is required, name is the newer field
-                'description' => 'Created via CSV Wizard',
-                'settings' => [
-                    'wizard_type' => 'csv',
-                    'has_reference_images' => $request->hasFile('reference_images'),
-                    'has_product_images' => $request->hasFile('product_images'),
+        if (empty($csvRows)) {
+            return back()->withErrors(['csv_file' => 'The CSV file contains no valid rows.']);
+        }
+
+        // ── 1b. Credit gate — must have enough credits for every selected row ─
+        if (!$user->hasActiveSubscription()) {
+            return redirect()->route('dashboard')
+                ->with('error', 'You need a beta invite to generate images. Check your email for your invite code.');
+        }
+
+        $rowCount = count($csvRows);
+        if (!$user->hasCredits($rowCount)) {
+            $remaining = $user->creditsRemaining();
+            return back()->withErrors([
+                'credits' => "Not enough credits. You selected {$rowCount} rows but only have {$remaining} credit(s) remaining.",
+            ]);
+        }
+
+        // ── 2. Create project ─────────────────────────────────────────────────
+        $project = $user->projects()->create([
+            'name'        => $request->input('project_name'),
+            'title'       => $request->input('project_name'),
+            'settings'    => [
+                'wizard_type' => 'csv',
+                'csv_data'    => $csvRows,
+            ],
+        ]);
+
+        // ── 3. Upload reference images ────────────────────────────────────────
+        $refPaths = [];
+        $order    = 0;
+
+        foreach ($request->file('reference_images') as $file) {
+            $uploaded = $this->fileUploadService->uploadImage(
+                $file,
+                "projects/{$project->id}/references"
+            );
+
+            BrandReference::create([
+                'project_id'    => $project->id,
+                'url'           => $uploaded['url'],
+                'thumbnail_url' => $uploaded['thumbnail_url'],
+                'order'         => $order++,
+            ]);
+
+            // Collect the path relative to storage/app/public (url field from FileUploadService)
+            $refPaths[] = $uploaded['url'];
+        }
+
+        // ── 4. Create pending GenerationHistory records (one per CSV row) ─────
+        $historyIds = [];
+
+        foreach ($csvRows as $i => $row) {
+            $history = GenerationHistory::create([
+                'user_id'    => $user->id,
+                'project_id' => $project->id,
+                'ai_model'   => config('services.gemini.image_model', 'gemini-2.5-flash-image'),
+                'prompt'     => $row['title'],
+                'status'     => 'pending',
+                'parameters' => [
+                    'csv_row_index' => $i,
+                    'title'         => $row['title'],
+                    'format'        => $row['format'],
+                    'wizard_type'   => 'csv',
                 ],
             ]);
 
-            // Upload and store brand reference images (required)
-            $referencePaths = [];
-            $referenceDir = 'projects/' . $project->id . '/references';
-            foreach ($request->file('reference_images') as $index => $file) {
-                $uploadResult = $this->fileUploadService->uploadImage($file, $referenceDir);
-
-                $project->brandReferences()->create([
-                    'url' => $uploadResult['url'],
-                    'thumbnail_url' => $uploadResult['thumbnail_url'],
-                    'order' => $index,
-                ]);
-
-                $referencePaths[] = $uploadResult['url'];
-            }
-
-            // Analyze brand DNA once and store in project settings.
-            // Non-fatal: if the AI analysis fails, we log it and continue;
-            // images will still be generated using the raw reference images.
-            try {
-                $brandAnalysis = $this->brandAnalyzer->analyze($referencePaths);
-                $project->update([
-                    'settings' => array_merge($project->settings ?? [], [
-                        'brand_analysis' => $brandAnalysis,
-                    ]),
-                ]);
-            } catch (\Throwable $analysisError) {
-                Log::warning('CSVWizardController: brand analysis failed (non-fatal), continuing without brand DNA', [
-                    'project_id' => $project->id,
-                    'error' => $analysisError->getMessage(),
-                ]);
-            }
-
-            // Upload product images if provided
-            if ($request->hasFile('product_images')) {
-                $productDir = 'projects/' . $project->id . '/products';
-                foreach ($request->file('product_images') as $index => $file) {
-                    $uploadResult = $this->fileUploadService->uploadImage($file, $productDir);
-
-                    // Store as regular images for now (or create separate product_images table)
-                    $project->images()->create([
-                        'url' => $uploadResult['url'],
-                        'thumbnail_url' => $uploadResult['thumbnail_url'],
-                        'order' => $index,
-                        'prompt' => 'Product overlay image',
-                        'metadata' => ['type' => 'product_overlay'],
-                    ]);
-                }
-            }
-
-            // Store CSV file
-            $csvPath = $request->file('csv_file')->storeAs(
-                'projects/' . $project->id . '/csv',
-                'data.csv',
-                'public'
-            );
-
-            // Parse CSV and store data in settings
-            $csvData = $this->parseCSV($request->file('csv_file')->getRealPath());
-            $project->update([
-                'settings' => array_merge($project->settings ?? [], [
-                    'csv_path' => $csvPath,
-                    'csv_rows' => count($csvData),
-                    'csv_data' => $csvData, // Store parsed data
-                ]),
-            ]);
-
-            // Create wizard session (Quick Generate-style flow)
-            $session = CsvWizardSession::create([
-                'user_id' => Auth::id(),
-                'project_id' => $project->id,
-                'status' => 'pending',
-                'total_jobs' => null,
-            ]);
-
-            // Always dispatch async — queue worker runs via `composer dev`
-            GenerateBatchImagesJob::dispatch($project, $session->id);
-
-            return redirect()->route('projects.show', $project->id);
-        } catch (ValidationException $e) {
-            if ($project) {
-                $project->delete();
-            }
-
-            $firstMessage = collect($e->errors())->flatten()->first();
-
-            return back()
-                ->withErrors($e->errors())
-                ->with('error', $firstMessage ?: 'Validation failed while processing CSV Wizard.')
-                ->withInput();
-        } catch (\Throwable $e) {
-            if ($project) {
-                $project->delete();
-            }
-
-            Log::error('CSVWizardController: Failed to process', [
-                'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString(),
-            ]);
-
-            return back()->with('error', 'Failed to process CSV Wizard: ' . $e->getMessage());
+            $historyIds[$i] = $history->id;
         }
+
+        // ── 5. Persist pipeline data in project settings ──────────────────────
+        $project->update([
+            'settings' => array_merge($project->settings, [
+                'ref_paths'   => $refPaths,
+                'history_ids' => $historyIds,
+            ]),
+        ]);
+
+        // ── 6. Create CsvWizardSession ─────────────────────────────────────────
+        $session = CsvWizardSession::create([
+            'user_id'    => $user->id,
+            'project_id' => $project->id,
+            'status'     => 'pending',
+            'total_jobs' => count($csvRows),
+        ]);
+
+        // ── 7. Dispatch the 3-phase pipeline chain ────────────────────────────
+        Bus::chain([
+            new AnalyzeBrandJob($project->id, $session->id),
+            new MatchCaptionsJob($project->id, $session->id),
+            new DispatchGenerationBatchJob($project->id, $session->id),
+        ])->dispatch();
+
+        app(PostHogService::class)->capture((string) $user->id, 'csv_generation_started', [
+            'project_id' => $project->id,
+            'row_count'  => count($csvRows),
+            'ref_count'  => count($refPaths),
+        ]);
+
+        Log::info('CSVWizardController: pipeline dispatched', [
+            'project_id'  => $project->id,
+            'session_id'  => $session->id,
+            'row_count'   => count($csvRows),
+            'ref_count'   => count($refPaths),
+        ]);
+
+        // ── 8. Redirect to project show with optimistic UI flags ──────────────
+        $redirectUrl = route('projects.show', $project->id)
+            . '?justCreated=1&expectedImages=' . count($csvRows);
+
+        return redirect($redirectUrl);
     }
 
     /**
-     * Show CSV wizard processing page with status polling.
+     * Show CSV wizard session status (used by Wayfinder session/show route).
+     *
+     * @route GET /projects/wizards/csv/sessions/{session}
      */
-    public function showSession(CsvWizardSession $session)
+    public function show(CsvWizardSession $session)
     {
-        Gate::authorize('view', $session->project);
-
-        if ($session->isCompleted()) {
-            return redirect()->route('projects.wizards.csv.session.result', $session->id);
-        }
-
-        if ($session->isFailed()) {
-            return Inertia::render('projects/wizards/csv-processing', [
-                'session' => [
-                    'id' => $session->id,
-                    'status' => $session->status,
-                    'project_id' => $session->project_id,
-                ],
-                'urls' => [
-                    'status' => route('projects.wizards.csv.session.status', $session->id),
-                    'result' => route('projects.wizards.csv.session.result', $session->id),
-                    'project' => route('projects.show', $session->project_id),
-                ],
-                'error' => $session->error_message,
-            ]);
-        }
+        $this->authorize('view', $session->project);
 
         return Inertia::render('projects/wizards/csv-processing', [
             'session' => [
-                'id' => $session->id,
-                'status' => $session->status,
-                'project_id' => $session->project_id,
-            ],
-            'urls' => [
-                'status' => route('projects.wizards.csv.session.status', $session->id),
-                'result' => route('projects.wizards.csv.session.result', $session->id),
-                'project' => route('projects.show', $session->project_id),
-            ],
-        ]);
-    }
-
-    /**
-     * CSV wizard result page.
-     */
-    public function resultSession(CsvWizardSession $session)
-    {
-        Gate::authorize('view', $session->project);
-
-        if (!$session->isCompleted()) {
-            return redirect()->route('projects.wizards.csv.session.show', $session->id);
-        }
-
-        $project = $session->project->load([
-            'images',
-            'generationHistory',
-            'brandReferences' => fn ($q) => $q->orderBy('order'),
-        ]);
-
-        $batch = null;
-        if ($session->batch_id) {
-            $batch = Bus::findBatch($session->batch_id);
-        }
-
-        $summary = [
-            'total' => $batch?->totalJobs ?? $session->total_jobs,
-            'processed' => $batch?->processedJobs() ?? null,
-            'pending' => $batch?->pendingJobs ?? null,
-            'failed' => $batch?->failedJobs ?? null,
-        ];
-
-        $csvRows = (int) data_get($project->settings, 'csv_rows', 0);
-
-        $historiesSince = $project->generationHistory
-            ->where('created_at', '>=', $session->created_at)
-            ->values();
-
-        $autoFormatCount = $historiesSince
-            ->filter(fn ($g) => data_get($g->parameters, 'wizard_type') === 'csv')
-            ->filter(fn ($g) => data_get($g->parameters, 'format_source') === 'ai')
-            ->count();
-
-        $validationFailureCount = $historiesSince
-            ->filter(fn ($g) => data_get($g->parameters, 'wizard_type') === 'csv')
-            ->filter(fn ($g) => (bool) data_get($g->parameters, 'validation_error'))
-            ->count();
-
-        $failures = $project->generationHistory
-            ->where('created_at', '>=', $session->created_at)
-            ->where('status', 'failed')
-            ->sortByDesc('id')
-            ->take(25)
-            ->values()
-            ->map(function ($g) {
-                return [
-                    'id' => $g->id,
-                    'csv_row_index' => data_get($g->parameters, 'csv_row_index'),
-                    'title' => data_get($g->parameters, 'title'),
-                    'caption' => data_get($g->parameters, 'caption'),
-                    'description' => data_get($g->parameters, 'description'),
-                    'format' => data_get($g->parameters, 'format'),
-                    'error_message' => $g->error_message,
-                ];
-            });
-
-        return Inertia::render('projects/wizards/csv-result', [
-            'session' => [
-                'id' => $session->id,
-                'status' => $session->status,
-                'project_id' => $session->project_id,
+                'id'         => $session->id,
+                'status'     => $session->status,
                 'total_jobs' => $session->total_jobs,
-            ],
-            'project' => $project,
-            'summary' => array_merge($summary, [
-                'csv_rows' => $csvRows ?: null,
-                'auto_format_count' => $autoFormatCount,
-                'validation_failure_count' => $validationFailureCount,
-            ]),
-            'failures' => $failures,
-            'urls' => [
-                'project' => route('projects.show', $session->project_id),
+                'project_id' => $session->project_id,
             ],
         ]);
     }
 
-    /**
-     * Get CSV wizard session status (polling endpoint).
-     */
-    public function statusSession(CsvWizardSession $session)
-    {
-        Gate::authorize('view', $session->project);
-
-        $batch = null;
-        if ($session->batch_id) {
-            $batch = Bus::findBatch($session->batch_id);
-        }
-
-        if (!$batch) {
-            return response()->json([
-                'status' => $session->status,
-                'is_completed' => $session->isCompleted(),
-                'is_failed' => $session->isFailed(),
-                'error_message' => $session->error_message,
-                'progress' => [
-                    'total' => $session->total_jobs,
-                    'processed' => 0,
-                    'pending' => $session->total_jobs,
-                    'failed' => 0,
-                ],
-            ]);
-        }
-
-        if ($batch->finished() && !$session->isCompleted() && !$session->isFailed()) {
-            $session->markAsCompleted();
-        }
-
-        if ($batch->cancelled() && !$session->isFailed()) {
-            $session->markAsFailed('Batch was cancelled');
-        }
-
-        return response()->json([
-            'status' => $session->status,
-            'is_completed' => $session->isCompleted(),
-            'is_failed' => $session->isFailed(),
-            'error_message' => $session->error_message,
-            'progress' => [
-                'total' => $batch->totalJobs,
-                'processed' => $batch->processedJobs(),
-                'pending' => $batch->pendingJobs,
-                'failed' => $batch->failedJobs,
-            ],
-        ]);
-    }
+    // ── Helpers ───────────────────────────────────────────────────────────────
 
     /**
-     * Upload/replace CSV for an existing project and trigger generation.
-     * Reference images are assumed to already exist for the project.
+     * Parse CSV file into normalised rows using column mappings.
+     * column_mappings: { csvColumnName => 'Product Title'|'Image Prompt'|'Format'|... }
      */
-    public function storeForExistingProject(Request $request, string $projectId)
+    private function parseCsvRows(\Illuminate\Http\UploadedFile $file, array $columnMappings): array
     {
-        $project = Project::findOrFail($projectId);
-        $this->authorize('update', $project);
+        $content = file_get_contents($file->getRealPath());
 
-        $validated = $request->validate([
-            'csv_file' => 'required|file|mimes:csv,txt|max:10240', // Max 10MB
-        ]);
+        // Strip BOM if present
+        $content = ltrim($content, "\xEF\xBB\xBF");
 
-        // Store CSV file
-        $csvPath = $request->file('csv_file')->storeAs(
-            'projects/' . $project->id . '/csv',
-            'data.csv',
-            'public'
-        );
+        $lines = array_filter(array_map('trim', explode("\n", $content)));
+        $lines = array_values($lines);
 
-        // Parse CSV and store data in settings
-        $csvData = $this->parseCSV($request->file('csv_file')->getRealPath());
-        $project->update([
-            'settings' => array_merge($project->settings ?? [], [
-                'wizard_type' => 'csv',
-                'csv_path' => $csvPath,
-                'csv_rows' => count($csvData),
-                'csv_data' => $csvData,
-            ]),
-        ]);
+        if (count($lines) < 2) {
+            return [];
+        }
 
-        // Queue AI processing job (sync in local for immediate feedback)
-        // Create a session for progress tracking (same flow as main store)
-        $session = CsvWizardSession::create([
-            'user_id' => Auth::id(),
-            'project_id' => $project->id,
-            'status' => 'pending',
-            'total_jobs' => null,
-        ]);
+        $headers = str_getcsv(array_shift($lines));
 
-        // Always dispatch async — queue worker handles processing via `composer dev`
-        GenerateBatchImagesJob::dispatch($project, $session->id);
+        // Build reverse map: semantic field → csv column name
+        $titleCol   = $this->findColumn($columnMappings, 'Product Title');
+        $captionCol = $this->findColumn($columnMappings, 'Image Prompt');
+        $formatCol  = $this->findColumn($columnMappings, 'Format');
 
-        return redirect()->route('projects.wizards.csv.session.show', $session->id);
-    }
+        if (!$titleCol) {
+            // Fallback: use first column as title
+            $titleCol = $headers[0] ?? null;
+        }
 
-    /**
-     * Parse CSV file and return structured data.
-     * Sanitizes all cell content to prevent XSS attacks.
-     */
-    protected function parseCSV(string $filePath): array
-    {
-        $data = [];
-        $header = null;
-        $maxCellLength = 1000; // Maximum characters per cell
-        $headerCount = 0;
-        // caption is optional — the job requires either caption OR description per row.
-        // format is optional — blank means AI decides.
-        $required = ['title', 'description'];
+        $rows = [];
 
-        if (($handle = fopen($filePath, 'r')) !== false) {
-            while (($row = fgetcsv($handle, 1000, ',')) !== false) {
-                if (!$header) {
-                    // Sanitize + normalize header names to lowercase keys
-                    $rawHeader = array_map(function ($value, int $index) {
-                        $value = trim(strip_tags((string) $value));
-
-                        // Strip UTF-8 BOM from first header cell if present
-                        if ($index === 0) {
-                            $value = preg_replace('/^\xEF\xBB\xBF/', '', $value) ?? $value;
-                        }
-
-                        $value = mb_strtolower($value);
-                        $value = preg_replace('/\s+/', '_', $value) ?? $value;
-                        $value = preg_replace('/[^a-z0-9_]/', '', $value) ?? $value;
-
-                        return $value !== '' ? $value : 'column_' . ($index + 1);
-                    }, $row, array_keys($row));
-
-                    // Ensure uniqueness of header keys
-                    $counts = [];
-                    $header = [];
-                    foreach ($rawHeader as $key) {
-                        $counts[$key] = ($counts[$key] ?? 0) + 1;
-                        $header[] = $counts[$key] > 1 ? $key . '_' . $counts[$key] : $key;
-                    }
-
-                    // Enforce required schema
-                    $missing = array_values(array_diff($required, $header));
-                    if (!empty($missing)) {
-                        fclose($handle);
-                        throw ValidationException::withMessages([
-                            'csv_file' => 'CSV must include columns: title, description. Missing: ' . implode(', ', $missing),
-                        ]);
-                    }
-
-                    $headerCount = count($header);
-                } else {
-                    if ($headerCount === 0) {
-                        continue;
-                    }
-
-                    // Normalize row length to header length to avoid array_combine() ValueError
-                    $rowCount = count($row);
-                    if ($rowCount < $headerCount) {
-                        $row = array_pad($row, $headerCount, '');
-                    } elseif ($rowCount > $headerCount) {
-                        $row = array_slice($row, 0, $headerCount);
-                    }
-
-                    // Combine header with row data
-                    $rowData = array_combine($header, $row);
-
-                    // Sanitize each cell value to prevent XSS
-                    $rowData = array_map(function ($value) use ($maxCellLength) {
-                        // Trim whitespace
-                        $value = trim($value);
-
-                        // Limit length
-                        if (mb_strlen($value) > $maxCellLength) {
-                            $value = mb_substr($value, 0, $maxCellLength);
-                        }
-
-                        // Remove HTML tags but preserve UTF-8 characters (emojis, accents)
-                        $value = strip_tags($value);
-
-                        return $value;
-                    }, $rowData);
-
-                    // Filter out empty rows (rows where all values are empty)
-                    $hasData = false;
-                    foreach ($rowData as $value) {
-                        if (!empty($value)) {
-                            $hasData = true;
-                            break;
-                        }
-                    }
-
-                    // Only add rows that have at least one non-empty value
-                    if ($hasData) {
-                        $data[] = $rowData;
-                    }
-                }
+        foreach ($lines as $line) {
+            if (empty(trim($line))) {
+                continue;
             }
-            fclose($handle);
+
+            $values = str_getcsv($line);
+            $row    = array_combine($headers, array_pad($values, count($headers), ''));
+
+            if (!$row) {
+                continue;
+            }
+
+            $title   = trim($row[$titleCol] ?? '');
+            $caption = $captionCol ? trim($row[$captionCol] ?? '') : $title;
+            $format  = $formatCol  ? strtolower(trim($row[$formatCol] ?? 'square')) : 'square';
+
+            if (empty($title)) {
+                continue;
+            }
+
+            // Normalise format value
+            if (!in_array($format, ['square', 'portrait', 'landscape'], true)) {
+                $format = 'square';
+            }
+
+            $rows[] = [
+                'title'   => $title,
+                'caption' => $caption ?: $title,
+                'format'  => $format,
+            ];
         }
 
-        return $data;
+        return $rows;
+    }
+
+    private function findColumn(array $columnMappings, string $semanticName): ?string
+    {
+        foreach ($columnMappings as $csvColumn => $mapped) {
+            if ($mapped === $semanticName) {
+                return $csvColumn;
+            }
+        }
+        return null;
     }
 }

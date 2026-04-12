@@ -57,6 +57,7 @@
         "jszip": "^3.10.1",
         "laravel-vite-plugin": "^2.0",
         "lucide-react": "^0.475.0",
+        "posthog-js": "^1.367.0",
         "react": "^19.2.0",
         "react-dom": "^19.2.0",
         "sonner": "^2.0.7",

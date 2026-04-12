@@ -27,6 +27,6 @@ class InsufficientCreditsException extends Exception
             ], $this->getCode());
         }
 
-        return redirect()->route('subscription.plans')->with('error', $this->getMessage());
+        return redirect()->route('dashboard')->with('error', "You've used all your credits. Share your feedback and we'll top you up.");
     }
 }

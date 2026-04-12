@@ -13,7 +13,7 @@ import {
     SidebarMenuItem,
 } from '@/components/ui/sidebar';
 import { dashboard } from '@/routes';
-import { plans as subscriptionPlans, portal as subscriptionPortal } from '@/routes/subscription';
+
 import { type NavItem, type NavGroup, type SharedData } from '@/types';
 import { Link, usePage } from '@inertiajs/react';
 import {
@@ -30,9 +30,8 @@ import {
     HelpCircle,
     UserPlus,
     LogOut,
-    CreditCard,
+
     Shield,
-    Crown,
 } from 'lucide-react';
 import AppLogo from './app-logo';
 
@@ -77,7 +76,13 @@ const projectNavGroups: NavGroup[] = [
     },
 ];
 
-const footerNavItems: NavItem[] = [];
+const footerNavItems: NavItem[] = [
+    {
+        title: 'Share Feedback',
+        href: '/feedback',
+        icon: HelpCircle,
+    },
+];
 
 export function AppSidebar() {
     const { auth } = usePage<SharedData>().props;
@@ -118,16 +123,7 @@ export function AppSidebar() {
                 },
             ],
         },
-        {
-            title: 'Account',
-            items: [
-                {
-                    title: 'Subscription',
-                    href: "/subscription",
-                    icon: user.subscription_tier === 'free' ? Crown : CreditCard,
-                },
-            ],
-        },
+
     ];
 
     // Add admin section for admins

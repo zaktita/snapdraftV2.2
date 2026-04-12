@@ -19,7 +19,7 @@ const formatOptions = [
 ];
 
 export default function ImagesWizard() {
-    const page = usePage<{ error?: string }>();
+    const page = usePage<{ error?: string; auth: { user: { credits_remaining?: number } } }>();
     const [currentStep, setCurrentStep] = useState(1);
     const [projectName, setProjectName] = useState('');
     const [styleImages, setStyleImages] = useState<string[]>([]);
@@ -29,7 +29,7 @@ export default function ImagesWizard() {
     const [dragOver, setDragOver] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [showError, setShowError] = useState(false);
-    
+
     const imageInputRef = useRef<HTMLInputElement>(null);
 
     // Show error message if present
@@ -45,7 +45,7 @@ export default function ImagesWizard() {
     const handleImageUpload = (e: ChangeEvent<HTMLInputElement>) => {
         const files = e.target.files;
         if (!files) return;
-        
+
         Array.from(files).forEach(file => {
             const reader = new FileReader();
             reader.onload = (e) => {
@@ -78,7 +78,7 @@ export default function ImagesWizard() {
         e.preventDefault();
         e.stopPropagation();
         setDragOver(false);
-        
+
         const files = e.dataTransfer.files;
         if (files.length > 0) {
             Array.from(files).forEach(file => {
@@ -113,6 +113,7 @@ export default function ImagesWizard() {
             forceFormData: true,
             preserveScroll: true,
             onError: () => setIsSubmitting(false),
+            onFinish: () => setIsSubmitting(false),
         });
     };
 
@@ -141,60 +142,7 @@ export default function ImagesWizard() {
     return (
         <>
             <Head title="Images Wizard" />
-            
-                        {/* Loading Overlay During Submission */}
-                        {isSubmitting && (
-                            <div style={{
-                                position: 'fixed',
-                                top: 0,
-                                left: 0,
-                                right: 0,
-                                bottom: 0,
-                                background: 'rgba(0, 0, 0, 0.8)',
-                                zIndex: 9999,
-                                display: 'flex',
-                                flexDirection: 'column',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                backdropFilter: 'blur(4px)',
-                            }}>
-                                <div style={{
-                                    background: 'var(--color-card)',
-                                    borderRadius: '16px',
-                                    padding: '40px 48px',
-                                    maxWidth: '400px',
-                                    textAlign: 'center',
-                                    boxShadow: '0 20px 60px rgba(0, 0, 0, 0.3)',
-                                }}>
-                                    <div style={{
-                                        width: '64px',
-                                        height: '64px',
-                                        margin: '0 auto 24px',
-                                        border: '4px solid var(--color-muted)',
-                                        borderTopColor: 'hsl(var(--primary))',
-                                        borderRadius: '50%',
-                                        animation: 'spin 0.8s linear infinite',
-                                    }} />
-                                    <h3 style={{
-                                        fontSize: '20px',
-                                        fontWeight: 600,
-                                        color: 'var(--color-foreground)',
-                                        marginBottom: '12px',
-                                    }}>
-                                        Starting Generation...
-                                    </h3>
-                                    <p style={{
-                                        fontSize: '14px',
-                                        color: 'var(--color-muted-foreground)',
-                                        lineHeight: 1.6,
-                                        margin: 0,
-                                    }}>
-                                        Setting up your project and starting image generation. You'll be redirected to your project dashboard shortly.
-                                    </p>
-                                </div>
-                            </div>
-                        )}
-            
+
             <div style={{
                 fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", "Oxygen", "Ubuntu", "Cantarell", sans-serif',
                 background: 'var(--color-muted)',
@@ -218,23 +166,40 @@ export default function ImagesWizard() {
                         padding: '32px 40px',
                         borderBottom: '1px solid var(--color-border)'
                     }}>
-                        <Link 
-                            href="/projects" 
-                            style={{
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                gap: '6px',
-                                fontSize: '13px',
-                                color: 'var(--color-muted-foreground)',
-                                textDecoration: 'none',
-                                marginBottom: '16px',
-                                transition: 'all 0.2s ease-out'
-                            }}
-                        >
-                            <ArrowLeft size={14} />
-                            Back to Projects
-                        </Link>
-                        
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                            <Link
+                                href="/projects"
+                                style={{
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '6px',
+                                    fontSize: '13px',
+                                    color: 'var(--color-muted-foreground)',
+                                    textDecoration: 'none',
+                                    transition: 'all 0.2s ease-out'
+                                }}
+                            >
+                                <ArrowLeft size={14} />
+                                Back to Projects
+                            </Link>
+                            {page.props.auth?.user?.credits_remaining !== undefined && (
+                                <div style={{
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '6px',
+                                    fontSize: '12px',
+                                    fontWeight: 600,
+                                    padding: '4px 10px',
+                                    borderRadius: '20px',
+                                    background: (page.props.auth.user.credits_remaining ?? 0) > 0 ? 'hsl(var(--primary) / 0.1)' : 'hsl(var(--destructive) / 0.1)',
+                                    color: (page.props.auth.user.credits_remaining ?? 0) > 0 ? 'var(--color-primary)' : 'hsl(var(--destructive))'
+                                }}>
+                                    <Zap size={12} />
+                                    {page.props.auth.user.credits_remaining ?? 0} credits remaining
+                                </div>
+                            )}
+                        </div>
+
                         {/* Error Alert */}
                         {showError && page.props.error && (
                             <div style={{
@@ -248,9 +213,9 @@ export default function ImagesWizard() {
                                 gap: '12px'
                             }}>
                                 <AlertCircle size={18} style={{ color: 'hsl(var(--destructive))', flexShrink: 0 }} />
-                                <p style={{ 
-                                    margin: 0, 
-                                    fontSize: '14px', 
+                                <p style={{
+                                    margin: 0,
+                                    fontSize: '14px',
                                     color: 'hsl(var(--destructive))',
                                     lineHeight: 1.5
                                 }}>
@@ -273,7 +238,7 @@ export default function ImagesWizard() {
                                 </button>
                             </div>
                         )}
-                        
+
                         <h1 style={{
                             fontSize: '24px',
                             fontWeight: 600,
@@ -307,7 +272,7 @@ export default function ImagesWizard() {
                             marginBottom: '12px'
                         }}>
                             {[1, 2, 3].map((step) => (
-                                <div 
+                                <div
                                     key={step}
                                     style={{
                                         flex: 1,
@@ -344,7 +309,7 @@ export default function ImagesWizard() {
                                     <label style={{ fontSize: '14px', fontWeight: 500, color: 'var(--color-foreground)', display: 'block', marginBottom: '8px' }}>
                                         Project Name *
                                     </label>
-                                    <input 
+                                    <input
                                         type="text"
                                         value={projectName}
                                         onChange={(e) => setProjectName(e.target.value)}
@@ -373,7 +338,7 @@ export default function ImagesWizard() {
                         {/* Step 2: Reference Images */}
                         {currentStep === 2 && (
                             <div style={{ animation: 'fadeIn 0.3s ease' }}>
-                                <div 
+                                <div
                                     onClick={() => imageInputRef.current?.click()}
                                     onDragOver={handleDragOver}
                                     onDragLeave={handleDragLeave}
@@ -400,21 +365,21 @@ export default function ImagesWizard() {
                                         Upload 5-10 images (JPG, PNG, WebP)
                                     </div>
                                 </div>
-                                <input 
+                                <input
                                     ref={imageInputRef}
-                                    type="file" 
-                                    accept="image/*" 
+                                    type="file"
+                                    accept="image/*"
                                     multiple
                                     onChange={handleImageUpload}
-                                    style={{ display: 'none' }} 
+                                    style={{ display: 'none' }}
                                 />
 
                                 {styleImages.length > 0 && (
                                     <>
-                                        <div style={{ 
-                                            fontSize: '14px', 
-                                            fontWeight: 500, 
-                                            color: styleImages.length < 5 ? 'var(--color-destructive)' : 'var(--color-foreground)', 
+                                        <div style={{
+                                            fontSize: '14px',
+                                            fontWeight: 500,
+                                            color: styleImages.length < 5 ? 'var(--color-destructive)' : 'var(--color-foreground)',
                                             marginBottom: '12px',
                                             display: 'flex',
                                             alignItems: 'center',
@@ -441,7 +406,7 @@ export default function ImagesWizard() {
                                                     border: '1px solid var(--color-border)'
                                                 }}>
                                                     <img src={src} alt={`Style ${index + 1}`} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                                                    <div 
+                                                    <div
                                                         onClick={(e) => {
                                                             e.stopPropagation();
                                                             removeImage(index);
@@ -496,7 +461,7 @@ export default function ImagesWizard() {
                                     <label style={{ fontSize: '14px', fontWeight: 500, color: 'var(--color-foreground)', display: 'block', marginBottom: '8px' }}>
                                         What do you want to create? *
                                     </label>
-                                    <textarea 
+                                    <textarea
                                         value={contentDescription}
                                         onChange={(e) => setContentDescription(e.target.value)}
                                         placeholder="e.g., Social media posts for our summer sale campaign featuring our new product line..."
@@ -584,7 +549,7 @@ export default function ImagesWizard() {
                         justifyContent: 'space-between',
                         alignItems: 'center'
                     }}>
-                        <button 
+                        <button
                             onClick={previousStep}
                             style={{
                                 padding: '10px 24px',
@@ -605,7 +570,7 @@ export default function ImagesWizard() {
                             <ArrowLeft size={16} />
                             Previous
                         </button>
-                        <button 
+                        <button
                             onClick={nextStep}
                             disabled={!canProceed() || isSubmitting}
                             style={{

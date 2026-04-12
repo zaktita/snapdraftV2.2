@@ -5,315 +5,298 @@ namespace App\Services\AI;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
-use Illuminate\Support\Str;
 use RuntimeException;
 
-class OpenRouterService implements AIServiceInterface
+class OpenRouterService
 {
-    protected string $apiKey;
     protected string $baseUrl = 'https://openrouter.ai/api/v1';
-    protected string $model;
-    protected ?string $currentFormat = null;
 
     public function __construct()
     {
-        $this->apiKey = config('services.openrouter.api_key', '');
-        $this->model = config('services.openrouter.image_model', 'bytedance-seed/seedream-4.5');
+        // API key is read from config on each request so it can be swapped at runtime.
     }
 
+    /**
+     * Generate an image with optional brand reference images.
+     *
+     * @param  string   $prompt
+     * @param  string[] $referenceImages  Storage-relative paths to brand reference images
+     * @param  string[] $productImages    Storage-relative paths to product overlay images
+     * @param  string   $format           square|portrait|landscape
+     * @return array{image_data: string, mime_type: string}
+     */
     public function generateWithReferences(
         string $prompt,
-        array $referencePaths,
-        array $productImagePaths = [],
-        string $format = 'square'
+        array  $referenceImages = [],
+        array  $productImages   = [],
+        string $format          = 'square',
     ): array {
-        $aspectRatioInstruction = $this->getAspectRatioInstruction($format);
-        $enhancedPrompt = $aspectRatioInstruction . "\n\n---\n\n" . $prompt;
-        $this->currentFormat = $format;
-        return $this->generate($enhancedPrompt, array_merge($referencePaths, $productImagePaths), $format);
+        $model       = config('services.openrouter.image_model', 'bytedance-seed/seedream-4.5');
+        $aspectRatio = $this->resolveAspectRatio($format);
+
+        $messages = [];
+
+        $imageParts = [];
+        foreach ([...$referenceImages, ...$productImages] as $path) {
+            try {
+                $base64   = $this->encodeImageToBase64($path);
+                $mimeType = $this->guessMimeType($path);
+                $imageParts[] = [
+                    'type'      => 'image_url',
+                    'image_url' => ['url' => "data:{$mimeType};base64,{$base64}"],
+                ];
+            } catch (\Throwable $e) {
+                Log::warning('OpenRouterService: could not load reference image', [
+                    'path'  => $path,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
+
+        $content = [...$imageParts, ['type' => 'text', 'text' => $prompt]];
+
+        $messages[] = ['role' => 'user', 'content' => $content];
+
+        $apiKey = config('services.openrouter.api_key');
+        if (empty($apiKey)) {
+            throw new RuntimeException('OPENROUTER_API_KEY is not configured.');
+        }
+
+        $response = Http::timeout(180)
+            ->withHeaders([
+                'Authorization' => "Bearer {$apiKey}",
+                'HTTP-Referer'  => config('app.url'),
+                'X-Title'       => config('app.name', 'SnapDraft'),
+            ])
+            ->post("{$this->baseUrl}/chat/completions", [
+                'model'    => $model,
+                'messages' => $messages,
+                'extra_body' => [
+                    'image_config' => ['aspect_ratio' => $aspectRatio],
+                ],
+            ]);
+
+        if ($response->failed()) {
+            throw new RuntimeException('OpenRouter API request failed: ' . $response->body());
+        }
+
+        $data = $response->json();
+
+        // OpenRouter image models return base64 inside a data-URL or as raw base64.
+        $content = $data['choices'][0]['message']['content'] ?? null;
+        if (!$content) {
+            throw new RuntimeException('OpenRouter returned no content.');
+        }
+
+        // Strip data-URI prefix if present
+        if (str_starts_with($content, 'data:')) {
+            [, $base64] = explode(',', $content, 2);
+        } else {
+            $base64 = $content;
+        }
+
+        return ['image_data' => $base64, 'mime_type' => 'image/png'];
     }
 
-    private function getAspectRatioInstruction(string $format): string
+    /**
+     * Analyse brand style from reference images and return a structured result.
+     *
+     * @param  string[] $imagePaths
+     * @return array
+     */
+    public function analyzeBrandStyle(array $imagePaths): array
     {
-        $ratio = $this->normalizeAspectRatio($format);
-        [$w, $h] = array_map('intval', explode(':', $ratio));
-        $orientation = $w === $h ? 'square' : ($w > $h ? 'landscape' : 'portrait');
-        return "Aspect Ratio: {$ratio} ({$orientation})";
+        $promptModel = $this->getPromptModel();
+        $apiKey      = config('services.openrouter.api_key');
+
+        if (empty($apiKey)) {
+            throw new RuntimeException('OPENROUTER_API_KEY is not configured.');
+        }
+
+        $imageParts = [];
+        foreach ($imagePaths as $path) {
+            try {
+                $base64   = $this->encodeImageToBase64($path);
+                $mimeType = $this->guessMimeType($path);
+                $imageParts[] = [
+                    'type'      => 'image_url',
+                    'image_url' => ['url' => "data:{$mimeType};base64,{$base64}"],
+                ];
+            } catch (\Throwable $e) {
+                Log::warning('OpenRouterService: could not load brand image', [
+                    'path'  => $path,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
+
+        $text = 'Analyze the visual brand style of these images. Return a JSON object with keys: style_clusters (array of objects), color_palette (array of hex strings), typography_style (string), composition_notes (string).';
+
+        $response = Http::timeout(60)
+            ->withHeaders([
+                'Authorization' => "Bearer {$apiKey}",
+                'HTTP-Referer'  => config('app.url'),
+            ])
+            ->post("{$this->baseUrl}/chat/completions", [
+                'model'           => $promptModel,
+                'response_format' => ['type' => 'json_object'],
+                'messages'        => [[
+                    'role'    => 'user',
+                    'content' => [...$imageParts, ['type' => 'text', 'text' => $text]],
+                ]],
+            ]);
+
+        if ($response->failed()) {
+            throw new RuntimeException('OpenRouter brand analysis failed: ' . $response->body());
+        }
+
+        $raw = $response->json('choices.0.message.content', '{}');
+
+        return json_decode($raw, true) ?? ['style_clusters' => []];
     }
 
-    private function normalizeAspectRatio(string $format): string
+    /**
+     * Outpaint / extend image content outside its current bounds.
+     */
+    public function outpaint(string $imageBase64, string $maskBase64): array
     {
-        return match(strtolower($format)) {
-            'square', '1:1', 'instagram-post' => '1:1',
-            'portrait', '9:16', 'instagram-story' => '9:16',
-            'landscape', '16:9', 'facebook-post', 'facebook-ad', 'linkedin-post', 'twitter-post', 'youtube-thumbnail' => '16:9',
-            'linkedin-banner' => '4:1',
-            default => preg_match('/^\d+:\d+$/', $format) ? $format : '1:1',
+        // OpenRouter does not natively support inpainting; delegate to generation.
+        return $this->generateWithReferences(
+            'Seamlessly extend/outpaint the image into the masked (white) region, maintaining the existing style.',
+            [],
+            [],
+            'square',
+        );
+    }
+
+    /**
+     * Erase green-highlighted areas from an image.
+     */
+    public function eraseGreenHighlights(string $imageBase64): array
+    {
+        $content = [
+            ['type' => 'image_url', 'image_url' => ['url' => "data:image/png;base64,{$imageBase64}"]],
+            ['type' => 'text', 'text' => 'Remove the green-highlighted areas from this image and fill them with contextually appropriate content that blends naturally.'],
+        ];
+
+        $model  = config('services.openrouter.image_model', 'bytedance-seed/seedream-4.5');
+        $apiKey = config('services.openrouter.api_key');
+
+        if (empty($apiKey)) {
+            throw new RuntimeException('OPENROUTER_API_KEY is not configured.');
+        }
+
+        $response = Http::timeout(180)
+            ->withHeaders([
+                'Authorization' => "Bearer {$apiKey}",
+                'HTTP-Referer'  => config('app.url'),
+            ])
+            ->post("{$this->baseUrl}/chat/completions", [
+                'model'    => $model,
+                'messages' => [['role' => 'user', 'content' => $content]],
+            ]);
+
+        if ($response->failed()) {
+            throw new RuntimeException('OpenRouter erase request failed: ' . $response->body());
+        }
+
+        $raw = $response->json('choices.0.message.content', '');
+        if (str_starts_with($raw, 'data:')) {
+            [, $raw] = explode(',', $raw, 2);
+        }
+
+        return ['image_data' => $raw, 'mime_type' => 'image/png'];
+    }
+
+    /**
+     * Edit an image given a text prompt and an optional mask.
+     */
+    public function editBase64(string $imageBase64, string $prompt, ?string $maskBase64 = null): string
+    {
+        $content = [
+            ['type' => 'image_url', 'image_url' => ['url' => "data:image/png;base64,{$imageBase64}"]],
+        ];
+
+        if ($maskBase64 !== null) {
+            $content[] = ['type' => 'image_url', 'image_url' => ['url' => "data:image/png;base64,{$maskBase64}"]];
+        }
+
+        $content[] = ['type' => 'text', 'text' => $prompt];
+
+        $model  = config('services.openrouter.image_model', 'bytedance-seed/seedream-4.5');
+        $apiKey = config('services.openrouter.api_key');
+
+        if (empty($apiKey)) {
+            throw new RuntimeException('OPENROUTER_API_KEY is not configured.');
+        }
+
+        $response = Http::timeout(180)
+            ->withHeaders([
+                'Authorization' => "Bearer {$apiKey}",
+                'HTTP-Referer'  => config('app.url'),
+            ])
+            ->post("{$this->baseUrl}/chat/completions", [
+                'model'    => $model,
+                'messages' => [['role' => 'user', 'content' => $content]],
+            ]);
+
+        if ($response->failed()) {
+            throw new RuntimeException('OpenRouter edit request failed: ' . $response->body());
+        }
+
+        $raw = $response->json('choices.0.message.content', '');
+        if (str_starts_with($raw, 'data:')) {
+            [, $raw] = explode(',', $raw, 2);
+        }
+
+        return $raw;
+    }
+
+    /**
+     * Return the name of the active generation model.
+     */
+    public function getModelName(): string
+    {
+        return config('services.openrouter.image_model', 'bytedance-seed/seedream-4.5');
+    }
+
+    // -------------------------------------------------------------------------
+
+    private function resolveAspectRatio(string $format): string
+    {
+        return match (strtolower($format)) {
+            'portrait'  => '9:16',
+            'landscape' => '16:9',
+            default     => '1:1',
         };
     }
 
-    public function generate(
-        string $prompt,
-        array $referencePaths = [],
-        string $format = 'square'
-    ): array {
-        $this->ensureConfigured();
-        $this->currentFormat = $format;
-        $content = [];
-        foreach (array_slice($referencePaths, 0, 5) as $path) {
-            if ($imgData = $this->fileToPart($path)) {
-                $content[] = [
-                    'type' => 'image_url',
-                    'image_url' => [
-                        'url' => "data:{$imgData['mimeType']};base64,{$imgData['data']}"
-                    ]
-                ];
-            }
-        }
-        $content[] = ['type' => 'text', 'text' => $prompt];
+    private function getPromptModel(): string
+    {
+        $models = config('services.openrouter.prompt_models', 'google/gemini-flash-1.5,openai/gpt-4o-mini');
 
-        Log::info('OpenRouter Generation', [
-            'model' => $this->model,
-            'references' => count($referencePaths),
-        ]);
-
-        $startTime = microtime(true);
-        $payload = [
-            'model' => $this->model,
-            'messages' => [['role' => 'user', 'content' => $content]],
-        ];
-        
-        $response = $this->http()->post("{$this->baseUrl}/chat/completions", $payload);
-        $generationTime = (microtime(true) - $startTime) * 1000;
-
-        $result = $this->parseResponse($response);
-        $result['metadata'] = [
-            'model' => $this->model,
-            'generation_time_ms' => round($generationTime),
-            'generated_at' => now()->toIso8601String(),
-        ];
-        return $result;
+        return explode(',', $models)[0];
     }
 
-    public function editBase64(string $imageBase64, string $prompt, ?string $maskBase64 = null): string
+    private function encodeImageToBase64(string $storagePath): string
     {
-        $this->ensureConfigured();
+        $absolutePath = Storage::disk('public')->exists($storagePath)
+            ? Storage::disk('public')->path($storagePath)
+            : (file_exists($storagePath) ? $storagePath : null);
 
-        $content = [];
-
-        // Include source image for image-to-image editing
-        $content[] = [
-            'type' => 'image_url',
-            'image_url' => ['url' => "data:image/png;base64,{$imageBase64}"]
-        ];
-        $content[] = ['type' => 'text', 'text' => $prompt];
-
-        Log::info('OpenRouter SeedDream Image Edit', [
-            'model' => $this->model,
-            'prompt' => substr($prompt, 0, 100),
-        ]);
-
-        $response = $this->http()->post(
-            "{$this->baseUrl}/chat/completions",
-            [
-                'model'      => $this->model,
-                'messages'   => [['role' => 'user', 'content' => $content]],
-                'modalities' => ['image'],
-            ]
-        );
-
-        $result = $this->parseResponse($response);
-        return $result['image_data'];
-    }
-
-    public function inpaint(string $imageBase64, string $maskBase64, string $prompt): string
-    {
-        return $this->editBase64($imageBase64, $prompt, $maskBase64);
-    }
-
-    public function outpaint(string $expandedImageBase64, string $maskBase64, string $prompt = ''): string
-    {
-        $defaultPrompt = "Fill the masked areas so the scene extends naturally.";
-        $fullPrompt = $prompt ? $prompt . ' ' . $defaultPrompt : $defaultPrompt;
-        return $this->editBase64($expandedImageBase64, $fullPrompt, $maskBase64);
-    }
-
-    public function generateFromPrompt(string $imageBase64, string $maskBase64, string $prompt): string
-    {
-        return $this->editBase64($imageBase64, $prompt, $maskBase64);
-    }
-
-    public function eraseGreenHighlights(string $imageBase64): string
-    {
-        $prompt = "This image contains bright green (RGB 0,255,0) highlighted areas marking regions to erase. "
-                . "Remove ALL green-highlighted areas and fill them seamlessly with natural background content "
-                . "that matches the surrounding style, colors, lighting, and perspective. "
-                . "Preserve the exact same image dimensions and aspect ratio as the input. "
-                . "Do not leave any green color, artifacts, or seams in the final result.";
-        return $this->editBase64($imageBase64, $prompt);
-    }
-
-    protected function parseResponse($response): array
-    {
-        if (!$response->successful()) {
-            throw new RuntimeException('OpenRouter API Error (' . $response->status() . '): ' . $response->body());
+        if ($absolutePath === null) {
+            throw new RuntimeException("Image not found at path: {$storagePath}");
         }
 
-        $json = $response->json();
-
-        // Primary path: SeedDream 4.5 / image-generation models return images in message.images
-        $message = $json['choices'][0]['message'] ?? null;
-        if ($message && isset($message['images'][0]['image_url']['url'])) {
-            $url = $message['images'][0]['image_url']['url'];
-            // May already be a base64 data URL
-            if (str_starts_with($url, 'data:')) {
-                if (preg_match('/^data:[^;]+;base64,(.+)$/', $url, $m)) {
-                    return ['image_data' => $m[1], 'image_base64' => $m[1], 'mime_type' => 'image/png'];
-                }
-            }
-            return $this->processImageUrl($url);
-        }
-
-        // Fallback: standard OpenAI images/generations format
-        if (isset($json['data'][0]['url'])) {
-             return $this->processImageUrl($json['data'][0]['url']);
-        }
-        if (isset($json['data'][0]['b64_json'])) {
-             $b64 = $json['data'][0]['b64_json'];
-             return [
-                 'image_data' => $b64, 
-                 'image_base64' => $b64, 
-                 'mime_type' => 'image/png'
-             ];
-        }
-
-        if (!$message) {
-            throw new RuntimeException('Invalid response structure from OpenRouter');
-        }
-
-        $content = $message['content'] ?? '';
-        
-        // Check markdown image syntax
-        if (preg_match('/!\[.*?\]\((.*?)\)/', $content, $matches)) {
-            return $this->processImageUrl($matches[1]);
-        }
-        
-        // Check if content is a raw URL
-        if (filter_var(trim($content), FILTER_VALIDATE_URL)) {
-             return $this->processImageUrl(trim($content));
-        }
-
-        // Check if content is raw base64
-        if (strlen($content) > 1000 && preg_match('/^[A-Za-z0-9+\/=\s]+$/', trim($content))) {
-             $b64 = trim($content);
-             return [
-                 'image_data' => $b64, 
-                 'image_base64' => $b64, 
-                 'mime_type' => 'image/png'
-             ];
-        }
-
-        // Check reasoning_details for base64 (some experimental models)
-        $reasoningDetails = $message['reasoning_details'] ?? [];
-        if (is_array($reasoningDetails)) {
-            foreach ($reasoningDetails as $detail) {
-                 if (isset($detail['data']) && is_string($detail['data']) && strlen($detail['data']) > 1000) {
-                     // Check if not encrypted
-                     if (!str_starts_with($detail['data'], 'gAAAAA')) {
-                         $b64 = $detail['data'];
-                         return [
-                             'image_data' => $b64,
-                             'image_base64' => $b64,
-                             'mime_type' => 'image/png'
-                         ];
-                     }
-                 }
-            }
-        }
-        
-        Log::error('OpenRouter: No image found in response content', ['content' => Str::limit($content, 200)]);
-        throw new RuntimeException("No image found in OpenRouter response. Content: " . Str::limit($content, 100));
+        return base64_encode(file_get_contents($absolutePath));
     }
 
-    protected function processImageUrl(string $url): array
+    private function guessMimeType(string $path): string
     {
-        $content = file_get_contents($url);
-        if ($content === false) {
-             throw new RuntimeException("Failed to download generated image from URL: $url");
-        }
-        $base64 = base64_encode($content);
-        $mime = 'image/png';
-        $finfo = new \finfo(FILEINFO_MIME_TYPE);
-        $detectedMime = $finfo->buffer($content);
-        if ($detectedMime) $mime = $detectedMime;
-
-        return [
-            'image_data' => $base64,
-            'image_base64' => $base64,
-            'mime_type' => $mime,
-        ];
-    }
-
-    protected function fileToPart(string $path): ?array
-    {
-        if (Storage::disk('public')->exists($path)) {
-            $mime = Storage::disk('public')->mimeType($path);
-            $content = Storage::disk('public')->get($path);
-        } elseif (file_exists($path)) {
-            $mime = mime_content_type($path);
-            $content = file_get_contents($path);
-        } else {
-            return null;
-        }
-
-        return [
-            'mimeType' => $mime,
-            'data' => base64_encode($content)
-        ];
-    }
-
-    protected function ensureConfigured(): void
-    {
-        if (empty($this->apiKey)) {
-            throw new RuntimeException('OpenRouter API Key is missing');
-        }
-    }
-
-    protected function http()
-    {
-        $client = Http::withHeaders([
-            'Authorization' => 'Bearer ' . $this->apiKey,
-            'Content-Type' => 'application/json',
-            'HTTP-Referer' => config('app.url'), 
-            'X-Title' => config('app.name'),
-        ]);
-        if (config('app.env') !== 'production') {
-            $client = $client->withOptions(['verify' => false]);
-        }
-        return $client;
-    }
-
-    public function analyzeBrandStyle(array $imageUrls): array
-    {
-        return [
-            'analyzed_at' => now()->toIso8601String(),
-            'model' => $this->model,
-            'note' => 'Simplified approach - style mirroring happens during generation',
-        ];
-    }
-
-    public function generateImage(string $prompt, ?array $styleGuide = null, string $format = 'square'): array
-    {
-        return $this->generateWithReferences($prompt, [], [], $format);
-    }
-
-    public function getServiceName(): string
-    {
-        return 'OpenRouter (' . $this->model . ')';
-    }
-
-    public function isAvailable(): bool
-    {
-        return !empty($this->apiKey);
+        return match (strtolower(pathinfo($path, PATHINFO_EXTENSION))) {
+            'jpg', 'jpeg' => 'image/jpeg',
+            'webp'        => 'image/webp',
+            default       => 'image/png',
+        };
     }
 }

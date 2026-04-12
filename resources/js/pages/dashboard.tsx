@@ -6,20 +6,22 @@ import { Separator } from '@/components/ui/separator';
 import AppLayout from '@/layouts/app-layout';
 import { dashboard } from '@/routes';
 import { type BreadcrumbItem } from '@/types';
-import { Head, Link } from '@inertiajs/react';
-import { 
-    FolderOpen, 
-    Star, 
-    Image as ImageIcon, 
-    AlertCircle, 
-    Plus, 
+import { Head, Link, useForm } from '@inertiajs/react';
+import {
+    FolderOpen,
+    Star,
+    Image as ImageIcon,
+    AlertCircle,
+    Plus,
     Crown,
     TrendingUp,
     Zap,
     Clock,
     ArrowRight,
-    Sparkles
+    Sparkles,
+    KeyRound,
 } from 'lucide-react';
+import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 
 const breadcrumbs: BreadcrumbItem[] = [
@@ -63,6 +65,13 @@ interface DashboardProps {
 }
 
 export default function Dashboard({ stats, recent_projects }: DashboardProps) {
+    const inviteForm = useForm({ code: '' });
+
+    const redeemInvite = (e: React.FormEvent) => {
+        e.preventDefault();
+        inviteForm.post('/invite/redeem', { preserveScroll: true });
+    };
+
     const getTierBadge = (tier: string) => {
         switch (tier) {
             case 'beta':
@@ -90,7 +99,7 @@ export default function Dashboard({ stats, recent_projects }: DashboardProps) {
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
             <Head title="Dashboard" />
-            
+
             <div className="p-6 md:p-8 max-w-[1600px] mx-auto">
                 {/* Welcome Header - Notion style */}
                 <div className="mb-8">
@@ -113,6 +122,43 @@ export default function Dashboard({ stats, recent_projects }: DashboardProps) {
                     </div>
                 </div>
 
+                {/* Beta Invite Banner — prominent for users without a subscription */}
+                {stats.subscription_tier === 'free' && (
+                    <div className="mb-6 rounded-xl border-2 border-primary/30 bg-gradient-to-r from-primary/8 to-primary/4 p-6">
+                        <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+                            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-primary/15">
+                                <KeyRound className="h-6 w-6 text-primary" />
+                            </div>
+                            <div className="flex-1">
+                                <p className="font-semibold text-base">Got a beta invite code?</p>
+                                <p className="text-sm text-muted-foreground mt-0.5">Enter your code below to unlock your beta access and credits.</p>
+                            </div>
+                            <form onSubmit={redeemInvite} className="flex flex-col gap-2 sm:min-w-72">
+                                <div className="flex gap-2">
+                                    <Input
+                                        value={inviteForm.data.code}
+                                        onChange={e => inviteForm.setData('code', e.target.value.toUpperCase())}
+                                        placeholder="Enter invite code"
+                                        className="font-mono uppercase tracking-widest text-sm"
+                                        maxLength={20}
+                                        autoComplete="off"
+                                    />
+                                    <Button
+                                        type="submit"
+                                        disabled={inviteForm.processing || !inviteForm.data.code}
+                                        className="shrink-0"
+                                    >
+                                        Activate
+                                    </Button>
+                                </div>
+                                {inviteForm.errors.code && (
+                                    <p className="text-xs text-destructive">{inviteForm.errors.code}</p>
+                                )}
+                            </form>
+                        </div>
+                    </div>
+                )}
+
                 {/* Low Credits Warning */}
                 {stats.is_low_credits && (
                     <Card className="mb-6 border-amber-200 bg-amber-50/50 dark:border-amber-800 dark:bg-amber-950/20">
@@ -128,9 +174,8 @@ export default function Dashboard({ stats, recent_projects }: DashboardProps) {
                                     </p>
                                 </div>
                                 <Button asChild variant="outline" size="sm" className="shrink-0">
-                                    <Link href="/subscription/plans">
-                                        <Crown className="h-4 w-4 mr-2" />
-                                        Upgrade
+                                    <Link href="/feedback">
+                                        Share Feedback
                                     </Link>
                                 </Button>
                             </div>
@@ -243,21 +288,21 @@ export default function Dashboard({ stats, recent_projects }: DashboardProps) {
                                         </Link>
                                     ))}
                                 </div>
-                                ) : (
-                                    <div className="flex flex-col items-center justify-center py-12 text-center">
-                                        <div className="flex h-16 w-16 items-center justify-center rounded-full bg-muted mb-4">
-                                            <FolderOpen className="h-8 w-8 text-muted-foreground" />
-                                        </div>
-                                        <h3 className="font-semibold mb-1">No projects yet</h3>
-                                        <p className="text-sm text-muted-foreground mb-4">Get started by creating your first project</p>
-                                        <Button asChild>
-                                            <Link href="/projects/create">
-                                                <Plus className="h-4 w-4 mr-2" />
-                                                Create Your First Project
-                                            </Link>
-                                        </Button>
+                            ) : (
+                                <div className="flex flex-col items-center justify-center py-12 text-center">
+                                    <div className="flex h-16 w-16 items-center justify-center rounded-full bg-muted mb-4">
+                                        <FolderOpen className="h-8 w-8 text-muted-foreground" />
                                     </div>
-                                )}
+                                    <h3 className="font-semibold mb-1">No projects yet</h3>
+                                    <p className="text-sm text-muted-foreground mb-4">Get started by creating your first project</p>
+                                    <Button asChild>
+                                        <Link href="/projects/create">
+                                            <Plus className="h-4 w-4 mr-2" />
+                                            Create Your First Project
+                                        </Link>
+                                    </Button>
+                                </div>
+                            )}
                         </div>
                     </div>
 
@@ -290,15 +335,8 @@ export default function Dashboard({ stats, recent_projects }: DashboardProps) {
                                 )}
 
                                 <Button asChild className="w-full" size="sm">
-                                    <Link href={stats.subscription_tier === 'free' ? '/subscription/plans' : '/subscription'}>
-                                        {stats.subscription_tier === 'free' ? (
-                                            <>
-                                                <Crown className="h-4 w-4 mr-2" />
-                                                Upgrade Plan
-                                            </>
-                                        ) : (
-                                            'Manage Billing'
-                                        )}
+                                    <Link href="/feedback">
+                                        Share Feedback
                                     </Link>
                                 </Button>
 

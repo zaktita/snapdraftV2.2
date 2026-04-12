@@ -2,7 +2,7 @@
 
 namespace App\Providers;
 
-use App\Services\AI\BrandReferenceAnalyzer;
+use App\Services\PostHogService;
 use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
@@ -12,8 +12,8 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        // Bind AI helpers
-        $this->app->singleton(BrandReferenceAnalyzer::class, fn () => new BrandReferenceAnalyzer());
+        // AI services resolve through Laravel auto-wiring.
+        $this->app->singleton(PostHogService::class, fn () => new PostHogService());
     }
 
     /**

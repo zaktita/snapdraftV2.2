@@ -1,13 +1,20 @@
 import { Progress } from '@/components/ui/progress';
 import { Card } from '@/components/ui/card';
-import { CheckCircle, Loader2, XCircle } from 'lucide-react';
+import { AlertTriangle, CheckCircle, ChevronDown, ChevronUp, Loader2, XCircle } from 'lucide-react';
+import { useState } from 'react';
+
+interface FailureReason {
+    title?: string | null;
+    message: string;
+}
 
 interface BatchProgressProps {
     total: number;
     completed: number;
     failed: number;
-    status: 'processing' | 'completed' | 'failed';
+    status: 'processing' | 'completed' | 'partial' | 'failed';
     currentItem?: string;
+    failures?: FailureReason[];
 }
 
 export function BatchProgress({
@@ -16,7 +23,9 @@ export function BatchProgress({
     failed,
     status,
     currentItem,
+    failures = [],
 }: BatchProgressProps) {
+    const [showFailures, setShowFailures] = useState(false);
     const percentage = total > 0 ? Math.round((completed / total) * 100) : 0;
     const remaining = total - completed - failed;
 
@@ -37,6 +46,14 @@ export function BatchProgress({
                                 <CheckCircle className="h-5 w-5 text-green-600" />
                                 <span className="font-semibold text-green-600">
                                     Generation Complete!
+                                </span>
+                            </>
+                        )}
+                        {status === 'partial' && (
+                            <>
+                                <AlertTriangle className="h-5 w-5 text-yellow-600" />
+                                <span className="font-semibold text-yellow-600">
+                                    Partially Complete — {failed} image{failed !== 1 ? 's' : ''} failed
                                 </span>
                             </>
                         )}
@@ -75,7 +92,7 @@ export function BatchProgress({
                         <p className="text-xs text-muted-foreground">Remaining</p>
                     </div>
                     <div>
-                        <p className="text-2xl font-bold text-destructive">{failed}</p>
+                        <p className={`text-2xl font-bold ${failed > 0 ? 'text-destructive' : 'text-muted-foreground'}`}>{failed}</p>
                         <p className="text-xs text-muted-foreground">Failed</p>
                     </div>
                 </div>
@@ -85,6 +102,33 @@ export function BatchProgress({
                     <p className="text-center text-xs text-muted-foreground">
                         Estimated time remaining: {Math.ceil(remaining * 2 / 60)} minutes
                     </p>
+                )}
+
+                {/* Failure details (collapsible) */}
+                {failures.length > 0 && (status === 'partial' || status === 'failed') && (
+                    <div className="border-t pt-3">
+                        <button
+                            type="button"
+                            onClick={() => setShowFailures((v) => !v)}
+                            className="flex w-full items-center justify-between text-sm text-muted-foreground hover:text-foreground transition-colors"
+                        >
+                            <span>View failure details ({failures.length})</span>
+                            {showFailures ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                        </button>
+
+                        {showFailures && (
+                            <ul className="mt-3 space-y-2">
+                                {failures.map((f, i) => (
+                                    <li key={i} className="rounded-md bg-destructive/10 px-3 py-2 text-sm">
+                                        {f.title && (
+                                            <span className="font-medium text-foreground">{f.title}: </span>
+                                        )}
+                                        <span className="text-muted-foreground">{f.message}</span>
+                                    </li>
+                                ))}
+                            </ul>
+                        )}
+                    </div>
                 )}
             </div>
         </Card>

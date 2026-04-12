@@ -45,8 +45,10 @@ class HandleInertiaRequests extends Middleware
             'auth' => [
                 'user' => $request->user()
                     ? array_merge($request->user()->toArray(), [
-                        'credits_remaining' => $request->user()->creditsRemaining(),
-                        'credits_total'     => $request->user()->creditsTotal(),
+                        'credits_remaining'      => $request->user()->creditsRemaining(),
+                        'credits_total'          => $request->user()->creditsTotal(),
+                        'subscription_tier'      => $request->user()->currentTier(),
+                        'subscription_plan_name' => $request->user()->subscription()?->plan?->name,
                     ])
                     : null,
             ],
@@ -67,6 +69,11 @@ class HandleInertiaRequests extends Middleware
                     return $admin ? ['id' => $admin->id, 'name' => $admin->name, 'email' => $admin->email] : null;
                 })()
                 : null,
+            // PostHog client-side configuration
+            'posthog' => [
+                'token' => config('posthog.api_key', ''),
+                'host'  => config('posthog.host', ''),
+            ],
         ];
     }
 }

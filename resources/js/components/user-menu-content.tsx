@@ -10,7 +10,7 @@ import { logout } from '@/routes';
 import { edit } from '@/routes/profile';
 import { type User } from '@/types';
 import { Link, router } from '@inertiajs/react';
-import { LogOut, Settings, HelpCircle, UserPlus, Crown, CreditCard, Shield } from 'lucide-react';
+import { LogOut, MessageSquareHeart, Settings, HelpCircle, UserPlus, Shield } from 'lucide-react';
 
 interface UserMenuContentProps {
     user: User;
@@ -48,29 +48,15 @@ export function UserMenuContent({ user }: UserMenuContentProps) {
                 <DropdownMenuItem asChild>
                     <Link
                         className="block w-full"
-                        href="/subscription"
+                        href="/feedback"
                         as="button"
                         prefetch
                         onClick={cleanup}
                     >
-                        <CreditCard className="mr-2" />
-                        Billing & Credits
+                        <MessageSquareHeart className="mr-2" />
+                        Share Feedback
                     </Link>
                 </DropdownMenuItem>
-                {(user as User & { subscription_tier?: string }).subscription_tier === 'free' && (
-                    <DropdownMenuItem asChild>
-                        <Link
-                            className="block w-full"
-                            href="/subscription/plans"
-                            as="button"
-                            prefetch
-                            onClick={cleanup}
-                        >
-                            <Crown className="mr-2 text-yellow-500" />
-                            Upgrade Plan
-                        </Link>
-                    </DropdownMenuItem>
-                )}
                 <DropdownMenuItem asChild>
                     <Link
                         className="block w-full"

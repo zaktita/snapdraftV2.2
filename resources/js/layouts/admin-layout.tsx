@@ -10,6 +10,9 @@ import {
     LogOut,
     ShieldAlert,
     X,
+    Package,
+    Receipt,
+    FolderOpen,
 } from 'lucide-react';
 
 interface AdminLayoutProps {
@@ -21,6 +24,9 @@ const navItems = [
     { label: 'Dashboard', href: '/admin', icon: LayoutDashboard, exact: true },
     { label: 'Users', href: '/admin/users', icon: Users },
     { label: 'Credits', href: '/admin/credits', icon: CreditCard },
+    { label: 'Subscriptions', href: '/admin/subscriptions', icon: Receipt },
+    { label: 'Plans', href: '/admin/plans', icon: Package },
+    { label: 'Projects', href: '/admin/projects', icon: FolderOpen },
     { label: 'Usage', href: '/admin/usage', icon: BarChart3 },
 ];
 

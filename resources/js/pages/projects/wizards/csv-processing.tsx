@@ -37,22 +37,25 @@ interface ProcessingProps {
 export default function CsvWizardProcessing({ session, urls, error }: ProcessingProps) {
     const [statusMessage, setStatusMessage] = useState('Preparing...');
     const [progress, setProgress] = useState<Progress>({ total: null, processed: 0, pending: null, failed: 0 });
+    const [runtimeError, setRuntimeError] = useState<string | undefined>(error);
 
     const debug = (...args: any[]) => {
         if (!import.meta.env.DEV) return;
-         
+
         console.log('[CsvWizardProcessing]', ...args);
     };
 
     useEffect(() => {
-        const messages: Record<string, string> = {
-            pending: 'Preparing your batch... ',
-            generating: 'Generating your visuals... ',
-            completed: 'Complete! Redirecting... ',
+        setRuntimeError(error);
+
+        const initialMessages: Record<string, string> = {
+            pending: 'Preparing your batch...',
+            generating: 'Generating your visuals...',
+            completed: 'Complete! Opening your project...',
             failed: 'Generation failed',
         };
 
-        setStatusMessage(messages[session.status] || 'Processing...');
+        setStatusMessage(initialMessages[session.status] || 'Processing...');
 
         debug('mount/update', {
             session,
@@ -68,20 +71,41 @@ export default function CsvWizardProcessing({ session, urls, error }: Processing
                 .then((data) => {
                     debug('poll: status response', data);
                     if (data?.progress) {
-                        setProgress({
+                        const nextProgress = {
                             total: data.progress.total ?? null,
                             processed: data.progress.processed ?? 0,
                             pending: data.progress.pending ?? null,
                             failed: data.progress.failed ?? 0,
-                        });
+                        };
+
+                        setProgress(nextProgress);
+
+                        if (nextProgress.total && nextProgress.total > 0) {
+                            setStatusMessage(
+                                `Generated ${nextProgress.processed} of ${nextProgress.total} visuals...`,
+                            );
+                        } else if ((data?.status ?? session.status) === 'pending') {
+                            setStatusMessage('Preparing your batch...');
+                        } else {
+                            setStatusMessage('Generating your visuals...');
+                        }
                     }
 
                     if (data?.is_completed) {
-                        debug('poll: completed -> redirect to result', { url: urls.result });
-                        router.visit(urls.result);
+                        const projectUrl = urls.project.includes('?')
+                            ? `${urls.project}&batchCompleted=1`
+                            : `${urls.project}?batchCompleted=1`;
+
+                        debug('poll: completed -> redirect to project', { url: projectUrl });
+                        clearInterval(interval);
+                        router.visit(projectUrl, {
+                            replace: true,
+                            preserveScroll: true,
+                        });
                     } else if (data?.is_failed) {
-                        debug('poll: failed -> reload', { url: urls.project });
-                        router.reload({ only: ['session', 'error'] });
+                        debug('poll: failed', { message: data?.error_message });
+                        clearInterval(interval);
+                        setRuntimeError(data?.error_message || 'Batch generation failed.');
                     }
                 })
                 .catch((e) => {
@@ -91,7 +115,12 @@ export default function CsvWizardProcessing({ session, urls, error }: Processing
         }, 3000);
 
         return () => clearInterval(interval);
-    }, [session.status, urls.status, urls.result, error]);
+    }, [session.status, urls.status, urls.project, error]);
+
+    const progressPercent =
+        progress.total && progress.total > 0
+            ? Math.round((progress.processed / progress.total) * 100)
+            : null;
 
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
@@ -99,13 +128,13 @@ export default function CsvWizardProcessing({ session, urls, error }: Processing
 
             <div className="flex min-h-[60vh] items-center justify-center px-4">
                 <div className="w-full max-w-lg rounded-lg border bg-card p-6 text-center shadow-sm">
-                    {error ? (
+                    {runtimeError ? (
                         <>
                             <div className="bg-destructive/10 text-destructive mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-full">
                                 <AlertCircle className="h-8 w-8" />
                             </div>
                             <h1 className="mb-3 text-2xl font-bold">Generation Failed</h1>
-                            <p className="text-muted-foreground mb-6">{error}</p>
+                            <p className="text-muted-foreground mb-6">{runtimeError}</p>
                             <div className="flex flex-wrap justify-center gap-3">
                                 <button
                                     onClick={() => router.visit('/projects/create/csv')}
@@ -131,8 +160,19 @@ export default function CsvWizardProcessing({ session, urls, error }: Processing
                             <p className="text-muted-foreground mb-4">{statusMessage}</p>
 
                             <div className="bg-muted mx-auto mt-4 h-2 w-full overflow-hidden rounded-full">
-                                <div className="bg-primary h-full animate-pulse rounded-full" />
+                                {progressPercent === null ? (
+                                    <div className="bg-primary h-full animate-pulse rounded-full" />
+                                ) : (
+                                    <div
+                                        className="bg-primary h-full rounded-full transition-all duration-500"
+                                        style={{ width: `${Math.max(5, Math.min(100, progressPercent))}%` }}
+                                    />
+                                )}
                             </div>
+
+                            {progressPercent !== null && (
+                                <p className="text-muted-foreground mt-2 text-xs">{progressPercent}% complete</p>
+                            )}
 
                             <div className="mt-5 grid grid-cols-3 gap-3 text-left text-sm">
                                 <div className="rounded-md border p-3">

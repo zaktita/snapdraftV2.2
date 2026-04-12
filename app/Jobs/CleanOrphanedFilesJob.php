@@ -4,109 +4,67 @@ namespace App\Jobs;
 
 use App\Models\BrandReference;
 use App\Models\Image;
+use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
-use Illuminate\Foundation\Queue\Queueable;
+use Illuminate\Foundation\Bus\Dispatchable;
+use Illuminate\Queue\InteractsWithQueue;
+use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 
 class CleanOrphanedFilesJob implements ShouldQueue
 {
-    use Queueable;
+    use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
-    /**
-     * Create a new job instance.
-     */
-    public function __construct()
-    {
-        //
-    }
+    public int $timeout = 300;
 
-    /**
-     * Execute the job.
-     */
     public function handle(): void
     {
-        Log::info('Starting orphaned files cleanup');
+        $deleted = 0;
+        $disk    = Storage::disk('public');
 
-        $deletedCount = 0;
-        $errors = 0;
+        // ── Images ─────────────────────────────────────────────────────────
+        // Collect all paths referenced in the images table
+        $knownImagePaths = Image::withTrashed()
+            ->whereNotNull('url')
+            ->pluck('url')
+            ->merge(
+                Image::withTrashed()->whereNotNull('thumbnail_url')->pluck('thumbnail_url')
+            )
+            ->unique()
+            ->flip(); // flip for O(1) key lookup
 
-        // Get all files in the public disk under 'projects' directory
-        $allFiles = Storage::disk('public')->allFiles('projects');
-
-        // Get all image URLs from database
-        $imageUrls = Image::pluck('url')->toArray();
-        $imageThumbnails = Image::pluck('thumbnail_url')->toArray();
-        
-        // Get all brand reference URLs
-        $brandReferenceUrls = BrandReference::pluck('url')->toArray();
-        $brandReferenceThumbnails = BrandReference::pluck('thumbnail_url')->toArray();
-
-        // Combine all valid file paths
-        $validFiles = array_merge(
-            $imageUrls,
-            $imageThumbnails,
-            $brandReferenceUrls,
-            $brandReferenceThumbnails
-        );
-
-        // Also include CSV files (they're stored in settings, harder to track)
-        // For now, we'll keep all CSV files
-
-        foreach ($allFiles as $file) {
-            // Skip CSV files and directories
-            if (str_ends_with($file, '.csv') || str_ends_with($file, '/')) {
-                continue;
-            }
-
-            // Check if file is in database
-            if (!in_array($file, $validFiles)) {
-                try {
-                    // Additional check: don't delete files modified in last 24 hours (safety buffer)
-                    $lastModified = Storage::disk('public')->lastModified($file);
-                    $oneDayAgo = now()->subDay()->timestamp;
-
-                    if ($lastModified < $oneDayAgo) {
-                        Storage::disk('public')->delete($file);
-                        $deletedCount++;
-                        Log::info("Deleted orphaned file: {$file}");
-                    }
-                } catch (\Exception $e) {
-                    $errors++;
-                    Log::error("Error deleting orphaned file {$file}: " . $e->getMessage());
-                }
+        // Scan the projects/ directory and remove files not tracked in DB
+        foreach ($disk->allFiles('projects') as $file) {
+            if (!isset($knownImagePaths[$file])) {
+                $disk->delete($file);
+                $deleted++;
+                Log::info("CleanOrphanedFilesJob: deleted orphaned image file [{$file}]");
             }
         }
 
-        // Clean empty directories
-        $this->cleanEmptyDirectories('projects');
+        // ── Brand references ───────────────────────────────────────────────
+        $knownRefPaths = BrandReference::withTrashed()
+            ->whereNotNull('url')
+            ->pluck('url')
+            ->map(fn ($url) => ltrim(str_replace('storage/', '', $url), '/'))
+            ->merge(
+                BrandReference::withTrashed()
+                    ->whereNotNull('thumbnail_url')
+                    ->pluck('thumbnail_url')
+                    ->map(fn ($url) => ltrim(str_replace('storage/', '', $url), '/'))
+            )
+            ->unique()
+            ->flip();
 
-        Log::info("Orphaned files cleanup completed. Deleted: {$deletedCount}, Errors: {$errors}");
-    }
-
-    /**
-     * Recursively clean empty directories.
-     */
-    protected function cleanEmptyDirectories(string $path): void
-    {
-        $directories = Storage::disk('public')->directories($path);
-
-        foreach ($directories as $directory) {
-            // Recursively check subdirectories first
-            $this->cleanEmptyDirectories($directory);
-
-            // Check if directory is empty after cleaning subdirectories
-            $files = Storage::disk('public')->files($directory);
-            $subdirs = Storage::disk('public')->directories($directory);
-
-            if (empty($files) && empty($subdirs)) {
-                try {
-                    Storage::disk('public')->deleteDirectory($directory);
-                    Log::info("Deleted empty directory: {$directory}");
-                } catch (\Exception $e) {
-                    Log::error("Error deleting empty directory {$directory}: " . $e->getMessage());
-                }
+        foreach ($disk->allFiles('brand-references') as $file) {
+            if (!isset($knownRefPaths[$file])) {
+                $disk->delete($file);
+                $deleted++;
+                Log::info("CleanOrphanedFilesJob: deleted orphaned brand-reference file [{$file}]");
             }
         }
+
+        Log::info("CleanOrphanedFilesJob: completed, deleted {$deleted} orphaned file(s)");
     }
 }

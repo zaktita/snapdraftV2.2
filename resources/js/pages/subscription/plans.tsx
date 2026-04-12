@@ -1,13 +1,14 @@
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
 import { Progress } from '@/components/ui/progress';
 import { Separator } from '@/components/ui/separator';
 import AppLayout from '@/layouts/app-layout';
 import { cn } from '@/lib/utils';
 import { type BreadcrumbItem } from '@/types';
-import { Head, router } from '@inertiajs/react';
-import { Check, Crown, Sparkles, Zap } from 'lucide-react';
+import { Head, router, useForm } from '@inertiajs/react';
+import { Check, Crown, KeyRound, Sparkles, Zap } from 'lucide-react';
 import { useState } from 'react';
 
 const breadcrumbs: BreadcrumbItem[] = [
@@ -52,6 +53,12 @@ export default function SubscriptionPlans({
     remaining_project_slots,
 }: SubscriptionPlansProps) {
     const [billingPeriod, setBillingPeriod] = useState<'monthly' | 'yearly'>('monthly');
+    const inviteForm = useForm({ code: '' });
+
+    const redeemInvite = (e: React.FormEvent) => {
+        e.preventDefault();
+        inviteForm.post('/invite/redeem', { preserveScroll: true });
+    };
 
     const handleUpgrade = (planId: string) => {
         router.post('/subscription/upgrade', { tier: planId, billing_period: billingPeriod });
@@ -222,6 +229,45 @@ export default function SubscriptionPlans({
                             No plans available. Please check back soon.
                         </CardContent>
                     </Card>
+                )}
+
+                {/* Beta invite code */}
+                {!current_tier && (
+                    <div className="mt-6">
+                        <div className="relative flex items-center gap-3 mb-6">
+                            <Separator className="flex-1" />
+                            <span className="text-xs text-muted-foreground shrink-0">or redeem a beta invite</span>
+                            <Separator className="flex-1" />
+                        </div>
+                        <Card>
+                            <CardContent className="pt-6">
+                                <div className="flex items-center gap-2 mb-3">
+                                    <KeyRound className="h-4 w-4 text-muted-foreground" />
+                                    <p className="text-sm font-medium">Have a beta invite code?</p>
+                                </div>
+                                <form onSubmit={redeemInvite} className="flex gap-2">
+                                    <Input
+                                        value={inviteForm.data.code}
+                                        onChange={e => inviteForm.setData('code', e.target.value.toUpperCase())}
+                                        placeholder="XXXXXXXX"
+                                        className="font-mono uppercase"
+                                        maxLength={20}
+                                    />
+                                    <Button
+                                        type="submit"
+                                        variant="outline"
+                                        disabled={inviteForm.processing || !inviteForm.data.code}
+                                        className="shrink-0"
+                                    >
+                                        Redeem
+                                    </Button>
+                                </form>
+                                {inviteForm.errors.code && (
+                                    <p className="text-xs text-destructive mt-2">{inviteForm.errors.code}</p>
+                                )}
+                            </CardContent>
+                        </Card>
+                    </div>
                 )}
 
                 {/* Footer trust signals */}

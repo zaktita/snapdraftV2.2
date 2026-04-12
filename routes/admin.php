@@ -10,15 +10,29 @@ Route::middleware(['auth', 'verified', 'admin'])->prefix('admin')->name('admin.'
 
     // ── Users ────────────────────────────────────────────────────
     Route::get('/users', [AdminDashboardController::class, 'users'])->name('users');
-    Route::put('/users/{user}', [AdminDashboardController::class, 'updateUser'])->name('users.update');
-    Route::post('/users/{user}/suspend', [AdminDashboardController::class, 'suspendUser'])->name('users.suspend');
-    Route::post('/users/{user}/reactivate', [AdminDashboardController::class, 'reactivateUser'])->name('users.reactivate');
-    Route::put('/users/{user}/tier', [AdminDashboardController::class, 'updateUserTier'])->name('users.tier');
-    Route::delete('/users/{user}', [AdminDashboardController::class, 'deleteUser'])->name('users.delete');
-    Route::post('/users/{user}/password-reset', [AdminDashboardController::class, 'sendPasswordReset'])->name('users.password-reset');
+    Route::put('/users/{user}', [AdminDashboardController::class, 'updateUser'])
+        ->middleware('throttle:30,1')
+        ->name('users.update');
+    Route::post('/users/{user}/suspend', [AdminDashboardController::class, 'suspendUser'])
+        ->middleware('throttle:20,1')
+        ->name('users.suspend');
+    Route::post('/users/{user}/reactivate', [AdminDashboardController::class, 'reactivateUser'])
+        ->middleware('throttle:20,1')
+        ->name('users.reactivate');
+    Route::put('/users/{user}/tier', [AdminDashboardController::class, 'updateUserTier'])
+        ->middleware('throttle:20,1')
+        ->name('users.tier');
+    Route::delete('/users/{user}', [AdminDashboardController::class, 'deleteUser'])
+        ->middleware('throttle:5,1')
+        ->name('users.delete');
+    Route::post('/users/{user}/password-reset', [AdminDashboardController::class, 'sendPasswordReset'])
+        ->middleware('throttle:5,1')
+        ->name('users.password-reset');
 
-    // ── Impersonation ────────────────────────────────────────────
-    Route::post('/users/{user}/impersonate', [AdminDashboardController::class, 'impersonateUser'])->name('users.impersonate');
+    // ── Impersonation ────────────────────────────────────────────────────
+    Route::post('/users/{user}/impersonate', [AdminDashboardController::class, 'impersonateUser'])
+        ->middleware('throttle:10,1')
+        ->name('users.impersonate');
 });
 
 // Stop-impersonation is outside admin middleware: the active user is the impersonated non-admin
@@ -35,7 +49,9 @@ Route::middleware(['auth', 'verified', 'admin'])->prefix('admin')->name('admin.'
 
     // ── Credits ──────────────────────────────────────────────────
     Route::get('/credits', [AdminDashboardController::class, 'credits'])->name('credits');
-    Route::post('/credits/{user}/adjust', [AdminDashboardController::class, 'adjustCredits'])->name('credits.adjust');
+    Route::post('/credits/{user}/adjust', [AdminDashboardController::class, 'adjustCredits'])
+        ->middleware('throttle:20,1')
+        ->name('credits.adjust');
 
     // ── Projects ─────────────────────────────────────────────────
     Route::get('/projects', [AdminDashboardController::class, 'projects'])->name('projects');

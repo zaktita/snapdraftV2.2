@@ -7,7 +7,6 @@ import {
 import { Skeleton } from '@/components/ui/skeleton';
 import { debug } from '@/lib/debug';
 import { Head, router } from '@inertiajs/react';
-import { fal } from '@fal-ai/client';
 import {
     ArrowLeft,
     ChevronLeft,
@@ -151,22 +150,22 @@ export default function CanvasEditor(props: CanvasEditorProps) {
     const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
     const [showUploadZone, setShowUploadZone] = useState(true);
     const [generatingType, setGeneratingType] = useState<string | null>(null);
-    const [actionHistory, setActionHistory] = useState<Array<{type: string; message: string; time: number}>>([]);
+    const [actionHistory, setActionHistory] = useState<Array<{ type: string; message: string; time: number }>>([]);
     const [cursorPosition, setCursorPosition] = useState({ x: 0, y: 0 });
     const [upscaleModal, setUpscaleModal] = useState({ isOpen: false, selectedFactor: 2 });
     const internalClipboardRef = useRef<HTMLImageElement | null>(null);
-    
+
     // Crop rectangle state (in canvas coordinates)
     const [cropMode, setCropMode] = useState(false);
-    const [cropRect, setCropRect] = useState<{x: number; y: number; w: number; h: number} | null>(null);
+    const [cropRect, setCropRect] = useState<{ x: number; y: number; w: number; h: number } | null>(null);
     const [cropDragHandle, setCropDragHandle] = useState<string | null>(null); // 'move', 'nw', 'ne', 'sw', 'se', 'n', 's', 'e', 'w'
-    const [cropDragStart, setCropDragStart] = useState<{x: number; y: number; rectX: number; rectY: number; rectW: number; rectH: number} | null>(null);
+    const [cropDragStart, setCropDragStart] = useState<{ x: number; y: number; rectX: number; rectY: number; rectW: number; rectH: number } | null>(null);
     const [cropIntent, setCropIntent] = useState<'crop' | 'expand'>('crop');
 
     // Object resize state
     const [resizingObject, setResizingObject] = useState<CanvasObject | null>(null);
     const [resizeHandle, setResizeHandle] = useState<ResizeHandle | null>(null);
-    const [resizeStart, setResizeStart] = useState<{mouseX: number; mouseY: number; objX: number; objY: number; objW: number; objH: number} | null>(null);
+    const [resizeStart, setResizeStart] = useState<{ mouseX: number; mouseY: number; objX: number; objY: number; objW: number; objH: number } | null>(null);
 
     // Drag-and-drop state
     const [isDragOver, setIsDragOver] = useState(false);
@@ -500,7 +499,7 @@ export default function CanvasEditor(props: CanvasEditorProps) {
                 handlePaste(e);
             }
         };
-        
+
         window.addEventListener('paste', handlePasteTyped);
         document.addEventListener('paste', handlePasteTyped);
         return () => {
@@ -515,7 +514,7 @@ export default function CanvasEditor(props: CanvasEditorProps) {
             const timer = setTimeout(() => {
                 setAlertModal((prev) => ({ ...prev, isOpen: false }));
             }, CANVAS_DEFAULTS.TOAST_DISMISS_MS);
-            
+
             return () => clearTimeout(timer);
         }
     }, [alertModal.isOpen, alertModal.type]);
@@ -527,7 +526,7 @@ export default function CanvasEditor(props: CanvasEditorProps) {
             const timer = setTimeout(() => {
                 setActionHistory((prev) => prev.filter(item => item.time !== latestAction.time));
             }, CANVAS_DEFAULTS.TOAST_DISMISS_MS);
-            
+
             return () => clearTimeout(timer);
         }
     }, [actionHistory.length > 0 ? actionHistory[0]?.time : null]);
@@ -610,13 +609,18 @@ export default function CanvasEditor(props: CanvasEditorProps) {
     };
 
     const loadImageFromUrl = (src: string) => {
+        // If src is a relative storage path (not a URL or data URI), prepend /storage/
+        const resolvedSrc =
+            src.startsWith('http') || src.startsWith('data:') || src.startsWith('/')
+                ? src
+                : `/storage/${src}`;
         const img = new Image();
         img.crossOrigin = 'anonymous';
         img.onload = () => {
             debug.log('[Canvas] Main image loaded', {
                 width: img.width,
                 height: img.height,
-                src: src.slice(0, 60) + '...',
+                src: resolvedSrc.slice(0, 60) + '...',
             });
             setImage(img);
 
@@ -664,7 +668,7 @@ export default function CanvasEditor(props: CanvasEditorProps) {
                 });
             });
         };
-        img.src = src;
+        img.src = resolvedSrc;
     };
 
     const loadImageFile = (file: File) => {
@@ -718,9 +722,9 @@ export default function CanvasEditor(props: CanvasEditorProps) {
             drawSelectionHighlight(sel);
         }
 
-        // Draw custom brush cursor when retouch tool is active and hovering over image
+        // Draw custom brush cursor when retouch or erase tool is active and hovering over image
         if (
-            currentTool === 'retouch' &&
+            (currentTool === 'retouch' || currentTool === 'erase') &&
             selectedObject &&
             !isDragging &&
             !isPainting
@@ -947,7 +951,7 @@ export default function CanvasEditor(props: CanvasEditorProps) {
 
     const getCropHandleAtPoint = (screenX: number, screenY: number): string | null => {
         if (!cropRect) return null;
-        
+
         const screenRectX = panX + cropRect.x * scale;
         const screenRectY = panY + cropRect.y * scale;
         const screenRectW = cropRect.w * scale;
@@ -1056,7 +1060,7 @@ export default function CanvasEditor(props: CanvasEditorProps) {
         if (clickedObject) {
             setSelectedObject(clickedObject);
 
-            if (currentTool === 'retouch' && clickedObject === selectedObject) {
+            if ((currentTool === 'retouch' || currentTool === 'erase') && clickedObject === selectedObject) {
                 const imagePos = screenToObjectCoordinates(x, y, clickedObject);
                 if (isPointInObject(imagePos.x, imagePos.y, clickedObject)) {
                     setIsPainting(true);
@@ -1167,7 +1171,7 @@ export default function CanvasEditor(props: CanvasEditorProps) {
             return;
         }
 
-        if (isPainting && currentTool === 'retouch' && selectedObject) {
+        if (isPainting && (currentTool === 'retouch' || currentTool === 'erase') && selectedObject) {
             const imagePos = screenToObjectCoordinates(x, y, selectedObject);
             if (isPointInObject(imagePos.x, imagePos.y, selectedObject)) {
                 addPointToCurrentLine(imagePos.x, imagePos.y);
@@ -1221,7 +1225,7 @@ export default function CanvasEditor(props: CanvasEditorProps) {
         const clickedObject = getObjectAtPoint(x, y);
         if (clickedObject) {
             setSelectedObject(clickedObject);
-            if (currentTool === 'retouch' && clickedObject === selectedObject) {
+            if ((currentTool === 'retouch' || currentTool === 'erase') && clickedObject === selectedObject) {
                 const imagePos = screenToObjectCoordinates(x, y, clickedObject);
                 if (isPointInObject(imagePos.x, imagePos.y, clickedObject)) {
                     setIsPainting(true);
@@ -1596,7 +1600,7 @@ export default function CanvasEditor(props: CanvasEditorProps) {
             message,
             type,
         });
-        
+
         // Add to action history for toast notifications
         if (actionType) {
             const timestamp = Date.now();
@@ -1668,7 +1672,7 @@ export default function CanvasEditor(props: CanvasEditorProps) {
             try {
                 compositeImage = compositeCanvas.toDataURL('image/png');
             } catch (e) {
-                console.error(
+                debug.error(
                     '[Erase] toDataURL failed for composite image, likely CORS taint',
                     e,
                 );
@@ -1745,7 +1749,7 @@ export default function CanvasEditor(props: CanvasEditorProps) {
                 newImage.src = result.generatedImage;
             }
         } catch (error) {
-            console.error('Erase error:', error);
+            debug.error('Erase error:', error);
             showAlert(
                 'Error',
                 error instanceof Error
@@ -1798,7 +1802,7 @@ export default function CanvasEditor(props: CanvasEditorProps) {
                 try {
                     imageToSend = compositeCanvas.toDataURL('image/png');
                 } catch (e) {
-                    console.error('[AI Edit] toDataURL failed for composite, likely CORS taint', e);
+                    debug.error('[AI Edit] toDataURL failed for composite, likely CORS taint', e);
                     showAlert(
                         'Image Security Error',
                         'Cannot read the image due to browser security (CORS). Try uploading a local image.',
@@ -1811,7 +1815,7 @@ export default function CanvasEditor(props: CanvasEditorProps) {
                 try {
                     imageToSend = imageToDataUrl(selectedObject.image);
                 } catch (e) {
-                    console.error('[AI Edit] toDataURL failed for original image, likely CORS taint', e);
+                    debug.error('[AI Edit] toDataURL failed for original image, likely CORS taint', e);
                     showAlert(
                         'Image Security Error',
                         'Cannot read the original image due to browser security (CORS). Try uploading a local image or ensure the image URL allows cross-origin access.',
@@ -1891,7 +1895,7 @@ export default function CanvasEditor(props: CanvasEditorProps) {
                 throw new Error('No generated image in API response');
             }
         } catch (error) {
-            console.error('[AI Edit] Error:', error);
+            debug.error('[AI Edit] Error:', error);
             showAlert(
                 'Error',
                 error instanceof Error ? error.message : 'AI edit failed',
@@ -1957,7 +1961,7 @@ export default function CanvasEditor(props: CanvasEditorProps) {
             try {
                 compositeImage = compositeCanvas.toDataURL('image/png');
             } catch (e) {
-                console.error('[ReplaceText] toDataURL failed, likely CORS taint', e);
+                debug.error('[ReplaceText] toDataURL failed, likely CORS taint', e);
                 showAlert(
                     'Image Security Error',
                     'Cannot read the image due to browser security (CORS). Try uploading a local image.',
@@ -1988,7 +1992,7 @@ export default function CanvasEditor(props: CanvasEditorProps) {
                     }),
                 });
             } catch (fetchError) {
-                console.error('[ReplaceText] Fetch error:', fetchError);
+                debug.error('[ReplaceText] Fetch error:', fetchError);
                 throw new Error(
                     `Network error: ${fetchError instanceof Error ? fetchError.message : 'Unknown'}`,
                 );
@@ -2006,12 +2010,12 @@ export default function CanvasEditor(props: CanvasEditorProps) {
                 let errorText = 'Unknown error';
                 try {
                     errorText = await response.text();
-                    console.error(
+                    debug.error(
                         '[ReplaceText] Error response body:',
                         errorText,
                     );
                 } catch (e) {
-                    console.error(
+                    debug.error(
                         '[ReplaceText] Could not read error response',
                     );
                 }
@@ -2070,14 +2074,14 @@ export default function CanvasEditor(props: CanvasEditorProps) {
                     }
                 };
                 newImage.onerror = (e) => {
-                    console.error('[ReplaceText] Image load error:', e);
+                    debug.error('[ReplaceText] Image load error:', e);
                 };
                 debug.log('[ReplaceText] Setting image src...');
                 newImage.src = result.generatedImage;
             }
         } catch (error) {
             if (error === null) return; // User cancelled
-            console.error('Replace text error:', error);
+            debug.error('Replace text error:', error);
             showAlert(
                 'Error',
                 error instanceof Error
@@ -2104,7 +2108,7 @@ export default function CanvasEditor(props: CanvasEditorProps) {
             },
             body: JSON.stringify(body),
         });
-        
+
         if (!response.ok) {
             let errorData: any = {};
             try {
@@ -2114,7 +2118,7 @@ export default function CanvasEditor(props: CanvasEditorProps) {
             }
             throw new Error(errorData.message || response.statusText || 'API request failed');
         }
-        
+
         return await response.json();
     };
 
@@ -2241,7 +2245,7 @@ export default function CanvasEditor(props: CanvasEditorProps) {
             try {
                 expandedDataUrl = expandedCanvas.toDataURL('image/png');
             } catch (e) {
-                console.error('[Expand] toDataURL failed, likely CORS taint', e);
+                debug.error('[Expand] toDataURL failed, likely CORS taint', e);
                 showAlert(
                     'Image Security Error',
                     'Cannot read the original image due to browser security (CORS). Try uploading a local image or ensure the image URL allows cross-origin access.',
@@ -2357,7 +2361,7 @@ export default function CanvasEditor(props: CanvasEditorProps) {
     // Enhancement: Upscale Image using FAL AI
     const handleUpscaleImage = async () => {
         if (isGenerating) return;
-        
+
         if (!selectedObject) {
             showAlert('No Selection', 'Please select an image first.', 'warning', 'upscale');
             return;
@@ -2385,52 +2389,60 @@ export default function CanvasEditor(props: CanvasEditorProps) {
             try {
                 originalImage = imageToDataUrl(selectedObject.image);
             } catch (e) {
-                console.error('[Upscale] toDataURL failed', e);
+                debug.error('[Upscale] toDataURL failed', e);
                 showAlert('Image Security Error', 'Cannot read image (CORS issue). Try uploading a local image.', 'error', 'upscale');
                 setIsGenerating(false);
                 setGeneratingType(null);
                 return;
             }
 
-            const falApiKey = import.meta.env.VITE_FAL_API_KEY || '';
-            if (!falApiKey) throw new Error('FAL API key not configured');
-            
-            fal.config({ credentials: falApiKey });
+            const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
 
-            debug.log('[Upscale] Submitting to FAL AI', { factor });
-            
-            const submitResponse = await fal.queue.submit('fal-ai/seedvr/upscale/image', {
-                input: { image_url: originalImage, upscale_factor: factor },
+            // Submit upscale job via server-side proxy (FAL API key stays on the server)
+            const submitRes = await fetch('/api/fal/upscale/submit', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': csrf,
+                },
+                body: JSON.stringify({ image_url: originalImage, upscale_factor: factor }),
             });
-            
-            const { request_id } = submitResponse;
+
+            if (!submitRes.ok) {
+                const err = await submitRes.json().catch(() => ({}));
+                throw new Error(err.message || 'Failed to submit upscale request');
+            }
+
+            const submitData = await submitRes.json();
+            const { request_id } = submitData;
+
+            if (!request_id) throw new Error('No request ID returned from upscale service');
 
             debug.log('[Upscale] Request submitted', { request_id });
 
             let result = null;
             let attempts = 0;
             while (attempts < 120) {
-                const status = await fal.queue.status('fal-ai/seedvr/upscale/image', { requestId: request_id });
-                debug.log('[Upscale] Status check', { attempts, statusObj: status });
-                
-                if ((status as any).status === 'COMPLETED') {
-                    
-                    // Fetch the actual output from the response URL
-                    const responseUrl = (status as any).response_url;
+                const statusRes = await fetch(`/api/fal/upscale/status/${encodeURIComponent(request_id)}`, {
+                    headers: { 'X-CSRF-TOKEN': csrf },
+                });
+                const statusData = await statusRes.json();
+                debug.log('[Upscale] Status check', { attempts, statusObj: statusData });
+
+                if (statusData.status === 'COMPLETED') {
+                    const responseUrl = statusData.response_url;
                     const fullResponse = await fetch(responseUrl);
-                    const responseData = await fullResponse.json();
-                    
-                    result = responseData;
+                    result = await fullResponse.json();
                     debug.log('[Upscale] Processing completed', { result });
                     break;
                 }
                 if (attempts % 10 === 0) {
-                    debug.log('[Upscale] Processing...', { attempts, status: (status as any).status });
+                    debug.log('[Upscale] Processing...', { attempts, status: statusData.status });
                 }
                 await new Promise(r => setTimeout(r, 1000));
                 attempts++;
             }
-            
+
             if (!result) {
                 debug.log('[Upscale] Result is null after timeout');
                 throw new Error('Upscale timed out after 2 minutes');
@@ -2441,15 +2453,15 @@ export default function CanvasEditor(props: CanvasEditorProps) {
 
             // Extract image from result - handle different response formats
             let imageUrl: string | null = null;
-            
+
             if (result && typeof result === 'object') {
                 // FAL AI returns { image: { url: "..." }, seed: ... }
-                imageUrl = (result as any).image?.url || 
-                          (result as any).image || 
-                          (result as any).url || 
-                          (result as any).output_url ||
-                          (result as any).upscaled_image;
-                
+                imageUrl = (result as any).image?.url ||
+                    (result as any).image ||
+                    (result as any).url ||
+                    (result as any).output_url ||
+                    (result as any).upscaled_image;
+
             } else if (typeof result === 'string') {
                 // Result might be the URL directly
                 imageUrl = result;
@@ -2464,13 +2476,13 @@ export default function CanvasEditor(props: CanvasEditorProps) {
 
             const newImage = new window.Image();
             newImage.crossOrigin = 'anonymous';
-            
+
             let imageLoadTimeout: NodeJS.Timeout;
-            
+
             newImage.onload = () => {
                 clearTimeout(imageLoadTimeout);
                 debug.log('[Upscale] Image loaded successfully');
-                
+
                 const upscaledObj = {
                     id: generateObjectId(),
                     image: newImage,
@@ -2487,7 +2499,7 @@ export default function CanvasEditor(props: CanvasEditorProps) {
                 setGeneratingType(null);
                 stopGenTimer();
             };
-            
+
             newImage.onerror = () => {
                 clearTimeout(imageLoadTimeout);
                 debug.log('[Upscale] Image load error');
@@ -2525,7 +2537,7 @@ export default function CanvasEditor(props: CanvasEditorProps) {
     // Enhancement: Remove Background
     const handleRemoveBackground = async () => {
         if (isGenerating) return;
-        
+
         if (!selectedObject) {
             showAlert('No Selection', 'Please select an image first.', 'warning', 'remove-bg');
             return;
@@ -2564,23 +2576,23 @@ export default function CanvasEditor(props: CanvasEditorProps) {
                     };
                     setCanvasObjects((prev) => [...prev, newObject]);
                     setSelectedObject(newObject);
-                    
-                    const dimensionsMatch = result.originalWidth === processedImg.width && 
-                                          result.originalHeight === processedImg.height;
+
+                    const dimensionsMatch = result.originalWidth === processedImg.width &&
+                        result.originalHeight === processedImg.height;
                     const method = result.method === 'improved-algorithm' ? 'advanced algorithm' : 'simple algorithm';
-                    const message = dimensionsMatch 
+                    const message = dimensionsMatch
                         ? `Background removed (${processedImg.width}x${processedImg.height}, PNG with transparency)`
                         : `Background removed using ${method}`;
-                    
+
                     showAlert('Success', message, 'info', 'remove-bg');
-                    
+
                     // Clear loading states after image loads
                     setIsGenerating(false);
                     setGeneratingType(null);
                     stopGenTimer();
                 };
                 processedImg.onerror = (e) => {
-                    console.error('[Remove Background] Error loading processed image:', e);
+                    debug.error('[Remove Background] Error loading processed image:', e);
                     showAlert('Error', 'Failed to load processed image', 'error', 'remove-bg');
                     setIsGenerating(false);
                     setGeneratingType(null);
@@ -2591,7 +2603,7 @@ export default function CanvasEditor(props: CanvasEditorProps) {
                 throw new Error('No processed image in API result');
             }
         } catch (error) {
-            console.error('[Remove Background] Error:', error);
+            debug.error('[Remove Background] Error:', error);
             showAlert('Error', error instanceof Error ? error.message : 'Failed to remove background', 'error', 'remove-bg');
             setIsGenerating(false);
             setGeneratingType(null);
@@ -2615,6 +2627,15 @@ export default function CanvasEditor(props: CanvasEditorProps) {
             showAlert('No Image ID', 'Cannot save — no image ID found in the URL. Use Download instead.', 'warning');
             return;
         }
+
+        const confirmed = await showConfirm(
+            'Replace Original Image?',
+            'This will permanently replace the original image in your project with the currently selected version. This action cannot be undone.',
+            'Replace Image',
+            true,
+        );
+        if (!confirmed) return;
+
         let canvasData: string;
         try {
             const offscreen = document.createElement('canvas');
@@ -2636,7 +2657,7 @@ export default function CanvasEditor(props: CanvasEditorProps) {
                 body: JSON.stringify({ canvas_data: canvasData, create_new: false }),
             });
             if (!res.ok) throw new Error(`Server error ${res.status}`);
-            showAlert('Saved', 'Image saved back to project successfully!', 'info');
+            showAlert('Saved', 'Image replaced successfully! Returning to project…', 'info');
             setTimeout(() => { if (projectId) router.visit(`/projects/${projectId}`); }, 1500);
         } catch (err) {
             showAlert('Error', err instanceof Error ? err.message : 'Failed to save', 'error');
@@ -2663,6 +2684,11 @@ export default function CanvasEditor(props: CanvasEditorProps) {
     };
 
     const closeEditor = () => {
+        const hasEdits = undoStack.length > 0 || lines.length > 0;
+        if (hasEdits) {
+            const confirmed = window.confirm('You have unsaved edits. Leave without saving?');
+            if (!confirmed) return;
+        }
         if (projectId) {
             router.visit(`/projects/${projectId}`);
         } else {
@@ -2684,11 +2710,8 @@ export default function CanvasEditor(props: CanvasEditorProps) {
                 if (hover && !hover.isMainImage) return 'grab';
             }
         }
-        if (currentTool === 'retouch' && selectedObject) {
-            return 'none'; // Hide cursor, we'll draw custom one
-        }
-        if (currentTool === 'erase' && selectedObject) {
-            return 'crosshair';
+        if ((currentTool === 'retouch' || currentTool === 'erase') && selectedObject) {
+            return 'none'; // Hide cursor, we'll draw custom brush cursor
         }
         return 'default';
     };
@@ -2773,7 +2796,7 @@ export default function CanvasEditor(props: CanvasEditorProps) {
                             }}
                         >
                             <ArrowLeft size={16} />
-                            <span>Back</span>
+                            <span>{projectId ? 'Back to Project' : 'Back to Projects'}</span>
                         </button>
                         <div
                             style={{
@@ -2949,7 +2972,7 @@ export default function CanvasEditor(props: CanvasEditorProps) {
                                 pointerEvents: 'none',
                             }}
                         >
-                            <Skeleton 
+                            <Skeleton
                                 className="w-full h-full rounded-2xl"
                                 style={{
                                     boxShadow: '0 8px 24px rgba(0, 0, 0, 0.12), 0 2px 8px rgba(0, 0, 0, 0.08)',
@@ -2984,7 +3007,7 @@ export default function CanvasEditor(props: CanvasEditorProps) {
                             </div>
                         </div>
                     )}
-                    
+
                     {/* Full overlay skeleton for other operations */}
                     {isGenerating && !generatingType && (
                         <div
@@ -3179,7 +3202,7 @@ export default function CanvasEditor(props: CanvasEditorProps) {
                             </div>
 
                             {/* Brush Controls */}
-                            {!sidebarCollapsed && currentTool === 'retouch' && (
+                            {!sidebarCollapsed && (currentTool === 'retouch' || currentTool === 'erase') && (
                                 <div style={{ marginBottom: '24px' }}>
                                     <div
                                         style={{
@@ -3303,6 +3326,7 @@ export default function CanvasEditor(props: CanvasEditorProps) {
                                             !(selectedObject && lines.some((l) => l.objectId === selectedObject.id))
                                         }
                                         shortcut="E"
+                                        creditCost={1}
                                     />
                                     <ToolButton
                                         icon={<Wand2 size={18} />}
@@ -3312,6 +3336,7 @@ export default function CanvasEditor(props: CanvasEditorProps) {
                                         collapsed={sidebarCollapsed}
                                         disabled={isGenerating || !selectedObject}
                                         shortcut="A"
+                                        creditCost={1}
                                     />
                                     <ToolButton
                                         icon={<Type size={18} />}
@@ -3324,6 +3349,7 @@ export default function CanvasEditor(props: CanvasEditorProps) {
                                             !(selectedObject && lines.some((l) => l.objectId === selectedObject.id))
                                         }
                                         shortcut="T"
+                                        creditCost={1}
                                     />
                                 </div>
                             </div>
@@ -3766,7 +3792,7 @@ export default function CanvasEditor(props: CanvasEditorProps) {
                 confirmText={confirmModal.confirmText}
                 isDanger={confirmModal.isDanger}
             />
-            
+
             <UpscaleModal
                 isOpen={upscaleModal.isOpen}
                 selectedFactor={upscaleModal.selectedFactor}
@@ -3830,6 +3856,7 @@ function ToolButton({
     collapsed,
     disabled = false,
     shortcut,
+    creditCost,
 }: {
     icon: React.ReactNode;
     label: string;
@@ -3838,13 +3865,14 @@ function ToolButton({
     collapsed: boolean;
     disabled?: boolean;
     shortcut?: string;
+    creditCost?: number;
 }) {
     return (
         <button
             onClick={disabled ? undefined : onClick}
             disabled={disabled}
             data-tool={label.toLowerCase()}
-            title={shortcut ? `${label} (${shortcut})` : label}
+            title={shortcut ? `${label} (${shortcut}) — ${creditCost ?? 0} credit` : label}
             aria-label={shortcut ? `${label} (${shortcut})` : label}
             style={{
                 padding: collapsed ? '10px' : '8px 12px',
@@ -3897,21 +3925,38 @@ function ToolButton({
                     </span>
                 )}
             </div>
-            {!collapsed && shortcut && (
-                <span
-                    style={{
-                        fontSize: '12px',
-                        fontWeight: 500,
-                        color: 'var(--color-muted-foreground)',
-                        opacity: 0.7,
-                        textTransform: 'uppercase',
-                        letterSpacing: '0.5px',
-                        minWidth: '16px',
-                        textAlign: 'right',
-                    }}
-                >
-                    {shortcut}
-                </span>
+            {!collapsed && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
+                    {creditCost !== undefined && (
+                        <span
+                            style={{
+                                fontSize: '10px',
+                                fontWeight: 600,
+                                color: 'var(--color-primary)',
+                                opacity: 0.75,
+                                whiteSpace: 'nowrap',
+                            }}
+                        >
+                            ⚡{creditCost}
+                        </span>
+                    )}
+                    {shortcut && (
+                        <span
+                            style={{
+                                fontSize: '12px',
+                                fontWeight: 500,
+                                color: 'var(--color-muted-foreground)',
+                                opacity: 0.7,
+                                textTransform: 'uppercase',
+                                letterSpacing: '0.5px',
+                                minWidth: '16px',
+                                textAlign: 'right',
+                            }}
+                        >
+                            {shortcut}
+                        </span>
+                    )}
+                </div>
             )}
         </button>
     );

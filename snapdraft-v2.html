@@ -1,0 +1,952 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>SnapDraft — Brand-consistent visuals from your CSV</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,600;1,9..144,300;1,9..144,400&family=Geist:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+
+:root{
+  --or:#F2600C;
+  --or2:#FF7830;
+  --or3:#FF9557;
+  --or-pale:#FFF2EB;
+  --or-mid:#FFD9BF;
+  --or-glow:rgba(242,96,12,0.15);
+  --blk:#0D0D0D;
+  --g900:#1A1A1A;
+  --g700:#3A3A3A;
+  --g500:#767676;
+  --g300:#C8C8C8;
+  --g100:#F0EEEC;
+  --g50:#F7F6F4;
+  --wht:#FFFFFF;
+  --serif:'Fraunces',Georgia,serif;
+  --sans:'Geist',sans-serif;
+  --r:14px;
+  --r2:22px;
+}
+
+html{scroll-behavior:smooth;}
+body{font-family:var(--sans);background:var(--wht);color:var(--blk);-webkit-font-smoothing:antialiased;overflow-x:hidden;}
+
+/* ─── NAV ─── */
+nav{
+  position:fixed;top:0;left:0;right:0;z-index:200;
+  display:flex;align-items:center;justify-content:space-between;
+  padding:0 52px;height:62px;
+  background:rgba(255,255,255,0.88);
+  backdrop-filter:blur(16px);
+  border-bottom:1px solid rgba(0,0,0,0.07);
+}
+.logo{display:flex;align-items:center;gap:9px;text-decoration:none;color:var(--blk);font-weight:600;font-size:15px;letter-spacing:-.01em;}
+.logo-mark{width:30px;height:30px;background:var(--blk);border-radius:8px;display:flex;align-items:center;justify-content:center;}
+.nav-links{display:flex;gap:28px;list-style:none;}
+.nav-links a{font-size:13.5px;color:var(--g500);text-decoration:none;transition:color .2s;}
+.nav-links a:hover{color:var(--blk);}
+.nav-end{display:flex;align-items:center;gap:10px;}
+.btn-sm-ghost{font-family:var(--sans);font-size:13.5px;font-weight:500;color:var(--g700);background:none;border:none;cursor:pointer;padding:7px 14px;border-radius:8px;transition:background .2s;text-decoration:none;}
+.btn-sm-ghost:hover{background:var(--g100);}
+.btn-sm{font-family:var(--sans);font-size:13.5px;font-weight:500;color:#fff;background:var(--blk);border:none;cursor:pointer;padding:8px 18px;border-radius:8px;transition:all .2s;text-decoration:none;display:flex;align-items:center;gap:6px;}
+.btn-sm:hover{background:var(--g900);box-shadow:0 4px 16px rgba(0,0,0,0.2);}
+
+/* ─── HERO ─── */
+.hero{
+  min-height:100vh;
+  display:grid;grid-template-columns:1fr 1fr;
+  align-items:center;
+  padding:100px 52px 80px;
+  max-width:1280px;margin:0 auto;
+  gap:60px;
+}
+.hero-badge{
+  display:inline-flex;align-items:center;gap:8px;
+  background:var(--or-pale);border:1px solid var(--or-mid);
+  border-radius:100px;padding:5px 14px 5px 8px;
+  font-size:12px;font-weight:500;color:var(--or);
+  margin-bottom:26px;
+}
+.badge-dot{width:6px;height:6px;border-radius:50%;background:var(--or);animation:blink 2s infinite;}
+@keyframes blink{0%,100%{opacity:1;transform:scale(1);}50%{opacity:.5;transform:scale(.8);}}
+
+.hero h1{
+  font-family:var(--serif);
+  font-size:clamp(44px,5.5vw,64px);
+  line-height:1.1;letter-spacing:-.025em;
+  color:var(--blk);margin-bottom:20px;
+  font-weight:400;
+}
+.hero h1 strong{font-weight:600;}
+.hero h1 em{font-style:italic;color:var(--or);}
+
+.hero-desc{font-size:16px;color:var(--g500);line-height:1.75;max-width:420px;margin-bottom:36px;}
+
+.hero-pills{display:flex;gap:20px;margin-bottom:36px;flex-wrap:wrap;}
+.pill{display:flex;align-items:center;gap:7px;font-size:13px;color:var(--g700);}
+.pill-icon{width:28px;height:28px;background:var(--or-pale);border-radius:7px;display:flex;align-items:center;justify-content:center;border:1px solid var(--or-mid);}
+.pill-icon svg{width:14px;height:14px;}
+
+.hero-ctas{display:flex;align-items:center;gap:12px;flex-wrap:wrap;}
+.btn-hero{
+  font-family:var(--sans);font-size:15px;font-weight:500;
+  color:#fff;background:var(--or);border:none;cursor:pointer;
+  padding:13px 24px;border-radius:10px;
+  transition:all .2s;display:flex;align-items:center;gap:7px;text-decoration:none;
+}
+.btn-hero:hover{background:var(--or2);box-shadow:0 6px 28px rgba(242,96,12,.35);transform:translateY(-1px);}
+.btn-hero-ghost{
+  font-family:var(--sans);font-size:15px;font-weight:400;
+  color:var(--g700);background:none;border:1.5px solid var(--g300);cursor:pointer;
+  padding:12px 22px;border-radius:10px;transition:all .2s;text-decoration:none;
+}
+.btn-hero-ghost:hover{border-color:var(--blk);color:var(--blk);}
+
+.hero-trust{margin-top:22px;display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--g500);}
+.avatars{display:flex;}
+.av{width:22px;height:22px;border-radius:50%;border:2px solid #fff;background:var(--g300);}
+.av:not(:first-child){margin-left:-7px;}
+.av1{background:#d4c4b8;}
+.av2{background:#c8bdb5;}
+.av3{background:#bfb5ae;}
+
+/* ─── HERO ORB ─── */
+.hero-visual{position:relative;display:flex;align-items:center;justify-content:center;min-height:500px;}
+
+.orb-wrap{position:relative;width:440px;height:440px;}
+.orb{
+  width:100%;height:100%;border-radius:50%;
+  background:conic-gradient(from 200deg,
+    #FF9557 0%,
+    #F2600C 18%,
+    #E63A00 32%,
+    #FF7830 46%,
+    #FFB07A 60%,
+    #F2600C 72%,
+    #FF9557 85%,
+    #E63A00 100%
+  );
+  filter:blur(0px);
+  animation:orbSpin 14s linear infinite;
+  position:relative;
+}
+@keyframes orbSpin{from{filter:hue-rotate(0deg) brightness(1.02);}to{filter:hue-rotate(20deg) brightness(.98);}}
+
+.orb::before{
+  content:'';position:absolute;inset:12px;
+  border-radius:50%;
+  background:radial-gradient(circle at 38% 35%,rgba(255,210,160,.8) 0%,rgba(242,96,12,.5) 40%,rgba(200,50,0,.7) 100%);
+  mix-blend-mode:overlay;
+}
+.orb::after{
+  content:'';position:absolute;inset:0;border-radius:50%;
+  background:radial-gradient(circle at 30% 30%,rgba(255,255,255,.35) 0%,transparent 55%);
+}
+
+.orb-glow{
+  position:absolute;inset:-60px;border-radius:50%;
+  background:radial-gradient(circle,rgba(242,96,12,.22) 0%,transparent 65%);
+  animation:glowPulse 4s ease-in-out infinite;
+}
+@keyframes glowPulse{0%,100%{transform:scale(1);opacity:.8;}50%{transform:scale(1.06);opacity:1;}}
+
+/* floating cards around orb */
+.orb-card{
+  position:absolute;background:#fff;
+  border-radius:12px;
+  border:1px solid rgba(0,0,0,0.08);
+  box-shadow:0 8px 32px rgba(0,0,0,0.1);
+  padding:14px 16px;
+  backdrop-filter:blur(10px);
+  animation:floatCard 6s ease-in-out infinite;
+}
+.orb-card:nth-child(2){animation-delay:-2s;}
+.orb-card:nth-child(3){animation-delay:-4s;}
+@keyframes floatCard{0%,100%{transform:translateY(0px);}50%{transform:translateY(-8px);}}
+
+.oc1{top:-30px;left:-50px;min-width:160px;}
+.oc2{bottom:20px;left:-70px;min-width:140px;}
+.oc3{top:30px;right:-60px;min-width:150px;}
+
+.orb-card-label{font-size:10px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--g500);margin-bottom:6px;}
+.orb-card-val{font-family:var(--serif);font-size:26px;font-weight:400;color:var(--blk);line-height:1;}
+.orb-card-val span{color:var(--or);}
+.orb-card-sub{font-size:11px;color:var(--g500);margin-top:3px;}
+
+.oc-row{display:flex;align-items:center;gap:8px;}
+.oc-dot{width:8px;height:8px;border-radius:50%;background:var(--or);}
+.oc-dot-g{background:#22C55E;}
+.oc-text{font-size:12px;font-weight:500;color:var(--blk);}
+.oc-text-sm{font-size:11px;color:var(--g500);}
+
+/* ─── SECTION GLOBALS ─── */
+.sec{padding:100px 52px;max-width:1280px;margin:0 auto;}
+.sec-bg-gray{background:var(--g50);}
+.full-bg-gray{background:var(--g50);}
+.sec-eyebrow{font-size:11.5px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--or);margin-bottom:12px;}
+.sec-title{font-family:var(--serif);font-size:clamp(32px,4vw,50px);line-height:1.12;letter-spacing:-.025em;font-weight:400;color:var(--blk);margin-bottom:16px;}
+.sec-title strong{font-weight:600;}
+.sec-title em{font-style:italic;color:var(--or);}
+.sec-sub{font-size:15.5px;color:var(--g500);line-height:1.75;max-width:460px;}
+
+/* ─── STATS STRIP ─── */
+.stats-strip{border-top:1px solid rgba(0,0,0,0.07);border-bottom:1px solid rgba(0,0,0,0.07);}
+.stats-inner{max-width:1280px;margin:0 auto;display:grid;grid-template-columns:repeat(4,1fr);}
+.stat-cell{padding:44px 36px;text-align:center;border-right:1px solid rgba(0,0,0,0.07);}
+.stat-cell:last-child{border-right:none;}
+.stat-num{font-family:var(--serif);font-size:48px;font-weight:400;line-height:1;color:var(--blk);margin-bottom:6px;letter-spacing:-.02em;}
+.stat-num em{font-style:normal;color:var(--or);}
+.stat-lbl{font-size:13px;color:var(--g500);}
+
+/* ─── HOW IT WORKS ─── */
+.how-steps{margin-top:64px;display:grid;grid-template-columns:repeat(3,1fr);gap:2px;background:var(--g300);border-radius:var(--r2);overflow:hidden;border:1px solid var(--g300);}
+.step-card{background:#fff;padding:44px 38px;position:relative;overflow:hidden;}
+.full-bg-gray .step-card{background:var(--g50);}
+
+.step-num{
+  font-family:var(--serif);font-size:80px;font-weight:300;
+  color:var(--g100);line-height:1;
+  position:absolute;top:12px;right:20px;
+  font-style:italic;
+  user-select:none;
+}
+.step-icon-wrap{
+  width:52px;height:52px;border-radius:14px;
+  background:var(--blk);
+  display:flex;align-items:center;justify-content:center;
+  margin-bottom:24px;
+  position:relative;z-index:1;
+}
+.step-icon-wrap svg{width:24px;height:24px;}
+.step-card h3{font-size:18px;font-weight:600;color:var(--blk);margin-bottom:10px;position:relative;z-index:1;}
+.step-card p{font-size:14px;color:var(--g500);line-height:1.7;position:relative;z-index:1;}
+.step-tag{
+  display:inline-flex;align-items:center;gap:5px;
+  background:var(--or-pale);border:1px solid var(--or-mid);
+  border-radius:100px;padding:3px 10px;
+  font-size:11px;font-weight:500;color:var(--or);
+  margin-bottom:16px;position:relative;z-index:1;
+}
+
+/* ─── FEATURE BLOCKS ─── */
+.feature-block{
+  display:grid;grid-template-columns:1fr 1fr;
+  gap:2px;background:var(--g300);
+  border-radius:var(--r2);overflow:hidden;
+  border:1px solid var(--g300);
+  margin-bottom:2px;
+}
+.feature-block:last-child{margin-bottom:0;}
+.feature-block.rev{direction:rtl;}
+.feature-block.rev>*{direction:ltr;}
+
+.feat-text{background:#fff;padding:56px 52px;display:flex;flex-direction:column;justify-content:center;}
+.full-bg-gray .feat-text{background:var(--g50);}
+.feat-visual{background:var(--g50);padding:40px;display:flex;align-items:center;justify-content:center;position:relative;overflow:hidden;min-height:400px;}
+
+.feat-title{font-family:var(--serif);font-size:clamp(28px,3vw,40px);font-weight:400;line-height:1.2;letter-spacing:-.02em;color:var(--blk);margin-bottom:14px;}
+.feat-title strong{font-weight:600;}
+.feat-desc{font-size:14.5px;color:var(--g500);line-height:1.75;margin-bottom:28px;max-width:340px;}
+.feat-list{list-style:none;display:flex;flex-direction:column;gap:13px;}
+.feat-list li{display:flex;align-items:flex-start;gap:12px;font-size:14px;color:var(--g700);}
+.feat-check{
+  width:22px;height:22px;flex-shrink:0;
+  border-radius:50%;
+  background:var(--or-pale);border:1.5px solid var(--or-mid);
+  display:flex;align-items:center;justify-content:center;
+  margin-top:1px;
+}
+.feat-check svg{width:10px;height:10px;stroke:var(--or);fill:none;stroke-width:2.5;}
+
+/* ─── FEATURE MOCKUPS ─── */
+/* Google search mockup */
+.mock-search{
+  background:#fff;border-radius:16px;
+  border:1px solid rgba(0,0,0,0.1);
+  box-shadow:0 12px 48px rgba(0,0,0,0.1);
+  padding:0;overflow:hidden;
+  width:100%;max-width:360px;
+}
+.mock-search-bar{
+  display:flex;align-items:center;gap:10px;
+  padding:12px 16px;
+  border-bottom:1px solid rgba(0,0,0,0.08);
+}
+.mock-search-input{
+  flex:1;background:var(--g50);
+  border-radius:100px;padding:8px 14px;
+  font-size:13px;color:var(--blk);
+  border:1px solid var(--g300);
+  display:flex;align-items:center;justify-content:space-between;
+}
+.mock-search-tabs{display:flex;gap:0;padding:8px 12px;border-bottom:1px solid rgba(0,0,0,0.06);}
+.mock-tab{font-size:12px;color:var(--g500);padding:5px 10px;border-radius:6px;}
+.mock-tab.active{color:#1a73e8;border-bottom:2px solid #1a73e8;border-radius:0;}
+.mock-result{padding:14px 16px 18px;}
+.mock-url{font-size:11.5px;color:var(--g500);margin-bottom:3px;}
+.mock-result-title{font-size:15px;color:#1a0dab;font-weight:500;margin-bottom:4px;}
+.mock-result-desc{font-size:12.5px;color:var(--g700);line-height:1.5;}
+.mock-result-desc span{color:var(--or);font-style:italic;}
+
+.feat-glow{
+  position:absolute;width:300px;height:300px;border-radius:50%;
+  background:radial-gradient(circle,var(--or-glow) 0%,transparent 65%);
+  bottom:-80px;right:-60px;
+  pointer-events:none;
+}
+
+/* Domain authority chart mockup */
+.mock-chart{
+  background:#fff;border-radius:16px;
+  border:1px solid rgba(0,0,0,0.08);
+  box-shadow:0 12px 48px rgba(0,0,0,0.08);
+  padding:24px;width:100%;max-width:340px;
+}
+.mock-chart-title{font-size:11.5px;color:var(--g500);margin-bottom:20px;font-weight:500;}
+.chart-area{height:120px;position:relative;margin-bottom:12px;}
+.chart-line{
+  position:absolute;bottom:0;left:0;right:0;top:0;
+}
+.chart-labels{display:flex;justify-content:space-between;font-size:10px;color:var(--g500);}
+.chart-score{
+  display:flex;align-items:baseline;gap:4px;margin-top:16px;
+  border-top:1px solid var(--g100);padding-top:14px;
+}
+.chart-score-lbl{font-size:12px;color:var(--g500);}
+.chart-score-val{font-family:var(--serif);font-size:40px;color:var(--or);line-height:1;font-style:italic;}
+
+/* Time saved mockup */
+.mock-quote{
+  background:#fff;border-radius:16px;
+  border:1px solid rgba(0,0,0,0.08);
+  box-shadow:0 12px 48px rgba(0,0,0,0.08);
+  padding:32px 28px;width:100%;max-width:340px;
+  position:relative;z-index:1;
+}
+.mock-quote-mark{font-family:var(--serif);font-size:72px;color:var(--or-mid);line-height:.6;margin-bottom:8px;font-style:italic;}
+.mock-quote-text{font-size:15px;line-height:1.65;color:var(--blk);font-weight:400;}
+.mock-quote-text strong{color:var(--or);font-weight:600;}
+
+/* ─── PRICING ─── */
+.pricing-outer{max-width:520px;margin:64px auto 0;}
+.price-card{border-radius:var(--r2);overflow:hidden;box-shadow:0 16px 64px rgba(0,0,0,0.1);border:1px solid rgba(0,0,0,0.08);}
+.price-head{
+  background:var(--blk);padding:36px 40px 32px;
+  position:relative;overflow:hidden;
+}
+.price-head::before{
+  content:'';position:absolute;
+  width:400px;height:400px;border-radius:50%;
+  background:radial-gradient(circle,rgba(242,96,12,.25) 0%,transparent 65%);
+  top:-120px;right:-100px;pointer-events:none;
+}
+.price-badge{display:inline-block;background:var(--or);color:#fff;font-size:10.5px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;padding:4px 10px;border-radius:6px;margin-bottom:20px;}
+.price-amount{display:flex;align-items:flex-start;gap:2px;color:#fff;}
+.price-sym{font-size:24px;font-weight:300;margin-top:10px;}
+.price-val{font-family:var(--serif);font-size:76px;line-height:1;letter-spacing:-.03em;}
+.price-per{font-size:14px;color:rgba(255,255,255,.4);align-self:flex-end;padding-bottom:12px;}
+.price-trial{font-size:13px;color:rgba(255,255,255,.4);margin-top:4px;}
+.price-body{background:#fff;padding:36px 40px;}
+.price-list{list-style:none;display:flex;flex-direction:column;gap:14px;margin-bottom:32px;}
+.price-list li{display:flex;align-items:center;gap:12px;font-size:14.5px;color:var(--g700);}
+.p-check{width:20px;height:20px;border-radius:50%;background:var(--or-pale);border:1.5px solid var(--or-mid);display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+.p-check svg{width:9px;height:9px;stroke:var(--or);fill:none;stroke-width:2.5;}
+.btn-price{
+  width:100%;padding:15px;background:var(--or);color:#fff;
+  font-family:var(--sans);font-size:15.5px;font-weight:500;
+  border:none;border-radius:10px;cursor:pointer;
+  transition:all .2s;
+}
+.btn-price:hover{background:var(--or2);box-shadow:0 8px 28px rgba(242,96,12,.35);transform:translateY(-1px);}
+.price-note{text-align:center;font-size:12px;color:var(--g500);margin-top:11px;}
+
+/* ─── FAQ ─── */
+.faq-wrap{max-width:680px;margin:56px auto 0;}
+.faq-item{border-bottom:1px solid var(--g100);}
+.faq-btn{
+  width:100%;background:none;border:none;cursor:pointer;
+  display:flex;justify-content:space-between;align-items:center;
+  padding:22px 0;font-family:var(--sans);font-size:15px;font-weight:500;
+  color:var(--blk);text-align:left;transition:color .2s;
+}
+.faq-btn:hover{color:var(--or);}
+.faq-ico{width:24px;height:24px;border-radius:50%;background:var(--g100);display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:background .2s,transform .3s;}
+.faq-ico svg{width:11px;height:11px;stroke:var(--g700);fill:none;stroke-width:2.5;}
+.faq-item.open .faq-ico{background:var(--or);transform:rotate(45deg);}
+.faq-item.open .faq-ico svg{stroke:#fff;}
+.faq-ans{display:none;padding:0 0 20px;font-size:14.5px;color:var(--g500);line-height:1.75;}
+.faq-item.open .faq-ans{display:block;}
+
+/* ─── CTA BANNER ─── */
+.cta-section{
+  background:var(--blk);
+  padding:100px 52px;text-align:center;position:relative;overflow:hidden;
+}
+.cta-section::before{
+  content:'';position:absolute;
+  width:700px;height:400px;border-radius:50%;
+  background:radial-gradient(ellipse,rgba(242,96,12,.2) 0%,transparent 70%);
+  top:50%;left:50%;transform:translate(-50%,-50%);pointer-events:none;
+}
+.cta-section h2{font-family:var(--serif);font-size:clamp(36px,5vw,58px);color:#fff;line-height:1.12;letter-spacing:-.025em;font-weight:400;margin-bottom:16px;position:relative;}
+.cta-section h2 em{color:var(--or);font-style:italic;}
+.cta-section p{font-size:16px;color:rgba(255,255,255,.45);margin-bottom:40px;position:relative;}
+.cta-row{display:flex;justify-content:center;gap:12px;flex-wrap:wrap;position:relative;}
+.btn-cta{font-family:var(--sans);font-size:15px;font-weight:500;color:#fff;background:var(--or);border:none;cursor:pointer;padding:14px 28px;border-radius:10px;transition:all .2s;display:flex;align-items:center;gap:8px;text-decoration:none;}
+.btn-cta:hover{background:var(--or2);box-shadow:0 8px 32px rgba(242,96,12,.4);transform:translateY(-1px);}
+.btn-cta-out{font-family:var(--sans);font-size:15px;font-weight:400;color:rgba(255,255,255,.6);background:none;border:1.5px solid rgba(255,255,255,.15);cursor:pointer;padding:14px 28px;border-radius:10px;transition:all .2s;text-decoration:none;}
+.btn-cta-out:hover{color:#fff;border-color:rgba(255,255,255,.4);}
+
+/* ─── FOOTER ─── */
+footer{background:var(--blk);border-top:1px solid rgba(255,255,255,.06);padding:52px;}
+.footer-grid{max-width:1280px;margin:0 auto;display:grid;grid-template-columns:1.4fr 1fr 1fr;gap:56px;padding-bottom:44px;border-bottom:1px solid rgba(255,255,255,.06);}
+.footer-brand p{font-size:13px;color:rgba(255,255,255,.35);line-height:1.65;margin-top:12px;max-width:220px;}
+.footer-logo{display:flex;align-items:center;gap:9px;text-decoration:none;color:#fff;font-weight:600;font-size:15px;}
+.footer-logo .logo-mark{background:var(--or);}
+.footer-col h5{font-size:11px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:rgba(255,255,255,.3);margin-bottom:16px;}
+.footer-col ul{list-style:none;display:flex;flex-direction:column;gap:10px;}
+.footer-col ul a{font-size:13.5px;color:rgba(255,255,255,.5);text-decoration:none;transition:color .2s;}
+.footer-col ul a:hover{color:#fff;}
+.footer-bottom{max-width:1280px;margin:0 auto;display:flex;justify-content:space-between;align-items:center;padding-top:24px;font-size:12px;color:rgba(255,255,255,.22);}
+
+/* ─── FADE ANIMATIONS ─── */
+.reveal{opacity:0;transform:translateY(28px);transition:opacity .65s ease,transform .65s ease;}
+.reveal.on{opacity:1;transform:translateY(0);}
+.reveal-d1{transition-delay:.1s;}
+.reveal-d2{transition-delay:.18s;}
+.reveal-d3{transition-delay:.26s;}
+
+/* ─── RESPONSIVE ─── */
+@media(max-width:960px){
+  nav{padding:0 24px;}
+  .nav-links{display:none;}
+  .hero{grid-template-columns:1fr;padding:110px 24px 60px;gap:56px;}
+  .hero-visual{min-height:360px;}
+  .orb-wrap{width:320px;height:320px;}
+  .oc1,.oc2,.oc3{display:none;}
+  .stats-inner{grid-template-columns:1fr 1fr;}
+  .stat-cell{border-right:none;border-bottom:1px solid rgba(0,0,0,.07);}
+  .sec{padding:72px 24px;}
+  .how-steps{grid-template-columns:1fr;}
+  .feature-block{grid-template-columns:1fr;}
+  .feature-block.rev{direction:ltr;}
+  .feat-visual{min-height:280px;}
+  .footer-grid{grid-template-columns:1fr;gap:32px;}
+}
+</style>
+</head>
+<body>
+
+<!-- ═══ NAV ═══ -->
+<nav>
+  <a href="#" class="logo">
+    <div class="logo-mark">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+        <rect x="2" y="2" width="5" height="5" rx="1.5" fill="white"/>
+        <rect x="9" y="2" width="5" height="5" rx="1.5" fill="white" opacity=".6"/>
+        <rect x="2" y="9" width="5" height="5" rx="1.5" fill="white" opacity=".6"/>
+        <rect x="9" y="9" width="5" height="5" rx="1.5" fill="#F2600C"/>
+      </svg>
+    </div>
+    SnapDraft
+  </a>
+  <ul class="nav-links">
+    <li><a href="#features">Features</a></li>
+    <li><a href="#how">How it works</a></li>
+    <li><a href="#pricing">Pricing</a></li>
+    <li><a href="#faq">FAQ</a></li>
+  </ul>
+  <div class="nav-end">
+    <a href="#" class="btn-sm-ghost">Sign in</a>
+    <a href="#" class="btn-sm">Start free trial →</a>
+  </div>
+</nav>
+
+<!-- ═══ HERO ═══ -->
+<section>
+  <div class="hero">
+    <!-- LEFT -->
+    <div class="reveal">
+      <div class="hero-badge"><span class="badge-dot"></span> Now in Beta — 7-day free trial</div>
+      <h1>Brand-consistent<br>visuals <em>from your<br>CSV,</em> in minutes</h1>
+      <p class="hero-desc">Upload your brand reference images, drop in a CSV of your content, and SnapDraft generates a full batch of on-brand visuals — consistently styled, ready to use.</p>
+      <div class="hero-pills">
+        <div class="pill">
+          <div class="pill-icon">
+            <!-- SEO icon -->
+            <svg viewBox="0 0 14 14" fill="none" stroke="var(--or)" stroke-width="1.6">
+              <circle cx="6" cy="6" r="4.5"/><path d="M9.5 9.5L13 13"/>
+              <path d="M4 6h4M6 4v4" stroke-width="1.5"/>
+            </svg>
+          </div>
+          Instant SEO boost
+        </div>
+        <div class="pill">
+          <div class="pill-icon">
+            <!-- Audience icon -->
+            <svg viewBox="0 0 14 14" fill="none" stroke="var(--or)" stroke-width="1.6">
+              <circle cx="5" cy="4.5" r="2"/><circle cx="9" cy="4.5" r="2"/>
+              <path d="M1 12c0-2.2 1.8-4 4-4s4 1.8 4 4"/>
+              <path d="M9 8.5c1.7.3 3 1.8 3 3.5" stroke-linecap="round"/>
+            </svg>
+          </div>
+          Increase your audience
+        </div>
+        <div class="pill">
+          <div class="pill-icon">
+            <!-- Clock icon -->
+            <svg viewBox="0 0 14 14" fill="none" stroke="var(--or)" stroke-width="1.6">
+              <circle cx="7" cy="7" r="5.5"/>
+              <path d="M7 4v3.5l2 1.5" stroke-linecap="round"/>
+            </svg>
+          </div>
+          Save time
+        </div>
+      </div>
+      <div class="hero-ctas">
+        <a href="#" class="btn-hero">
+          Get listed on 100+ directories
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 7h10M7 2l5 5-5 5"/></svg>
+        </a>
+        <a href="#how" class="btn-hero-ghost">See how it works</a>
+      </div>
+      <div class="hero-trust">
+        <div class="avatars">
+          <div class="av av1"></div><div class="av av2"></div><div class="av av3"></div>
+        </div>
+        256 startups successfully boosted
+      </div>
+    </div>
+
+    <!-- RIGHT: ORB -->
+    <div class="hero-visual reveal reveal-d2">
+      <div class="orb-wrap">
+        <div class="orb-glow"></div>
+        <div class="orb"></div>
+
+        <!-- Card 1: Visuals generated -->
+        <div class="orb-card oc1">
+          <div class="orb-card-label">Batch complete</div>
+          <div class="orb-card-val"><span>25</span> visuals</div>
+          <div class="orb-card-sub">Generated in 47 seconds</div>
+        </div>
+
+        <!-- Card 2: Brand match -->
+        <div class="orb-card oc2">
+          <div class="oc-row" style="margin-bottom:6px;">
+            <div class="oc-dot oc-dot-g"></div>
+            <div class="oc-text">Brand match</div>
+          </div>
+          <div class="orb-card-val"><span>100</span>%</div>
+          <div class="orb-card-sub">Style consistency</div>
+        </div>
+
+        <!-- Card 3: Time saved -->
+        <div class="orb-card oc3">
+          <div class="orb-card-label">Time saved</div>
+          <div class="orb-card-val"><span>47</span>h</div>
+          <div class="orb-card-sub">vs manual work</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ STATS ═══ -->
+<div class="stats-strip">
+  <div class="stats-inner">
+    <div class="stat-cell reveal"><div class="stat-num"><em>10</em>×</div><div class="stat-lbl">Faster than manual design</div></div>
+    <div class="stat-cell reveal reveal-d1"><div class="stat-num"><em>25</em>+</div><div class="stat-lbl">Visuals per CSV batch</div></div>
+    <div class="stat-cell reveal reveal-d2"><div class="stat-num"><em>100</em>%</div><div class="stat-lbl">Brand style consistency</div></div>
+    <div class="stat-cell reveal reveal-d3"><div class="stat-num"><em>7</em>-day</div><div class="stat-lbl">Free trial, no card needed</div></div>
+  </div>
+</div>
+
+<!-- ═══ HOW IT WORKS ═══ -->
+<div class="full-bg-gray" id="how">
+  <div class="sec">
+    <div class="sec-eyebrow reveal">How it works</div>
+    <h2 class="sec-title reveal">From CSV to visuals<br><strong>in 3 steps</strong></h2>
+    <p class="sec-sub reveal">No design skills required. Just brand references and a spreadsheet.</p>
+
+    <div class="how-steps">
+      <div class="step-card reveal">
+        <div class="step-num">01</div>
+        <div class="step-tag">
+          <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="var(--or)" stroke-width="2"><path d="M5 1v8M2 4l3-3 3 3"/></svg>
+          Upload
+        </div>
+        <div class="step-icon-wrap">
+          <!-- Upload / brand icon -->
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="3" width="7" height="7" rx="1.5"/>
+            <rect x="14" y="3" width="7" height="7" rx="1.5"/>
+            <rect x="3" y="14" width="7" height="7" rx="1.5"/>
+            <path d="M14 17.5h7M17.5 14v7"/>
+          </svg>
+        </div>
+        <h3>Upload Brand References</h3>
+        <p>Drop in 5–10 images that represent your brand — product photos, past ads, mood board images. Our AI studies them to extract your visual identity.</p>
+      </div>
+
+      <div class="step-card reveal reveal-d1">
+        <div class="step-num">02</div>
+        <div class="step-tag">
+          <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="var(--or)" stroke-width="2"><rect x="1" y="1" width="8" height="8" rx="1.5"/><path d="M3 4h4M3 6h2"/></svg>
+          Prepare
+        </div>
+        <div class="step-icon-wrap">
+          <!-- CSV / table icon -->
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="3" width="18" height="18" rx="2"/>
+            <path d="M3 9h18M3 15h18M9 3v18M15 3v18"/>
+          </svg>
+        </div>
+        <h3>Upload Your CSV</h3>
+        <p>Prepare a simple CSV with three columns: title, description, and format. Each row becomes one generated visual, ready to download.</p>
+      </div>
+
+      <div class="step-card reveal reveal-d2">
+        <div class="step-num">03</div>
+        <div class="step-tag">
+          <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="var(--or)" stroke-width="2"><path d="M2 5l2.5 2.5L8 2"/></svg>
+          Generate
+        </div>
+        <div class="step-icon-wrap">
+          <!-- Spark / generate icon -->
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M13 2L4.5 13.5H12L11 22l8.5-11.5H12.5L13 2z"/>
+          </svg>
+        </div>
+        <h3>Get Brand-Consistent Visuals</h3>
+        <p>SnapDraft generates every image in your brand style — colors, typography, layout — consistently across your entire batch. Download and deploy.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ FEATURES ═══ -->
+<section id="features">
+  <div class="sec" style="padding-bottom:0;">
+    <div class="sec-eyebrow reveal">Features</div>
+    <h2 class="sec-title reveal">Everything you need to<br><strong>scale visual content</strong></h2>
+    <p class="sec-sub reveal">SnapDraft handles brand analysis, generation, and editing in one workflow.</p>
+  </div>
+
+  <!-- FEATURE 1: Boost Online Presence -->
+  <div class="sec" style="padding-top:48px;padding-bottom:0;">
+    <div class="feature-block reveal">
+      <div class="feat-text">
+        <div class="sec-eyebrow" style="margin-bottom:8px;">Visibility</div>
+        <h3 class="feat-title"><strong>Boost your</strong><br>Online Presence</h3>
+        <p class="feat-desc">Make it easy for your audience to find you. We'll list your startup on trusted directories and platforms where your customers are already searching.</p>
+        <ul class="feat-list">
+          <li>
+            <div class="feat-check"><svg viewBox="0 0 10 10"><path d="M2 5l2.5 2.5L8 2"/></svg></div>
+            Be visible where it matters most
+          </li>
+          <li>
+            <div class="feat-check"><svg viewBox="0 0 10 10"><path d="M2 5l2.5 2.5L8 2"/></svg></div>
+            Reach your target audience effortlessly
+          </li>
+          <li>
+            <div class="feat-check"><svg viewBox="0 0 10 10"><path d="M2 5l2.5 2.5L8 2"/></svg></div>
+            Expand your online presence across trusted platforms
+          </li>
+        </ul>
+      </div>
+      <div class="feat-visual">
+        <div class="feat-glow"></div>
+        <!-- Google Search Mockup -->
+        <div class="mock-search" style="position:relative;z-index:1;">
+          <div class="mock-search-bar">
+            <div class="mock-search-input">
+              <span style="font-size:13px;color:var(--blk);">Your Company</span>
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="6.5" cy="6.5" r="4.5" stroke="#767676" stroke-width="1.5"/><path d="M10 10L14 14" stroke="#767676" stroke-width="1.5" stroke-linecap="round"/></svg>
+            </div>
+          </div>
+          <div class="mock-search-tabs">
+            <div class="mock-tab active">All</div>
+            <div class="mock-tab">Images</div>
+            <div class="mock-tab">Video</div>
+            <div class="mock-tab">Shopping</div>
+          </div>
+          <div class="mock-result">
+            <div class="mock-url">yourcompany.com</div>
+            <div class="mock-result-title">Your Company</div>
+            <div class="mock-result-desc">Most people click on one of the top few results when searching, <span>so if your website isn't there, you're missing out on potential customers.</span></div>
+          </div>
+          <!-- Listing results -->
+          <div style="border-top:1px solid var(--g100);padding:10px 16px;display:flex;flex-direction:column;gap:8px;">
+            <div style="display:flex;align-items:center;gap:8px;">
+              <div style="width:20px;height:20px;background:var(--or-pale);border-radius:4px;flex-shrink:0;display:flex;align-items:center;justify-content:center;">
+                <svg width="10" height="10" viewBox="0 0 10 10" fill="var(--or)"><rect x="1" y="1" width="3.5" height="3.5" rx=".5"/><rect x="5.5" y="1" width="3.5" height="3.5" rx=".5"/><rect x="1" y="5.5" width="3.5" height="3.5" rx=".5"/><rect x="5.5" y="5.5" width="3.5" height="3.5" rx=".5"/></svg>
+              </div>
+              <div style="font-size:11.5px;color:var(--g500);">yourcompany.com · <span style="color:#1a0dab;">ProductHunt</span> · <span style="color:#1a0dab;">G2</span> · <span style="color:#1a0dab;">Capterra</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- FEATURE 2: Build Trust -->
+  <div class="sec" style="padding-top:2px;padding-bottom:0;">
+    <div class="feature-block rev reveal">
+      <div class="feat-text">
+        <div class="sec-eyebrow" style="margin-bottom:8px;">Credibility</div>
+        <h3 class="feat-title"><strong>Build trust</strong><br>and credibility</h3>
+        <p class="feat-desc">Reputable listings help your startup stand out as trustworthy and professional, building confidence with your audience.</p>
+        <ul class="feat-list">
+          <li>
+            <div class="feat-check"><svg viewBox="0 0 10 10"><path d="M2 5l2.5 2.5L8 2"/></svg></div>
+            Strengthen your brand's reputation
+          </li>
+          <li>
+            <div class="feat-check"><svg viewBox="0 0 10 10"><path d="M2 5l2.5 2.5L8 2"/></svg></div>
+            Showcase professionalism and reliability
+          </li>
+          <li>
+            <div class="feat-check"><svg viewBox="0 0 10 10"><path d="M2 5l2.5 2.5L8 2"/></svg></div>
+            Gain trust through credible platforms
+          </li>
+        </ul>
+      </div>
+      <div class="feat-visual">
+        <div class="feat-glow"></div>
+        <!-- Domain Authority Chart -->
+        <div class="mock-chart" style="position:relative;z-index:1;">
+          <div class="mock-chart-title">Domain Authority over time</div>
+          <div class="chart-area">
+            <svg width="100%" height="100%" viewBox="0 0 300 120" preserveAspectRatio="none">
+              <!-- Grid lines -->
+              <line x1="0" y1="96" x2="300" y2="96" stroke="#F0EEEC" stroke-width="1"/>
+              <line x1="0" y1="72" x2="300" y2="72" stroke="#F0EEEC" stroke-width="1"/>
+              <line x1="0" y1="48" x2="300" y2="48" stroke="#F0EEEC" stroke-width="1"/>
+              <line x1="0" y1="24" x2="300" y2="24" stroke="#F0EEEC" stroke-width="1"/>
+              <!-- Area fill -->
+              <path d="M0 110 C30 105 60 100 90 90 C120 80 150 65 180 50 C210 35 240 20 300 10 L300 120 L0 120 Z"
+                fill="url(#chartGrad)" opacity=".4"/>
+              <!-- Line -->
+              <path d="M0 110 C30 105 60 100 90 90 C120 80 150 65 180 50 C210 35 240 20 300 10"
+                fill="none" stroke="var(--or)" stroke-width="2.5" stroke-linecap="round"/>
+              <!-- Dots -->
+              <circle cx="0" cy="110" r="3" fill="var(--or)"/>
+              <circle cx="90" cy="90" r="3" fill="var(--or)"/>
+              <circle cx="180" cy="50" r="3" fill="var(--or)"/>
+              <circle cx="300" cy="10" r="4" fill="var(--or)" stroke="white" stroke-width="2"/>
+              <defs>
+                <linearGradient id="chartGrad" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stop-color="var(--or)"/>
+                  <stop offset="100%" stop-color="white"/>
+                </linearGradient>
+              </defs>
+            </svg>
+          </div>
+          <div class="chart-labels">
+            <span>0–20 Low</span>
+            <span>21–40 Limited</span>
+            <span>41–60 Moderate</span>
+            <span>61–80 High</span>
+          </div>
+          <div class="chart-score">
+            <span class="chart-score-lbl">Score</span>
+            <span class="chart-score-val">87</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- FEATURE 3: Save Time -->
+  <div class="sec" style="padding-top:2px;padding-bottom:100px;">
+    <div class="feature-block reveal">
+      <div class="feat-text">
+        <div class="sec-eyebrow" style="margin-bottom:8px;">Efficiency</div>
+        <h3 class="feat-title"><strong>Save time</strong><br>and effort</h3>
+        <p class="feat-desc">Skip the tedious work of manual submissions. We handle everything so you can focus on growing your startup.</p>
+        <ul class="feat-list">
+          <li>
+            <div class="feat-check"><svg viewBox="0 0 10 10"><path d="M2 5l2.5 2.5L8 2"/></svg></div>
+            Avoid time-consuming tasks
+          </li>
+          <li>
+            <div class="feat-check"><svg viewBox="0 0 10 10"><path d="M2 5l2.5 2.5L8 2"/></svg></div>
+            Let us manage every listing
+          </li>
+          <li>
+            <div class="feat-check"><svg viewBox="0 0 10 10"><path d="M2 5l2.5 2.5L8 2"/></svg></div>
+            Reclaim time to focus on your business
+          </li>
+        </ul>
+      </div>
+      <div class="feat-visual">
+        <div class="feat-glow"></div>
+        <div class="mock-quote" style="position:relative;z-index:1;">
+          <div class="mock-quote-mark">"</div>
+          <div class="mock-quote-text">On your own, it takes over <strong>47 work hours</strong> to research and submit your startup to a list of 100 directories</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ PRICING ═══ -->
+<div class="full-bg-gray" id="pricing">
+  <div class="sec" style="text-align:center;">
+    <div class="sec-eyebrow reveal">Pricing</div>
+    <h2 class="sec-title reveal">Simple, <em>transparent</em> pricing</h2>
+    <p class="sec-sub reveal" style="margin:0 auto;">One plan. Everything included. Start with a 7-day free trial.</p>
+
+    <div class="pricing-outer">
+      <div class="price-card reveal">
+        <div class="price-head">
+          <div class="price-badge">SnapDraft Beta</div>
+          <div class="price-amount">
+            <span class="price-sym">$</span>
+            <span class="price-val">29</span>
+            <span class="price-per">/month</span>
+          </div>
+          <div class="price-trial">After 1-day free trial</div>
+        </div>
+        <div class="price-body">
+          <ul class="price-list">
+            <li><div class="p-check"><svg viewBox="0 0 9 9"><path d="M1.5 4.5l2.5 2.5L7.5 2"/></svg></div>100 credits per month</li>
+            <li><div class="p-check"><svg viewBox="0 0 9 9"><path d="M1.5 4.5l2.5 2.5L7.5 2"/></svg></div>Up to 25 rows per CSV batch</li>
+            <li><div class="p-check"><svg viewBox="0 0 9 9"><path d="M1.5 4.5l2.5 2.5L7.5 2"/></svg></div>Up to 10 active projects</li>
+            <li><div class="p-check"><svg viewBox="0 0 9 9"><path d="M1.5 4.5l2.5 2.5L7.5 2"/></svg></div>Brand DNA analysis from reference images</li>
+            <li><div class="p-check"><svg viewBox="0 0 9 9"><path d="M1.5 4.5l2.5 2.5L7.5 2"/></svg></div>Canvas Editor (swap, replace text, AI edit)</li>
+            <li><div class="p-check"><svg viewBox="0 0 9 9"><path d="M1.5 4.5l2.5 2.5L7.5 2"/></svg></div>JPG, PNG, WebP reference support</li>
+            <li><div class="p-check"><svg viewBox="0 0 9 9"><path d="M1.5 4.5l2.5 2.5L7.5 2"/></svg></div>Bulk download of generated images</li>
+            <li><div class="p-check"><svg viewBox="0 0 9 9"><path d="M1.5 4.5l2.5 2.5L7.5 2"/></svg></div>Priority processing</li>
+          </ul>
+          <button class="btn-price">Start free trial — no card needed</button>
+          <p class="price-note">Cancel anytime before trial ends</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ FAQ ═══ -->
+<section id="faq">
+  <div class="sec" style="text-align:center;">
+    <div class="sec-eyebrow reveal">FAQ</div>
+    <h2 class="sec-title reveal">Frequently asked <em>questions</em></h2>
+    <div class="faq-wrap">
+      <div class="faq-item open">
+        <button class="faq-btn" onclick="toggleFaq(this)">
+          What file types can I use as brand references?
+          <div class="faq-ico"><svg viewBox="0 0 11 11"><path d="M5.5 1.5v8M1.5 5.5h8"/></svg></div>
+        </button>
+        <div class="faq-ans">You can upload JPG, PNG, and WebP files. We recommend 5–10 images — product photos, ads, or any visuals with your brand's typical color palette and style.</div>
+      </div>
+      <div class="faq-item">
+        <button class="faq-btn" onclick="toggleFaq(this)">
+          How does the CSV format work?
+          <div class="faq-ico"><svg viewBox="0 0 11 11"><path d="M5.5 1.5v8M1.5 5.5h8"/></svg></div>
+        </button>
+        <div class="faq-ans">Prepare a CSV with three columns: <strong>title</strong>, <strong>description</strong>, and <strong>format</strong>. Each row becomes one generated visual. The format column specifies output type (e.g. "square social post", "banner ad").</div>
+      </div>
+      <div class="faq-item">
+        <button class="faq-btn" onclick="toggleFaq(this)">
+          How many images can I generate per batch?
+          <div class="faq-ico"><svg viewBox="0 0 11 11"><path d="M5.5 1.5v8M1.5 5.5h8"/></svg></div>
+        </button>
+        <div class="faq-ans">Up to 25 visuals per CSV batch. Each image costs 1 credit, and you receive 100 credits per month on the standard plan.</div>
+      </div>
+      <div class="faq-item">
+        <button class="faq-btn" onclick="toggleFaq(this)">
+          Can I edit the generated images?
+          <div class="faq-ico"><svg viewBox="0 0 11 11"><path d="M5.5 1.5v8M1.5 5.5h8"/></svg></div>
+        </button>
+        <div class="faq-ans">Yes. The Canvas Editor lets you fine-tune any generated image with AI-powered swap, text replacement, and in-painting — all directly in the browser.</div>
+      </div>
+      <div class="faq-item">
+        <button class="faq-btn" onclick="toggleFaq(this)">
+          Is there a free trial?
+          <div class="faq-ico"><svg viewBox="0 0 11 11"><path d="M5.5 1.5v8M1.5 5.5h8"/></svg></div>
+        </button>
+        <div class="faq-ans">Yes — all new accounts get a 7-day free trial with full access to every feature. No credit card required to start.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ CTA BANNER ═══ -->
+<div class="cta-section">
+  <h2>Ready to generate<br>your <em>first batch?</em></h2>
+  <p>Start your free 7-day trial today. No credit card required.</p>
+  <div class="cta-row">
+    <a href="#" class="btn-cta">
+      Start free trial
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 7h10M7 2l5 5-5 5"/></svg>
+    </a>
+    <a href="#" class="btn-cta-out">Already have an account? Sign in</a>
+  </div>
+</div>
+
+<!-- ═══ FOOTER ═══ -->
+<footer>
+  <div class="footer-grid">
+    <div class="footer-brand">
+      <a href="#" class="footer-logo">
+        <div class="logo-mark">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+            <rect x="2" y="2" width="5" height="5" rx="1.5" fill="white"/>
+            <rect x="9" y="2" width="5" height="5" rx="1.5" fill="white" opacity=".6"/>
+            <rect x="2" y="9" width="5" height="5" rx="1.5" fill="white" opacity=".6"/>
+            <rect x="9" y="9" width="5" height="5" rx="1.5" fill="#F2600C"/>
+          </svg>
+        </div>
+        SnapDraft
+      </a>
+      <p>AI-powered visual content generation for brands that need consistency at scale.</p>
+    </div>
+    <div class="footer-col">
+      <h5>Product</h5>
+      <ul>
+        <li><a href="#">Features</a></li>
+        <li><a href="#">How it works</a></li>
+        <li><a href="#">Pricing</a></li>
+        <li><a href="#">FAQ</a></li>
+      </ul>
+    </div>
+    <div class="footer-col">
+      <h5>Account</h5>
+      <ul>
+        <li><a href="#">Create account</a></li>
+        <li><a href="#">Sign in</a></li>
+      </ul>
+    </div>
+  </div>
+  <div class="footer-bottom">
+    <span>© 2025 SnapDraft. All rights reserved.</span>
+    <span>Privacy · Terms</span>
+  </div>
+</footer>
+
+<script>
+function toggleFaq(btn){
+  const item=btn.closest('.faq-item');
+  const isOpen=item.classList.contains('open');
+  document.querySelectorAll('.faq-item').forEach(i=>i.classList.remove('open'));
+  if(!isOpen)item.classList.add('open');
+}
+
+const obs=new IntersectionObserver(entries=>{
+  entries.forEach(e=>{
+    if(e.isIntersecting){e.target.classList.add('on');obs.unobserve(e.target);}
+  });
+},{threshold:0.1});
+document.querySelectorAll('.reveal').forEach(el=>{
+  const r=el.getBoundingClientRect();
+  if(r.top<window.innerHeight)el.classList.add('on');
+  else obs.observe(el);
+});
+</script>
+</body>
+</html>

@@ -3,236 +3,208 @@
 namespace App\Services\AI;
 
 use Illuminate\Support\Facades\Log;
+use RuntimeException;
 
+/**
+ * Manages primary/fallback AI provider routing.
+ *
+ * Configuration (config/services.php under 'ai' key):
+ *   preferred       – 'gemini' | 'openrouter'
+ *   enable_fallback – bool
+ */
 class AIServiceManager
 {
-    protected AIServiceInterface $primaryService;
-    protected ?AIServiceInterface $fallbackService;
-
-    protected OpenRouterService $openRouterService;
-
     public function __construct(
-        GoogleGeminiService $geminiService,
-        OpenRouterService $openRouterService
-    ) {
-        // Primary service: Google Gemini (gemini-3-pro-image-preview)
-        $this->primaryService = $geminiService;
-
-        // Fallback service: OpenRouter (if available)
-        $this->fallbackService = $openRouterService->isAvailable() ? $openRouterService : null;
-
-        // Keep a direct reference for canvas editor routing
-        $this->openRouterService = $openRouterService;
-    }
-
-    // -------------------------------------------------------------------------
-    // Canvas Editor Methods
-    // -------------------------------------------------------------------------
+        protected GoogleGeminiService $gemini,
+        protected OpenRouterService   $openRouter,
+    ) {}
 
     /**
-     * Erase green-highlighted areas using Gemini.
-     */
-    public function eraseGreenHighlights(string $imageBase64): string
-    {
-        Log::info('AIServiceManager: eraseGreenHighlights → Gemini');
-        return $this->primaryService->eraseGreenHighlights($imageBase64);
-    }
-
-    /**
-     * Replace text in masked area using Gemini (green-highlight composite image).
-     * The prompt is already embedded client-side; we delegate straight to Gemini editBase64.
-     */
-    public function inpaint(string $imageBase64, string $maskBase64, string $prompt): string
-    {
-        Log::info('AIServiceManager: inpaint (replace-text) → Gemini');
-        return $this->primaryService->inpaint($imageBase64, $maskBase64, $prompt);
-    }
-
-    /**
-     * AI Edit (full image or green-highlighted composite) using Gemini.
-     */
-    public function editBase64(string $imageBase64, string $prompt, ?string $maskBase64 = null): string
-    {
-        Log::info('AIServiceManager: editBase64 (ai-edit) → Gemini');
-        return $this->primaryService->editBase64($imageBase64, $prompt, $maskBase64);
-    }
-
-    /**
-     * Analyze brand style using available service.
-     */
-    public function analyzeBrandStyle(array $imageUrls): array
-    {
-        try {
-            Log::info('AIServiceManager: Attempting brand analysis with primary service');
-            return $this->primaryService->analyzeBrandStyle($imageUrls);
-        } catch (\Exception $e) {
-            Log::error('AIServiceManager: Primary service failed for brand analysis', [
-                'error' => $e->getMessage(),
-            ]);
-
-            if ($this->fallbackService) {
-                Log::info('AIServiceManager: Attempting brand analysis with fallback service');
-                try {
-                    return $this->fallbackService->analyzeBrandStyle($imageUrls);
-                } catch (\Exception $fallbackError) {
-                    Log::error('AIServiceManager: Fallback service also failed', [
-                        'error' => $fallbackError->getMessage(),
-                    ]);
-                }
-            }
-
-            throw new \Exception('All AI services failed for brand analysis: ' . $e->getMessage());
-        }
-    }
-
-    /**
-     * Generate image using available service.
-     */
-    public function generateImage(string $prompt, ?array $styleGuide = null, string $format = 'square'): array
-    {
-        try {
-            Log::info('AIServiceManager: Attempting image generation with primary service');
-            return $this->primaryService->generateImage($prompt, $styleGuide, $format);
-        } catch (\Exception $e) {
-            Log::error('AIServiceManager: Primary service failed for image generation', [
-                'error' => $e->getMessage(),
-            ]);
-
-            if ($this->fallbackService) {
-                Log::info('AIServiceManager: Attempting image generation with fallback service');
-                try {
-                    return $this->fallbackService->generateImage($prompt, $styleGuide, $format);
-                } catch (\Exception $fallbackError) {
-                    Log::error('AIServiceManager: Fallback service also failed', [
-                        'error' => $fallbackError->getMessage(),
-                    ]);
-                }
-            }
-
-            throw new \Exception('All AI services failed for image generation: ' . $e->getMessage());
-        }
-    }
-
-    /**
-     * Generate image with reference images (Style Mirror approach)
-     * 
-     * @param string $prompt User's generation prompt
-     * @param array $referenceImagePaths Paths to brand reference images
-     * @param array $productImagePaths Paths to product overlay images
-     * @param string $format Image format (square, portrait, landscape, story)
-     * @return array Generation result
+     * Generate an image with optional brand reference images.
+     *
+     * @param  string   $prompt
+     * @param  string[] $referenceImages
+     * @param  string[] $productImages
+     * @param  string   $format  square|portrait|landscape
+     * @return array{image_data: string, mime_type: string}
      */
     public function generateWithReferences(
         string $prompt,
-        array $referenceImagePaths,
-        array $productImagePaths = [],
-        string $format = 'square'
+        array  $referenceImages = [],
+        array  $productImages   = [],
+        string $format          = 'square',
     ): array {
-        try {
-            Log::info('AIServiceManager: Attempting Style Mirror generation with primary service');
-            
-            // Use Primary Service's generateWithReferences method
-            if (method_exists($this->primaryService, 'generateWithReferences')) {
-                return $this->primaryService->generateWithReferences(
-                    $prompt,
-                    $referenceImagePaths,
-                    $productImagePaths,
-                    $format
-                );
-            }
-
-            throw new \Exception('Primary service does not support generateWithReferences');
-        } catch (\Exception $e) {
-            Log::error('AIServiceManager: Primary service failed for Style Mirror generation', [
-                'error' => $e->getMessage(),
-            ]);
-
-            if ($this->fallbackService && method_exists($this->fallbackService, 'generateWithReferences')) {
-                Log::info('AIServiceManager: Attempting Style Mirror generation with fallback service');
-                try {
-                    return $this->fallbackService->generateWithReferences(
-                        $prompt,
-                        $referenceImagePaths,
-                        $productImagePaths,
-                        $format
-                    );
-                } catch (\Exception $fallbackError) {
-                    Log::error('AIServiceManager: Fallback service also failed', [
-                        'error' => $fallbackError->getMessage(),
-                    ]);
-                }
-            }
-
-            throw new \Exception('All AI services failed for Style Mirror generation: ' . $e->getMessage());
-        }
+        return $this->callWithFallback(
+            fn ($svc) => $svc->generateWithReferences($prompt, $referenceImages, $productImages, $format),
+            'generateWithReferences',
+        );
     }
 
     /**
-     * Edit image with mask (inpainting).
+     * Analyse brand style from reference images.
+     *
+     * @param  string[] $imagePaths
+     * @return array
      */
-    public function editWithMask(string $originalImagePath, string $maskImagePath, string $prompt): array
+    public function analyzeBrandStyle(array $imagePaths): array
     {
-        try {
-            Log::info('AIServiceManager: Attempting masked image edit with primary service');
-            
-            // Use GoogleGeminiService's editWithMask method
-            if (method_exists($this->primaryService, 'editWithMask')) {
-                return $this->primaryService->editWithMask(
-                    $originalImagePath,
-                    $maskImagePath,
-                    $prompt
-                );
-            }
-
-            throw new \Exception('Primary service does not support editWithMask');
-        } catch (\Exception $e) {
-            Log::error('AIServiceManager: Primary service failed for masked image edit', [
-                'error' => $e->getMessage(),
-            ]);
-
-            if ($this->fallbackService && method_exists($this->fallbackService, 'editWithMask')) {
-                Log::info('AIServiceManager: Attempting masked image edit with fallback service');
-                try {
-                    return $this->fallbackService->editWithMask(
-                        $originalImagePath,
-                        $maskImagePath,
-                        $prompt
-                    );
-                } catch (\Exception $fallbackError) {
-                    Log::error('AIServiceManager: Fallback service also failed', [
-                        'error' => $fallbackError->getMessage(),
-                    ]);
-                }
-            }
-
-            throw new \Exception('All AI services failed for masked image edit: ' . $e->getMessage());
-        }
+        return $this->callWithFallback(
+            fn ($svc) => $svc->analyzeBrandStyle($imagePaths),
+            'analyzeBrandStyle',
+        );
     }
 
     /**
-     * Get the name of the active model that WILL be used for generation.
-     * Centralizes logic for UI display and history tracking.
+     * Outpaint / extend image content.
+     *
+     * @param  string $imageBase64
+     * @param  string $maskBase64
+     * @return string  Base64-encoded result image
+     */
+    public function outpaint(string $imageBase64, string $maskBase64): string
+    {
+        return $this->callWithFallback(
+            fn ($svc) => $svc->outpaint($imageBase64, $maskBase64),
+            'outpaint',
+        );
+    }
+
+    /**
+     * Erase green-highlighted areas from an image.
+     *
+     * @param  string $imageBase64
+     * @return string  Base64-encoded result image
+     */
+    public function eraseGreenHighlights(string $imageBase64): string
+    {
+        return $this->callWithFallback(
+            fn ($svc) => $svc->eraseGreenHighlights($imageBase64),
+            'eraseGreenHighlights',
+        );
+    }
+
+    /**
+     * Edit an image given a text prompt and optional mask.
+     *
+     * @param  string      $imageBase64
+     * @param  string      $prompt
+     * @param  string|null $maskBase64
+     * @return string  Base64-encoded result image
+     */
+    public function editBase64(string $imageBase64, string $prompt, ?string $maskBase64 = null): string
+    {
+        return $this->callWithFallback(
+            fn ($svc) => $svc->editBase64($imageBase64, $prompt, $maskBase64),
+            'editBase64',
+        );
+    }
+
+    /**
+     * Generate/inpaint an image region based on a text prompt and mask.
+     *
+     * @param  string $imageBase64
+     * @param  string $maskBase64
+     * @param  string $prompt
+     * @return string  Base64-encoded result image
+     */
+    public function generateFromPrompt(string $imageBase64, string $maskBase64, string $prompt): string
+    {
+        return $this->callWithFallback(
+            fn ($svc) => $svc->generateFromPrompt($imageBase64, $maskBase64, $prompt),
+            'generateFromPrompt',
+        );
+    }
+
+    /**
+     * Return the configured primary model name.
      */
     public function getActiveModelName(): string
     {
-        // Always use Gemini 3 Pro Image Preview
-        return config('services.gemini.text_accurate_model', 'gemini-2.0-flash-exp-image-generation');
+        return $this->primaryService()->getModelName();
+    }
+
+    // -------------------------------------------------------------------------
+
+    /**
+     * Resolve primary → fallback service order and invoke $callback on them.
+     */
+    private function callWithFallback(callable $callback, string $method): mixed
+    {
+        [$primary, $fallback] = $this->serviceOrder();
+
+        try {
+            return $callback($primary);
+        } catch (\Throwable $primaryError) {
+            Log::warning("AIServiceManager: primary provider failed for {$method}", [
+                'provider' => config('services.ai.preferred', 'gemini'),
+                'error'    => $primaryError->getMessage(),
+            ]);
+
+            if (!config('services.ai.enable_fallback', true)) {
+                throw new \App\Exceptions\AIServiceUnavailableException(
+                    $this->classifyError($primaryError),
+                );
+            }
+
+            try {
+                return $callback($fallback);
+            } catch (\Throwable $fallbackError) {
+                Log::error("AIServiceManager: both providers failed for {$method}", [
+                    'primary_error'  => $primaryError->getMessage(),
+                    'fallback_error' => $fallbackError->getMessage(),
+                ]);
+
+                throw new \App\Exceptions\AIServiceUnavailableException(
+                    $this->classifyError($primaryError, $fallbackError),
+                );
+            }
+        }
     }
 
     /**
-     * Get the service name for the currently active service.
-     * @deprecated Use getActiveModelName() instead
+     * Return a short, user-facing message describing the failure cause.
      */
-    public function getServiceName(): string
+    private function classifyError(\Throwable $primary, ?\Throwable $fallback = null): string
     {
-        return $this->primaryService->getServiceName();
+        $combined = strtolower($primary->getMessage() . ($fallback ? ' ' . $fallback->getMessage() : ''));
+
+        if (str_contains($combined, 'rate limit') || str_contains($combined, 'quota') || str_contains($combined, '429')) {
+            return 'The AI service is currently rate-limited. Please try again in a few minutes.';
+        }
+
+        if (str_contains($combined, 'unauthorized') || str_contains($combined, '401') || str_contains($combined, 'invalid api key') || str_contains($combined, 'api_key')) {
+            return 'AI service authentication failed. Please contact support.';
+        }
+
+        if (str_contains($combined, 'timed out') || str_contains($combined, 'timeout') || str_contains($combined, 'deadline')) {
+            return 'The AI service timed out. Please try again.';
+        }
+
+        if (str_contains($combined, 'unavailable') || str_contains($combined, '503') || str_contains($combined, '502') || str_contains($combined, '500')) {
+            return 'The AI service is temporarily unavailable. Please try again shortly.';
+        }
+
+        if (str_contains($combined, 'content') || str_contains($combined, 'safety') || str_contains($combined, 'policy')) {
+            return 'This content was blocked by the AI service safety filter. Try adjusting the description.';
+        }
+
+        return 'The AI service failed to generate the image. Please try again.';
     }
 
     /**
-     * Check if any AI service is available.
+     * @return array{0: GoogleGeminiService|OpenRouterService, 1: GoogleGeminiService|OpenRouterService}
      */
-    public function isAvailable(): bool
+    private function serviceOrder(): array
     {
-        return $this->primaryService->isAvailable() || ($this->fallbackService && $this->fallbackService->isAvailable());
+        $preferred = config('services.ai.preferred', 'gemini');
+
+        return $preferred === 'openrouter'
+            ? [$this->openRouter, $this->gemini]
+            : [$this->gemini, $this->openRouter];
+    }
+
+    private function primaryService(): GoogleGeminiService|OpenRouterService
+    {
+        return $this->serviceOrder()[0];
     }
 }

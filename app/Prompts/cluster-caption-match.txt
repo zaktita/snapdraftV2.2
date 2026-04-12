@@ -1,0 +1,17 @@
+You are matching a caption to one visual style cluster for social media generation.
+
+Clusters:
+{clusters}
+
+Caption:
+{caption}
+
+Cluster hint (optional):
+{cluster_hint}
+
+Rules:
+- Choose exactly one cluster index.
+- cluster_index must be zero-based and valid for the provided list.
+- overlay_text must be punchy and suitable for on-image text (3-8 words).
+- Return strict JSON only with this shape:
+{"cluster_index": 0, "overlay_text": "string"}

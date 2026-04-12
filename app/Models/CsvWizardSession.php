@@ -45,7 +45,7 @@ class CsvWizardSession extends Model
 
     public function isProcessing(): bool
     {
-        return in_array($this->status, ['pending', 'generating'], true);
+        return in_array($this->status, ['pending', 'analyzing', 'generating'], true);
     }
 
     public function markAsGenerating(?string $batchId = null, ?int $totalJobs = null): void

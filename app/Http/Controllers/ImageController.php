@@ -6,6 +6,7 @@ use App\Jobs\GenerateSingleImageJob;
 use App\Models\GenerationHistory;
 use App\Models\Image;
 use App\Models\Project;
+use App\Services\PostHogService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
@@ -88,6 +89,19 @@ class ImageController extends Controller
 
         if ($images->isEmpty()) {
             return back()->with('error', 'No images found to download.');
+        }
+
+        // Guard against excessively large ZIP downloads (~100 MB total)
+        $totalBytes = 0;
+        $maxBytes   = 100 * 1024 * 1024; // 100 MB
+        foreach ($images as $image) {
+            $filePath = Storage::disk('public')->path($image->url);
+            if (file_exists($filePath)) {
+                $totalBytes += filesize($filePath);
+            }
+        }
+        if ($totalBytes > $maxBytes) {
+            return back()->with('error', 'Selected images exceed the 100 MB download limit. Please select fewer images.');
         }
 
         // Create a temporary file for the ZIP
@@ -203,11 +217,25 @@ class ImageController extends Controller
             ],
         ]);
 
+        $promptItem = [
+            'rowIndex'         => -1,
+            'title'            => (string) data_get($image->metadata, 'title', ''),
+            'generationPrompt' => $prompt,
+            'format'           => $format,
+            'historyId'        => $generation->id,
+        ];
+
         if (app()->environment('local')) {
-            GenerateSingleImageJob::dispatchSync($project, $prompt, $format, $generation->id);
+            GenerateSingleImageJob::dispatchSync($project->id, 0, $promptItem);
         } else {
-            GenerateSingleImageJob::dispatch($project, $prompt, $format, $generation->id);
+            GenerateSingleImageJob::dispatch($project->id, 0, $promptItem);
         }
+
+        app(PostHogService::class)->capture((string) Auth::id(), 'image_regenerated', [
+            'project_id' => $project->id,
+            'image_id'   => $image->id,
+            'format'     => $format,
+        ]);
 
         return back()
             ->with('success', 'Regenerating image...')
