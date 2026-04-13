@@ -1,0 +1,146 @@
+name: deploy
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+concurrency:
+  group: production-deploy
+  cancel-in-progress: false
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: 8.4
+          tools: composer:v2
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install Node Dependencies
+        run: npm ci
+
+      - name: Install PHP Dependencies
+        run: composer install --no-interaction --prefer-dist --optimize-autoloader
+
+      - name: Copy Environment File
+        run: cp .env.example .env
+
+      - name: Generate Application Key
+        run: php artisan key:generate
+
+      - name: Build Assets
+        run: npm run build
+
+      - name: Run Tests
+        run: ./vendor/bin/phpunit
+
+      - name: Run Frontend Lint
+        run: npm run lint
+
+  deploy:
+    needs: quality
+    runs-on: ubuntu-latest
+    environment: production
+
+    steps:
+      - name: Deploy over SSH
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          port: ${{ secrets.DEPLOY_PORT || '22' }}
+          script_stop: true
+          command_timeout: 45m
+          script: |
+            set -e
+
+            APP_DIR="${{ secrets.DEPLOY_PATH }}"
+            BRANCH="${{ github.ref_name }}"
+
+            if [ -z "$APP_DIR" ]; then
+              echo "DEPLOY_PATH secret is missing"
+              exit 1
+            fi
+
+            cd "$APP_DIR"
+
+            # Always bring the app back up even if a step fails.
+            trap 'php artisan up || true' EXIT
+
+            PREVIOUS_COMMIT="$(git rev-parse HEAD)"
+
+            php artisan down || true
+
+            git fetch origin
+            git checkout "$BRANCH"
+            git reset --hard "origin/$BRANCH"
+
+            composer install --no-dev --no-interaction --prefer-dist --optimize-autoloader
+            npm ci
+            npm run build
+
+            php artisan migrate --force
+            php artisan db:seed --class=PlanSeeder --force
+
+            php artisan optimize:clear
+            php artisan config:cache
+            php artisan route:cache
+            php artisan view:cache
+
+            php artisan storage:link || true
+            php artisan queue:restart
+
+            HEALTHCHECK_URL="${{ secrets.DEPLOY_HEALTHCHECK_URL }}"
+
+            if [ -n "$HEALTHCHECK_URL" ]; then
+              HEALTH_OK=0
+
+              for i in 1 2 3; do
+                if curl -fsS --max-time 10 "$HEALTHCHECK_URL" >/dev/null; then
+                  HEALTH_OK=1
+                  break
+                fi
+
+                echo "Health check failed (attempt $i/3)"
+              done
+
+              if [ "$HEALTH_OK" -ne 1 ]; then
+                echo "Health check failed after deploy, rolling back to $PREVIOUS_COMMIT"
+
+                git reset --hard "$PREVIOUS_COMMIT"
+                composer install --no-dev --no-interaction --prefer-dist --optimize-autoloader
+                npm ci
+                npm run build
+
+                php artisan migrate --force
+                php artisan db:seed --class=PlanSeeder --force
+
+                php artisan optimize:clear
+                php artisan config:cache
+                php artisan route:cache
+                php artisan view:cache
+
+                php artisan queue:restart
+
+                exit 1
+              fi
+            else
+              echo "DEPLOY_HEALTHCHECK_URL not set, skipping health check and rollback guard"
+            fi
+
+            php artisan up
