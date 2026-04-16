@@ -1,7 +1,6 @@
 import { Head, Link, router, usePage } from '@inertiajs/react';
 import { ArrowLeft, ArrowRight, Upload, X, Zap, AlertCircle } from 'lucide-react';
 import { useState, useRef, DragEvent, ChangeEvent, useEffect } from 'react';
-import images from '@/routes/projects/wizards/images';
 
 const formatOptions = [
     { value: '1:1', label: 'Square (1:1)' },
@@ -109,7 +108,7 @@ export default function ImagesWizard() {
         // fd.append('format', 'square');
         styleImageFiles.slice(0, 10).forEach((f) => fd.append('reference_images[]', f));
 
-        router.post(images.store.url(), fd, {
+        router.post('/projects/wizards/images', fd, {
             forceFormData: true,
             preserveScroll: true,
             onError: () => setIsSubmitting(false),

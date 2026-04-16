@@ -1,7 +1,6 @@
 import { Head, Link, router, usePage } from '@inertiajs/react';
 import { ArrowLeft, ArrowRight, FileText, Grid, Image as ImageIcon, Upload, X, Clock, AlertCircle, Zap, Plus, Trash2, Edit3, ChevronDown, ChevronUp } from 'lucide-react';
 import { useState, useRef, DragEvent, ChangeEvent, useEffect } from 'react';
-import csv from '@/routes/projects/wizards/csv';
 
 function BrandReferenceTip() {
     const [open, setOpen] = useState(false);
@@ -708,10 +707,10 @@ export default function CSVWizard() {
             names: styleImageFiles.slice(0, 10).map((f) => f.name),
         });
 
-        router.post(csv.store.url(), fd, {
+        router.post('/projects/wizards/csv', fd, {
             forceFormData: true,
             preserveScroll: false,
-            onStart: () => debug('inertia: onStart', { url: csv.store.url() }),
+            onStart: () => debug('inertia: onStart', { url: '/projects/wizards/csv' }),
             onProgress: (event) => debug('inertia: onProgress', { loaded: event?.loaded, total: event?.total, percentage: (event as any)?.percentage }),
             onSuccess: () => debug('inertia: onSuccess'),
             onError: (errs) => {

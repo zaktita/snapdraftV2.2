@@ -1,7 +1,6 @@
 import { Head, Link, router, usePage } from '@inertiajs/react';
 import { ArrowLeft, ArrowRight, Upload, X, Zap, ChevronDown, AlertCircle } from 'lucide-react';
 import { useState, useRef, ChangeEvent, useEffect } from 'react';
-import text from '@/routes/projects/wizards/text';
 
 const formatOptions = [
     { value: '1:1', label: 'Square (1:1)' },
@@ -82,7 +81,7 @@ export default function TextWizard() {
             // reference images optional (max 5)
             styleImageFiles.slice(0, 5).forEach((f) => fd.append('reference_images[]', f));
 
-            router.post(text.store.url(), fd, {
+            router.post('/projects/wizards/text', fd, {
                 forceFormData: true,
                 preserveScroll: true,
                 onError: (errors) => {

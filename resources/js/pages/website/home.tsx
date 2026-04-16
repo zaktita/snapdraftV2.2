@@ -240,7 +240,7 @@ export default function HomePage() {
                             <Reveal>
                                 <div className="sd-hero-badge">
                                     <span className="sd-badge-dot" />
-                                    Closed Beta — 20 spots only
+                                    Closed Beta : 20 spots only
                                 </div>
                             </Reveal>
                             <Reveal delay={60}>
