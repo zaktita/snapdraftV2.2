@@ -156,7 +156,7 @@ export default function HomePage() {
         {
             num: '02',
             iconSrc: '/images/landing/csv.png',
-            title: 'Drop in your CSV',
+            title: 'Drop in your spreadsheet',
             desc: 'Use title, description, and format columns. Each row becomes one generated visual.',
         },
         {
@@ -171,7 +171,7 @@ export default function HomePage() {
         {
             iconSrc: '/images/landing/full product.png',
             title: 'Full product access',
-            desc: 'Every feature unlocked — CSV batch generation, brand analysis, Canvas Editor, and more.',
+            desc: 'Every feature unlocked — spreadsheet batch generation, brand analysis, Canvas Editor, and more.',
         },
         {
             iconSrc: '/images/landing/access.png',
@@ -199,7 +199,7 @@ export default function HomePage() {
                 <nav className="sd-nav">
                     <Link href="/" className="sd-logo">
                         <img
-                            src="/SnapdraftLogo.png"
+                            src="/SnapdraftLogoBlack.svg"
                             alt="SnapDraft"
                             className="sd-logo-image"
                         />
@@ -224,7 +224,7 @@ export default function HomePage() {
                             className="sd-btn-sm"
                             onClick={openWaitlistCard}
                         >
-                            Join waitlist
+                            Request access
                             <ArrowRight size={14} />
                         </button>
                     </div>
@@ -254,10 +254,10 @@ export default function HomePage() {
                             </Reveal>
                             <Reveal delay={120}>
                                 <p className="sd-hero-desc">
-                                    SnapDraft turns a CSV and a few reference
-                                    images into a full batch of on-brand
-                                    visuals. We need 20 testers to push it to
-                                    its limits before launch.
+                                    SnapDraft turns a spreadsheet and a few
+                                    reference images into a full batch of
+                                    on-brand visuals. We need 20 testers to
+                                    push it to its limits before launch.
                                 </p>
                                 {showInviteRequiredNotice && (
                                     <p className="sd-invite-required-msg">
@@ -305,8 +305,8 @@ export default function HomePage() {
                                             {waitlistDone ? (
                                                 <p className="sd-hero-card-msg sd-hero-card-msg--success">
                                                     <CheckCircle2 size={16} />
-                                                    You&apos;re on the list —
-                                                    we&apos;ll email you when a
+                                                    We&apos;ve got your request
+                                                    — we&apos;ll email you when a
                                                     spot opens.
                                                 </p>
                                             ) : (
@@ -320,7 +320,7 @@ export default function HomePage() {
                                                         <input
                                                             ref={waitlistRef}
                                                             type="email"
-                                                            placeholder="Join the waitlist with your email"
+                                                            placeholder="Your email to request access"
                                                             value={
                                                                 waitlistEmail
                                                             }
@@ -338,8 +338,8 @@ export default function HomePage() {
                                                             }
                                                         >
                                                             {waitlistLoading
-                                                                ? 'Joining…'
-                                                                : 'Join waitlist'}
+                                                                ? 'Sending…'
+                                                                : 'Request access'}
                                                         </button>
                                                     </form>
                                                     {waitlistError && (
@@ -398,7 +398,8 @@ export default function HomePage() {
                 <Reveal>
                     <div className="sd-sec-eyebrow">How it works</div>
                     <h2 className="sd-sec-title">
-                        From CSV to visuals <strong>in 3 steps</strong>
+                        From spreadsheet to visuals{' '}
+                        <strong>in 3 steps</strong>
                     </h2>
                     <p className="sd-sec-sub">
                         No design skills required. Just brand references and a
@@ -429,9 +430,9 @@ export default function HomePage() {
                 </div>
             </section>
 
-            {/* ── Beta perks (dark) ── */}
-            <section className="sd-section-dark" id="beta">
-                <div className="sd-section-dark-inner">
+            {/* ── Beta perks ── */}
+            <section className="sd-section-band" id="beta">
+                <div className="sd-section-band-inner">
                     <Reveal>
                         <div className="sd-sec-eyebrow">Beta perks</div>
                         <h2 className="sd-sec-title">
@@ -477,7 +478,7 @@ export default function HomePage() {
                             a: "Yes. During the beta there's no charge and no credit card required. We just want your honest feedback.",
                         },
                         {
-                            q: 'How does the CSV format work?',
+                            q: 'How should my spreadsheet be set up?',
                             a: 'Use title, description, and format columns. Each row is turned into one generated visual matching your brand style.',
                         },
                         {
@@ -528,7 +529,7 @@ export default function HomePage() {
                             className="sd-btn-hero"
                             onClick={openWaitlistCard}
                         >
-                            Join waitlist
+                            Request access
                             <ArrowRight size={16} />
                         </button>
                         <Link
@@ -547,7 +548,7 @@ export default function HomePage() {
                     <div>
                         <Link href="/" className="sd-logo sd-logo-light">
                             <img
-                                src="/SnapdraftLogo.png"
+                                src="/SnapdraftLogoBlack.svg"
                                 alt="SnapDraft"
                                 className="sd-logo-image"
                             />

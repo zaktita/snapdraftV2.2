@@ -1,22 +1,15 @@
 <!DOCTYPE html>
-<html lang="{{ str_replace('_', '-', app()->getLocale()) }}" @class(['dark' => ($appearance ?? 'system') == 'dark'])>
+<html lang="{{ str_replace('_', '-', app()->getLocale()) }}">
     <head>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <meta name="csrf-token" content="{{ csrf_token() }}">
 
-        {{-- Inline script to detect system dark mode preference and apply it immediately --}}
+        {{-- Always light mode: strip stale dark class before paint --}}
         <script>
             (function() {
-                const appearance = '{{ $appearance ?? "system" }}';
-
-                if (appearance === 'system') {
-                    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-
-                    if (prefersDark) {
-                        document.documentElement.classList.add('dark');
-                    }
-                }
+                document.documentElement.classList.remove('dark');
+                document.documentElement.style.colorScheme = 'light';
             })();
         </script>
 
@@ -50,5 +43,26 @@
     </head>
     <body class="font-sans antialiased">
         @inertia
+
+        @php
+            $supportFabUrl = trim((string) config('app.support_x_url'));
+            $supportFabValid = $supportFabUrl !== ''
+                && filter_var($supportFabUrl, FILTER_VALIDATE_URL)
+                && str_starts_with(strtolower($supportFabUrl), 'http');
+        @endphp
+        @if ($supportFabValid)
+            <a
+                href="{{ $supportFabUrl }}"
+                class="sd-support-fab"
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label="Support — message on X"
+            >
+                <span class="sd-support-fab__icon" aria-hidden="true">
+                    <i class="fa-solid fa-comments"></i>
+                </span>
+                <span class="sd-support-fab__label">Support</span>
+            </a>
+        @endif
     </body>
 </html>

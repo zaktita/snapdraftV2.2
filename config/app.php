@@ -18,6 +18,12 @@ return [
     'feedback_email' => env('FEEDBACK_EMAIL', 'contact@snapdraft.com'),
 
     /*
+    | Full URL to your X profile for support DMs (e.g. https://x.com/yourhandle).
+    | Leave unset to hide Support links on the marketing homepage.
+    */
+    'support_x_url' => env('SUPPORT_X_URL'),
+
+    /*
     |--------------------------------------------------------------------------
     | Application Environment
     |--------------------------------------------------------------------------

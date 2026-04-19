@@ -17,7 +17,8 @@ export default function Startup() {
     {
       icon: 'assets/images/v3/icon2.png',
       title: 'Batch Generation',
-      description: 'A CSV-based workflow that helps plan, organize and generate visuals.',
+      description:
+        'A spreadsheet-based workflow that helps plan, organize and generate visuals.',
       link: '#'
     },
     {
