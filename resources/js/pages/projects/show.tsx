@@ -1,12 +1,13 @@
 import { Button } from '@/components/ui/button';
 import { BatchProgress } from '@/components/batch-progress';
-import { useGenerationProgress } from '@/hooks/use-generation-progress';
+import { UpscaleModal } from '@/components/canvas-modals';
 import AppLayout from '@/layouts/app-layout';
 import { dashboard } from '@/routes';
 import { type BreadcrumbItem } from '@/types';
 import { Head, Link, router, usePage } from '@inertiajs/react';
+import { toast } from 'sonner';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
-import { ArrowLeft, Star, Download, MoreHorizontal, BoxSelect, Square, SquareCheck, Edit, Maximize, RotateCw, Share, Trash2, Check, Plus, CheckCircle, X, ChevronLeft, ChevronRight, Upload, Edit3, FileText, Grid, Clock, AlertCircle, Image as ImageIcon, Zap } from 'lucide-react';
+import { ArrowLeft, Star, Download, MoreHorizontal, BoxSelect, Square, SquareCheck, Edit, Maximize, RotateCw, Share, Trash2, Check, Plus, CheckCircle, X, ChevronLeft, ChevronRight, Upload, Edit3, FileText, Grid, Clock, AlertCircle, Image as ImageIcon, Zap, Sparkles } from 'lucide-react';
 import { useState, useRef, useEffect } from 'react';
 
 interface CSVRow {
@@ -84,6 +85,10 @@ export default function ProjectShow({ project, justCreated = false, expectedImag
     const [openImageMenuIndex, setOpenImageMenuIndex] = useState<number | null>(null);
     const [lightboxOpen, setLightboxOpen] = useState(false);
     const [lightboxImageIndex, setLightboxImageIndex] = useState(0);
+    const [upscaleModalOpen, setUpscaleModalOpen] = useState(false);
+    const [upscaleFactor, setUpscaleFactor] = useState(2);
+    const [upscaleImageId, setUpscaleImageId] = useState<number | null>(null);
+    const [upscalingByImageId, setUpscalingByImageId] = useState<Record<number, boolean>>({});
     const titleInputRef = useRef<HTMLInputElement>(null);
     const csvInputRef = useRef<HTMLInputElement>(null);
     const isGenerationPending = showGeneratingBanner;
@@ -297,6 +302,8 @@ export default function ProjectShow({ project, justCreated = false, expectedImag
         let stopped = false;
         let drainPolls = 0;
         const MAX_DRAIN_POLLS = 3;
+        let consecutiveReloadErrors = 0;
+        let warnedAboutPollErrors = false;
 
         const scheduleNext = (delayOverride?: number) => {
             if (stopped) return;
@@ -308,6 +315,8 @@ export default function ProjectShow({ project, justCreated = false, expectedImag
                 router.reload({
                     only: ['project', 'hasPendingGenerations', 'progress'],
                     onSuccess: (page) => {
+                        consecutiveReloadErrors = 0;
+                        warnedAboutPollErrors = false;
                         const stillPending = (page.props as any).hasPendingGenerations;
 
                         if (!stillPending) {
@@ -327,6 +336,14 @@ export default function ProjectShow({ project, justCreated = false, expectedImag
                         scheduleNext();
                     },
                     onError: () => {
+                        consecutiveReloadErrors += 1;
+                        if (consecutiveReloadErrors >= 6 && !warnedAboutPollErrors) {
+                            warnedAboutPollErrors = true;
+                            toast.error(
+                                'Could not refresh generation status (network or timeout). If this persists, reload the page or confirm queue workers are running on the server.',
+                                { duration: 12_000 },
+                            );
+                        }
                         scheduleNext();
                     },
                 });
@@ -369,6 +386,88 @@ export default function ProjectShow({ project, justCreated = false, expectedImag
 
         if (options?.closeLightbox) {
             closeLightbox();
+        }
+    };
+
+    const fileToDataUrl = (file: Blob): Promise<string> => {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(String(reader.result ?? ''));
+            reader.onerror = () => reject(new Error('Failed to read image file.'));
+            reader.readAsDataURL(file);
+        });
+    };
+
+    const openUpscaleSelector = (imageId: number) => {
+        if (upscalingByImageId[imageId]) return;
+        setUpscaleImageId(imageId);
+        setUpscaleFactor(2);
+        setUpscaleModalOpen(true);
+    };
+
+    const runUpscale = async () => {
+        if (!upscaleImageId) return;
+        const image = project.images.find((img) => img.id === upscaleImageId);
+        if (!image) return;
+
+        const creditCost = upscaleFactor;
+        setUpscalingByImageId((prev) => ({ ...prev, [upscaleImageId]: true }));
+        setUpscaleModalOpen(false);
+
+        try {
+            const sourceResponse = await fetch(`/storage/${image.url}`);
+            const sourceBlob = await sourceResponse.blob();
+            const imageDataUrl = await fileToDataUrl(sourceBlob);
+
+            const response = await fetch('/api/upscale-image', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN':
+                        document
+                            .querySelector('meta[name="csrf-token"]')
+                            ?.getAttribute('content') || '',
+                },
+                body: JSON.stringify({
+                    image: imageDataUrl,
+                    scale: upscaleFactor,
+                }),
+            });
+
+            if (!response.ok) {
+                const text = await response.text();
+                let errorMessage = `Upscale failed (${response.status})`;
+                try {
+                    const json = JSON.parse(text);
+                    errorMessage = json?.error || json?.message || errorMessage;
+                } catch {
+                    if (text) errorMessage = text;
+                }
+                throw new Error(errorMessage);
+            }
+
+            const result = await response.json();
+            const upscaledDataUrl: string | undefined = result?.upscaledImage;
+            if (!upscaledDataUrl) {
+                throw new Error('Upscale did not return image data.');
+            }
+
+            const link = document.createElement('a');
+            link.href = upscaledDataUrl;
+            link.download = `${project.title}_image_${image.id}_${upscaleFactor}x.png`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+
+            toast.success(`Upscaled ${upscaleFactor}x. ${creditCost} credit(s) used.`);
+        } catch (error) {
+            toast.error(error instanceof Error ? error.message : 'Upscale failed.');
+        } finally {
+            setUpscalingByImageId((prev) => {
+                const next = { ...prev };
+                delete next[upscaleImageId];
+                return next;
+            });
         }
     };
 
@@ -1353,7 +1452,7 @@ export default function ProjectShow({ project, justCreated = false, expectedImag
                                     </span>
                                 </div>
                             )}
-                            <div className="grid grid-cols-5 gap-4">
+                            <div className="grid grid-cols-3 gap-4 xl:grid-cols-4">
                                 {project.images.map((image, index) => {
                                     const isSelected = selectedImages.includes(index);
                                     const isFavorite = favoriteImages.includes(index);
@@ -1381,7 +1480,7 @@ export default function ProjectShow({ project, justCreated = false, expectedImag
                                             <div className="absolute right-2 top-2 z-20">
                                                 <button
                                                     className="flex size-7 items-center justify-center rounded-full shadow-sm transition-all hover:scale-110"
-                                                    style={{ backgroundColor: 'var(--color-card)', opacity: 0.92 }}
+                                                    style={{ backgroundColor: '#ffffff', opacity: 1 }}
                                                     title="More options"
                                                     aria-label="More options"
                                                     onClick={(e) => {
@@ -1389,12 +1488,12 @@ export default function ProjectShow({ project, justCreated = false, expectedImag
                                                         setOpenImageMenuIndex(openImageMenuIndex === index ? null : index);
                                                     }}
                                                 >
-                                                    <MoreHorizontal className="size-4" style={{ color: 'var(--color-foreground)' }} />
+                                                    <MoreHorizontal className="size-4" style={{ color: '#000000' }} />
                                                 </button>
                                                 {openImageMenuIndex === index && (
                                                     <div
                                                         className="absolute right-0 top-8 z-30 w-40 overflow-hidden rounded-lg border shadow-lg"
-                                                        style={{ background: 'var(--color-card)', borderColor: 'var(--color-border)' }}
+                                                        style={{ background: '#ffffff', borderColor: 'var(--color-border)' }}
                                                         onClick={(e) => e.stopPropagation()}
                                                     >
                                                         <button
@@ -1421,6 +1520,14 @@ export default function ProjectShow({ project, justCreated = false, expectedImag
                                                         >
                                                             <RotateCw className={`size-3.5 ${regeneratingByImageId[image.id] ? 'animate-spin' : ''}`} />
                                                             {regeneratingByImageId[image.id] ? 'Regenerating…' : 'Regenerate'}
+                                                        </button>
+                                                        <button
+                                                            className={`flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors hover:bg-muted ${upscalingByImageId[image.id] ? 'cursor-not-allowed opacity-50' : ''}`}
+                                                            disabled={!!upscalingByImageId[image.id]}
+                                                            onClick={() => { setOpenImageMenuIndex(null); openUpscaleSelector(image.id); }}
+                                                        >
+                                                            <Sparkles className={`size-3.5 ${upscalingByImageId[image.id] ? 'animate-pulse' : ''}`} />
+                                                            {upscalingByImageId[image.id] ? 'Upscaling…' : 'Upscale'}
                                                         </button>
                                                         <button
                                                             className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors hover:bg-muted"
@@ -1480,18 +1587,18 @@ export default function ProjectShow({ project, justCreated = false, expectedImag
                                             <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-20">
                                                 <button
                                                     className="flex size-10 items-center justify-center rounded-full transition-all hover:scale-110 hover:shadow-lg"
-                                                    style={{ backgroundColor: 'var(--color-muted)' }}
+                                                    style={{ backgroundColor: '#ffffff' }}
                                                     title="Expand"
                                                     onClick={(e) => {
                                                         e.stopPropagation();
                                                         openLightbox(index);
                                                     }}
                                                 >
-                                                    <Maximize className="size-4" style={{ color: 'var(--color-foreground)' }} />
+                                                    <Maximize className="size-4" style={{ color: '#000000' }} />
                                                 </button>
                                                 <button
                                                     className="flex size-10 items-center justify-center rounded-full transition-all hover:scale-110 hover:shadow-lg"
-                                                    style={{ backgroundColor: 'var(--color-muted)' }}
+                                                    style={{ backgroundColor: '#ffffff' }}
                                                     title="Edit"
                                                     onClick={(e) => {
                                                         e.stopPropagation();
@@ -1501,11 +1608,11 @@ export default function ProjectShow({ project, justCreated = false, expectedImag
                                                         router.visit(`/canvas-editor?projectId=${project.id}&image=${encodedImageUrl}&title=${encodedTitle}&imageId=${image.id}`);
                                                     }}
                                                 >
-                                                    <Edit className="size-4" style={{ color: 'var(--color-foreground)' }} />
+                                                    <Edit className="size-4" style={{ color: '#000000' }} />
                                                 </button>
                                                 <button
                                                     className={`flex size-10 items-center justify-center rounded-full transition-all hover:scale-110 hover:shadow-lg ${regeneratingByImageId[image.id] ? 'cursor-not-allowed opacity-60 hover:scale-100 hover:shadow-none' : ''}`}
-                                                    style={{ backgroundColor: 'var(--color-muted)' }}
+                                                    style={{ backgroundColor: '#ffffff' }}
                                                     title="Regenerate"
                                                     disabled={!!regeneratingByImageId[image.id]}
                                                     aria-disabled={!!regeneratingByImageId[image.id]}
@@ -1514,11 +1621,24 @@ export default function ProjectShow({ project, justCreated = false, expectedImag
                                                         regenerateImage(image.id);
                                                     }}
                                                 >
-                                                    <RotateCw className={`size-4 ${regeneratingByImageId[image.id] ? 'animate-spin' : ''}`} style={{ color: 'var(--color-foreground)' }} />
+                                                    <RotateCw className={`size-4 ${regeneratingByImageId[image.id] ? 'animate-spin' : ''}`} style={{ color: '#000000' }} />
+                                                </button>
+                                                <button
+                                                    className={`flex size-10 items-center justify-center rounded-full transition-all hover:scale-110 hover:shadow-lg ${upscalingByImageId[image.id] ? 'cursor-not-allowed opacity-60 hover:scale-100 hover:shadow-none' : ''}`}
+                                                    style={{ backgroundColor: '#ffffff' }}
+                                                    title={upscalingByImageId[image.id] ? 'Upscaling…' : 'Upscale'}
+                                                    disabled={!!upscalingByImageId[image.id]}
+                                                    aria-disabled={!!upscalingByImageId[image.id]}
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        openUpscaleSelector(image.id);
+                                                    }}
+                                                >
+                                                    <Sparkles className={`size-4 ${upscalingByImageId[image.id] ? 'animate-pulse' : ''}`} style={{ color: '#000000' }} />
                                                 </button>
                                                 <button
                                                     className="flex size-10 items-center justify-center rounded-full transition-all hover:scale-110 hover:shadow-lg"
-                                                    style={{ backgroundColor: 'var(--color-muted)' }}
+                                                    style={{ backgroundColor: '#ffffff' }}
                                                     title="Download"
                                                     onClick={async (e) => {
                                                         e.stopPropagation();
@@ -1539,7 +1659,7 @@ export default function ProjectShow({ project, justCreated = false, expectedImag
                                                         }
                                                     }}
                                                 >
-                                                    <Download className="size-4" style={{ color: 'var(--color-foreground)' }} />
+                                                    <Download className="size-4" style={{ color: '#000000' }} />
                                                 </button>
                                             </div>
                                         </div>
@@ -1662,9 +1782,9 @@ export default function ProjectShow({ project, justCreated = false, expectedImag
                         />
 
                         {/* Image Actions */}
-                        <div className="absolute bottom-6 left-1/2 flex -translate-x-1/2 items-center gap-3 rounded-full bg-white/10 p-3 backdrop-blur-sm">
+                        <div className="absolute bottom-6 left-1/2 flex -translate-x-1/2 items-center gap-3 rounded-full bg-white p-3">
                             <button
-                                className="flex size-10 items-center justify-center rounded-full bg-white/20 text-white transition-all hover:bg-white/30"
+                                className="flex size-10 items-center justify-center rounded-full bg-white text-black transition-all hover:bg-gray-100"
                                 title="Edit"
                                 onClick={() => {
                                     const image = project.images[lightboxImageIndex];
@@ -1677,7 +1797,7 @@ export default function ProjectShow({ project, justCreated = false, expectedImag
                             </button>
 
                             <button
-                                className="flex size-10 items-center justify-center rounded-full bg-white/20 text-white transition-all hover:bg-white/30"
+                                className="flex size-10 items-center justify-center rounded-full bg-white text-black transition-all hover:bg-gray-100"
                                 title="Download"
                                 onClick={async () => {
                                     const image = project.images[lightboxImageIndex];
@@ -1701,7 +1821,7 @@ export default function ProjectShow({ project, justCreated = false, expectedImag
                             </button>
 
                             <button
-                                className={`flex size-10 items-center justify-center rounded-full bg-white/20 text-white transition-all hover:bg-white/30 ${regeneratingByImageId[project.images[lightboxImageIndex].id] ? 'cursor-not-allowed opacity-60 hover:bg-white/20' : ''}`}
+                                className={`flex size-10 items-center justify-center rounded-full bg-white text-black transition-all hover:bg-gray-100 ${regeneratingByImageId[project.images[lightboxImageIndex].id] ? 'cursor-not-allowed opacity-60 hover:bg-white' : ''}`}
                                 title={regeneratingByImageId[project.images[lightboxImageIndex].id] ? 'Regenerating…' : 'Regenerate'}
                                 disabled={!!regeneratingByImageId[project.images[lightboxImageIndex].id]}
                                 aria-disabled={!!regeneratingByImageId[project.images[lightboxImageIndex].id]}
@@ -1712,10 +1832,34 @@ export default function ProjectShow({ project, justCreated = false, expectedImag
                             >
                                 <RotateCw className={`size-4 ${regeneratingByImageId[project.images[lightboxImageIndex].id] ? 'animate-spin' : ''}`} />
                             </button>
+                            <button
+                                className={`flex size-10 items-center justify-center rounded-full bg-white text-black transition-all hover:bg-gray-100 ${upscalingByImageId[project.images[lightboxImageIndex].id] ? 'cursor-not-allowed opacity-60 hover:bg-white' : ''}`}
+                                title={upscalingByImageId[project.images[lightboxImageIndex].id] ? 'Upscaling…' : 'Upscale'}
+                                disabled={!!upscalingByImageId[project.images[lightboxImageIndex].id]}
+                                aria-disabled={!!upscalingByImageId[project.images[lightboxImageIndex].id]}
+                                onClick={() => {
+                                    const image = project.images[lightboxImageIndex];
+                                    openUpscaleSelector(image.id);
+                                }}
+                            >
+                                <Sparkles className={`size-4 ${upscalingByImageId[project.images[lightboxImageIndex].id] ? 'animate-pulse' : ''}`} />
+                            </button>
                         </div>
                     </div>
                 </div>
             )}
+            <UpscaleModal
+                isOpen={upscaleModalOpen}
+                selectedFactor={upscaleFactor}
+                onClose={() => {
+                    if (!upscaleImageId || !upscalingByImageId[upscaleImageId]) {
+                        setUpscaleModalOpen(false);
+                    }
+                }}
+                onSelectFactor={(factor) => setUpscaleFactor(factor)}
+                onConfirm={runUpscale}
+                isLoading={!!(upscaleImageId && upscalingByImageId[upscaleImageId])}
+            />
         </AppLayout>
     );
 }

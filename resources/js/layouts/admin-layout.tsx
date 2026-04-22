@@ -13,6 +13,7 @@ import {
     Package,
     Receipt,
     FolderOpen,
+    MessageSquare,
 } from 'lucide-react';
 
 interface AdminLayoutProps {
@@ -27,6 +28,7 @@ const navItems = [
     { label: 'Subscriptions', href: '/admin/subscriptions', icon: Receipt },
     { label: 'Plans', href: '/admin/plans', icon: Package },
     { label: 'Projects', href: '/admin/projects', icon: FolderOpen },
+    { label: 'Feedback', href: '/admin#feedback', icon: MessageSquare },
     { label: 'Usage', href: '/admin/usage', icon: BarChart3 },
 ];
 

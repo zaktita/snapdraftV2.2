@@ -16,6 +16,13 @@ return [
     'default' => env('QUEUE_CONNECTION', 'database'),
 
     /*
+    | Shared hosting (no Supervisor): process the queue in short bursts from the
+    | Laravel scheduler. Set QUEUE_WORKER_VIA_SCHEDULE=true and add a cron job that
+    | runs `php artisan schedule:run` every minute (see routes/console.php).
+    */
+    'worker_via_schedule' => env('QUEUE_WORKER_VIA_SCHEDULE', false),
+
+    /*
     |--------------------------------------------------------------------------
     | Queue Connections
     |--------------------------------------------------------------------------

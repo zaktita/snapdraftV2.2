@@ -197,6 +197,14 @@ class User extends Authenticatable
         return $this->hasMany(SubscriptionUsage::class);
     }
 
+    /**
+     * Get feedback submissions created by this user.
+     */
+    public function feedbackSubmissions(): HasMany
+    {
+        return $this->hasMany(FeedbackSubmission::class);
+    }
+
     /** @var \App\Models\Subscription|false|null  false = not yet loaded */
     private $cachedSubscription = false;
 

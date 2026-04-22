@@ -49,7 +49,7 @@ class FalProxyController extends Controller
 
         $user = $request->user();
         if ($user && $user->hasActiveSubscription()) {
-            $creditCost = $validated['upscale_factor'] === 4 ? 2 : 1;
+            $creditCost = (int) $validated['upscale_factor'];
             $user->useCredit($creditCost);
         }
 

@@ -39,10 +39,12 @@ class CSVWizardController extends Controller
             'column_mappings'   => ['required', 'string'],
             'reference_images'  => ['required', 'array', 'min:3', 'max:10'],
             'reference_images.*' => ['required', 'file', 'image', 'max:10240'],
+            'resolution_multiplier' => ['nullable', 'integer', 'in:1,2,4'],
         ]);
 
         $user           = Auth::user();
         $columnMappings = json_decode($request->input('column_mappings'), true) ?? [];
+        $resolutionMultiplier = (int) $request->input('resolution_multiplier', 1);
 
         // ── 1. Parse CSV ─────────────────────────────────────────────────────
         $csvRows = $this->parseCsvRows($request->file('csv_file'), $columnMappings);
@@ -58,10 +60,11 @@ class CSVWizardController extends Controller
         }
 
         $rowCount = count($csvRows);
-        if (!$user->hasCredits($rowCount)) {
+        $requiredCredits = $rowCount * $resolutionMultiplier;
+        if (!$user->hasCredits($requiredCredits)) {
             $remaining = $user->creditsRemaining();
             return back()->withErrors([
-                'credits' => "Not enough credits. You selected {$rowCount} rows but only have {$remaining} credit(s) remaining.",
+                'credits' => "Not enough credits. You selected {$rowCount} rows at {$resolutionMultiplier}x ({$requiredCredits} credits total), but only have {$remaining} credit(s) remaining.",
             ]);
         }
 
@@ -72,6 +75,7 @@ class CSVWizardController extends Controller
             'settings'    => [
                 'wizard_type' => 'csv',
                 'csv_data'    => $csvRows,
+                'resolution_multiplier' => $resolutionMultiplier,
             ],
         ]);
 
@@ -111,6 +115,7 @@ class CSVWizardController extends Controller
                     'title'         => $row['title'],
                     'format'        => $row['format'],
                     'wizard_type'   => 'csv',
+                    'resolution_multiplier' => $resolutionMultiplier,
                 ],
             ]);
 
@@ -122,6 +127,7 @@ class CSVWizardController extends Controller
             'settings' => array_merge($project->settings, [
                 'ref_paths'   => $refPaths,
                 'history_ids' => $historyIds,
+                'resolution_multiplier' => $resolutionMultiplier,
             ]),
         ]);
 
@@ -144,6 +150,8 @@ class CSVWizardController extends Controller
             'project_id' => $project->id,
             'row_count'  => count($csvRows),
             'ref_count'  => count($refPaths),
+            'resolution_multiplier' => $resolutionMultiplier,
+            'credits_required' => $requiredCredits,
         ]);
 
         Log::info('CSVWizardController: pipeline dispatched', [
@@ -151,6 +159,8 @@ class CSVWizardController extends Controller
             'session_id'  => $session->id,
             'row_count'   => count($csvRows),
             'ref_count'   => count($refPaths),
+            'resolution_multiplier' => $resolutionMultiplier,
+            'credits_required' => $requiredCredits,
         ]);
 
         // ── 8. Redirect to project show with optimistic UI flags ──────────────

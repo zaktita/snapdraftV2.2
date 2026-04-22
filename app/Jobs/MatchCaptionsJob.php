@@ -48,6 +48,14 @@ class MatchCaptionsJob implements ShouldQueue
             ]);
 
             $promptBatch = $matcherService->match($clusterResult, $csvData);
+            $resolutionMultiplier = (int) data_get($project->settings, 'resolution_multiplier', 1);
+            if (!in_array($resolutionMultiplier, [1, 2, 4], true)) {
+                $resolutionMultiplier = 1;
+            }
+            $promptBatch = array_map(
+                fn (array $item) => array_merge($item, ['resolution_multiplier' => $resolutionMultiplier]),
+                $promptBatch
+            );
 
             $project->update([
                 'settings' => array_merge($project->settings ?? [], [
@@ -58,6 +66,7 @@ class MatchCaptionsJob implements ShouldQueue
             Log::info('MatchCaptionsJob: completed', [
                 'project_id' => $this->projectId,
                 'batch_size' => count($promptBatch),
+                'resolution_multiplier' => $resolutionMultiplier,
             ]);
         } catch (\Throwable $e) {
             Log::error('MatchCaptionsJob: failed', [

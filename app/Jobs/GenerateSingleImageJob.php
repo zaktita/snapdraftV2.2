@@ -48,6 +48,14 @@ class GenerateSingleImageJob implements ShouldQueue
 
         $user           = $project->user;
         $creditDeducted = false;
+        $resolutionMultiplier = (int) (
+            data_get($this->promptItem, 'resolution_multiplier')
+            ?? data_get($history?->parameters, 'resolution_multiplier')
+            ?? data_get($project->settings, 'resolution_multiplier', 1)
+        );
+        if (!in_array($resolutionMultiplier, [1, 2, 4], true)) {
+            $resolutionMultiplier = 1;
+        }
 
         try {
             $history?->update(['status' => 'processing']);
@@ -58,15 +66,16 @@ class GenerateSingleImageJob implements ShouldQueue
                 'project_id' => $this->projectId,
                 'row_index'  => $rowIndex,
                 'title'      => $this->promptItem['title'] ?? '',
+                'resolution_multiplier' => $resolutionMultiplier,
             ]);
 
-            // Deduct credit before generation (skips if user has no active subscription)
+            // Reserve credits before generation (settled on success, refunded on failure).
             if ($user->hasActiveSubscription()) {
-                $user->useCredit();
+                $user->useCredit($resolutionMultiplier);
                 $creditDeducted = true;
             }
 
-            $base64Data = $generatorService->generate($this->promptItem, $refPaths);
+            $base64Data = $generatorService->generate($this->promptItem, $refPaths, $resolutionMultiplier);
 
             // Save image to storage
             $directory  = "projects/{$this->projectId}/images";
@@ -98,6 +107,7 @@ class GenerateSingleImageJob implements ShouldQueue
                     'cluster_index' => $this->promptItem['clusterIndex'] ?? null,
                     'overlay_text'  => $this->promptItem['overlayText'] ?? '',
                     'wizard_type'   => 'csv',
+                    'resolution_multiplier' => $resolutionMultiplier,
                 ],
             ]);
 
@@ -109,6 +119,7 @@ class GenerateSingleImageJob implements ShouldQueue
                 'project_id' => $this->projectId,
                 'row_index'  => $rowIndex,
                 'image_id'   => $image->id,
+                'resolution_multiplier' => $resolutionMultiplier,
             ]);
         } catch (\Throwable $e) {
             Log::error('GenerateSingleImageJob: failed', [
@@ -120,10 +131,11 @@ class GenerateSingleImageJob implements ShouldQueue
             // Refund credit if it was deducted before the failure
             if ($creditDeducted) {
                 try {
-                    $user->refundCredit();
+                    $user->refundCredit($resolutionMultiplier);
                 } catch (\Throwable $refundError) {
                     Log::warning('GenerateSingleImageJob: failed to refund credit', [
                         'project_id' => $this->projectId,
+                        'resolution_multiplier' => $resolutionMultiplier,
                         'error'      => $refundError->getMessage(),
                     ]);
                 }

@@ -1,12 +1,12 @@
 <?php
 
 use App\Jobs\CleanOrphanedFilesJob;
+use App\Models\Project;
+use App\Services\AI\AIServiceManager;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Schedule;
 use Illuminate\Support\Facades\Storage;
-use App\Services\AI\AIServiceManager;
-use App\Models\Project;
 
 Artisan::command('inspire', function () {
     $this->comment(Inspiring::quote());
@@ -15,23 +15,38 @@ Artisan::command('inspire', function () {
 // Schedule orphaned files cleanup to run daily at 2 AM
 Schedule::job(new CleanOrphanedFilesJob)->dailyAt('02:00');
 
+// Shared hosting (e.g. Infomaniak without a persistent `queue:work` daemon):
+// enable QUEUE_WORKER_VIA_SCHEDULE=true and cron `* * * * * php artisan schedule:run`.
+if (config('queue.worker_via_schedule')) {
+    $connection = (string) config('queue.default');
+
+    if (in_array($connection, ['database', 'redis'], true)) {
+        Schedule::command(
+            "queue:work {$connection} --stop-when-empty --max-time=300 --max-jobs=20"
+        )
+            ->everyMinute()
+            ->withoutOverlapping(6);
+    }
+}
+
 // One-off test image generation command
 Artisan::command('ai:test-generate {prompt : The prompt to generate an image}', function (string $prompt) {
     /** @var AIServiceManager $ai */
     $ai = app(AIServiceManager::class);
 
-    $this->info('Generating image with prompt: "' . $prompt . '"');
+    $this->info('Generating image with prompt: "'.$prompt.'"');
 
     try {
         $result = $ai->generateWithReferences($prompt, [], [], 'square');
 
-        if (!isset($result['image_data'], $result['mime_type'])) {
+        if (! isset($result['image_data'], $result['mime_type'])) {
             $this->error('No image data returned from AI service');
+
             return;
         }
 
         $imageData = base64_decode($result['image_data']);
-        $extension = match($result['mime_type']) {
+        $extension = match ($result['mime_type']) {
             'image/jpeg' => 'jpg',
             'image/png' => 'png',
             'image/webp' => 'webp',
@@ -39,15 +54,15 @@ Artisan::command('ai:test-generate {prompt : The prompt to generate an image}', 
         };
 
         $dir = 'tests';
-        $filename = 'test_' . time() . '_' . uniqid() . '.' . $extension;
-        $path = $dir . '/' . $filename;
+        $filename = 'test_'.time().'_'.uniqid().'.'.$extension;
+        $path = $dir.'/'.$filename;
 
         Storage::disk('public')->put($path, $imageData);
 
-        $url = 'storage/' . $path;
-        $this->info('Image saved to: ' . $url);
+        $url = 'storage/'.$path;
+        $this->info('Image saved to: '.$url);
     } catch (\Throwable $e) {
-        $this->error('Generation failed: ' . $e->getMessage());
+        $this->error('Generation failed: '.$e->getMessage());
         report($e);
     }
 })->purpose('Generate a test image using the configured AI service');
@@ -55,7 +70,7 @@ Artisan::command('ai:test-generate {prompt : The prompt to generate an image}', 
 // Test CSV wizard flow
 Artisan::command('test:csv-wizard', function () {
     $this->info('Testing CSV wizard flow...');
-    
+
     // Get or create test user
     $user = \App\Models\User::firstOrCreate(
         ['email' => 'test@example.com'],
@@ -66,7 +81,7 @@ Artisan::command('test:csv-wizard', function () {
             'credits_total' => 100,
         ]
     );
-    
+
     // Create test project
     $project = $user->projects()->create([
         'title' => 'Test CSV Project',
@@ -80,15 +95,15 @@ Artisan::command('test:csv-wizard', function () {
             'csv_rows' => 2,
         ],
     ]);
-    
+
     $this->info("Project created: {$project->id}");
-    
+
     // Dispatch batch job
     \App\Jobs\GenerateBatchImagesJob::dispatch($project);
-    
+
     $this->info('Batch job dispatched! Run queue worker to process: php artisan queue:work');
     $this->info("View results: http://localhost/projects/{$project->id}");
-    
+
 })->purpose('Test the CSV wizard generation flow');
 
 // Generate homepage images using OpenRouter seedream-4.5
@@ -100,14 +115,16 @@ Artisan::command('home:generate-images {projectId? : Project ID for brand refere
         ? Project::query()->find($projectId)
         : Project::query()->whereHas('brandReferences')->first();
 
-    if (!$project) {
+    if (! $project) {
         $this->error('No project with brand references found. Provide a projectId.');
+
         return;
     }
 
     $brandReferences = $project->brandReferences()->orderBy('order')->get();
     if ($brandReferences->isEmpty()) {
         $this->error('Project has no brand references.');
+
         return;
     }
 
@@ -121,6 +138,7 @@ Artisan::command('home:generate-images {projectId? : Project ID for brand refere
 
     if (empty($referenceImagePaths)) {
         $this->error('No reference images could be loaded from storage.');
+
         return;
     }
 
@@ -174,21 +192,22 @@ Artisan::command('home:generate-images {projectId? : Project ID for brand refere
 
     $ai = app(AIServiceManager::class);
     $outputDir = public_path('images/landing');
-    if (!is_dir($outputDir)) {
+    if (! is_dir($outputDir)) {
         mkdir($outputDir, 0755, true);
     }
 
     foreach ($targets as $target) {
-        $outPath = $outputDir . DIRECTORY_SEPARATOR . $target['file'];
-        if (file_exists($outPath) && !$force) {
+        $outPath = $outputDir.DIRECTORY_SEPARATOR.$target['file'];
+        if (file_exists($outPath) && ! $force) {
             $this->info("Skipping {$target['file']} (exists). Use --force to overwrite.");
+
             continue;
         }
 
-        $prompt = $target['prompt'] . "\n\nOUTPUT FORMAT:\n- Compose for {$target['ratio']} aspect ratio.";
+        $prompt = $target['prompt']."\n\nOUTPUT FORMAT:\n- Compose for {$target['ratio']} aspect ratio.";
         $this->info("Generating {$target['file']}...");
 
-        $format = match($target['ratio']) {
+        $format = match ($target['ratio']) {
             '1:1' => 'square',
             '3:2', '16:9' => 'landscape',
             '2:3', '9:16' => 'portrait',
@@ -198,8 +217,9 @@ Artisan::command('home:generate-images {projectId? : Project ID for brand refere
         try {
             $result = $ai->generateWithReferences($prompt, $referenceImagePaths, [], $format); // Default model (Seedream)
 
-            if (!isset($result['image_base64'])) {
+            if (! isset($result['image_base64'])) {
                 $this->error("Failed to generate {$target['file']}: No image result.");
+
                 continue;
             }
 
@@ -208,7 +228,7 @@ Artisan::command('home:generate-images {projectId? : Project ID for brand refere
 
             $this->info("Saved {$target['file']} to public/images/landing.");
         } catch (\Throwable $e) {
-            $this->error("Error generating {$target['file']}: " . $e->getMessage());
+            $this->error("Error generating {$target['file']}: ".$e->getMessage());
         }
     }
 })->purpose('Generate homepage images using OpenRouter seedream-4.5 and save to public/images/landing');

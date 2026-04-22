@@ -564,7 +564,7 @@ export function UpscaleModal({
                     marginBottom: '24px'
                 }}>
                     {[2, 4].map((factor) => {
-                        const creditCost = factor === 2 ? 1 : 2;
+                        const creditCost = factor;
                         return (
                             <button
                                 key={factor}
@@ -677,7 +677,7 @@ export function UpscaleModal({
                             e.currentTarget.style.borderColor = 'var(--color-primary)';
                         }}
                     >
-                        {isLoading ? 'Upscaling...' : `Upscale (${selectedFactor === 2 ? 1 : 2} ${selectedFactor === 2 ? 'credit' : 'credits'})`}
+                        {isLoading ? 'Upscaling...' : `Upscale (${selectedFactor} ${selectedFactor === 1 ? 'credit' : 'credits'})`}
                     </button>
                 </div>
             </div>

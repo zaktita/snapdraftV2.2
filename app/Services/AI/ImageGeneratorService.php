@@ -22,7 +22,7 @@ class ImageGeneratorService
      * @param  string[] $refImagePaths Storage paths of all brand reference images
      * @return string  Raw base64-encoded PNG data
      */
-    public function generate(array $promptItem, array $refImagePaths): string
+    public function generate(array $promptItem, array $refImagePaths, int $resolutionMultiplier = 1): string
     {
         // Pick reference images for this cluster; fall back to all refs if indices not specified
         $indices = $promptItem['referenceImageIndices'] ?? array_keys($refImagePaths);
@@ -40,8 +40,20 @@ class ImageGeneratorService
             );
         }
 
+        if (!in_array($resolutionMultiplier, [1, 2, 4], true)) {
+            $resolutionMultiplier = 1;
+        }
+
+        $resolutionInstruction = $resolutionMultiplier > 1
+            ? "Generate this image at {$resolutionMultiplier}x native resolution quality."
+            : 'Generate this image at native 1x resolution quality.';
+
         $contents = [[
-            'parts' => [...$refParts, ['text' => $promptItem['generationPrompt']]],
+            'parts' => [
+                ...$refParts,
+                ['text' => $resolutionInstruction],
+                ['text' => $promptItem['generationPrompt']],
+            ],
         ]];
 
         $aspectRatio = $this->resolveAspectRatio($promptItem['format'] ?? 'square');

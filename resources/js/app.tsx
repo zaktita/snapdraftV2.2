@@ -12,7 +12,12 @@ import { initializeTheme } from './hooks/use-appearance';
 const appName = import.meta.env.VITE_APP_NAME || 'Laravel';
 const DEFAULT_POSTHOG_HOST = 'https://us.i.posthog.com';
 
-type PostHogConfig = { token?: string; host?: string };
+type PostHogConfig = {
+    token?: string;
+    host?: string;
+    disable_session_recording?: boolean;
+    capture_dead_clicks?: boolean;
+};
 type AuthUser = { id: number; email: string; name: string };
 
 function initializePostHog(phConfig?: PostHogConfig, user?: AuthUser | null) {
@@ -22,16 +27,24 @@ function initializePostHog(phConfig?: PostHogConfig, user?: AuthUser | null) {
     }
 
     // HMR/dev reloads can attempt to initialize PostHog multiple times.
+    const apiHost = phConfig?.host?.trim() || DEFAULT_POSTHOG_HOST;
+    const disableSessionRecording = Boolean(phConfig?.disable_session_recording);
+    const captureDeadClicks = phConfig?.capture_dead_clicks !== false;
+
     if ((posthog as { __loaded?: boolean }).__loaded) {
         posthog.set_config({
-            api_host: phConfig?.host?.trim() || DEFAULT_POSTHOG_HOST,
+            api_host: apiHost,
+            disable_session_recording: disableSessionRecording,
+            capture_dead_clicks: captureDeadClicks,
         });
     } else {
         posthog.init(token, {
-            api_host: phConfig?.host?.trim() || DEFAULT_POSTHOG_HOST,
+            api_host: apiHost,
             person_profiles: 'identified_only',
             capture_pageview: true,
             capture_pageleave: true,
+            disable_session_recording: disableSessionRecording,
+            capture_dead_clicks: captureDeadClicks,
         });
     }
 

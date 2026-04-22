@@ -2376,7 +2376,7 @@ export default function CanvasEditor(props: CanvasEditorProps) {
             return;
         }
 
-        const creditCost = factor === 2 ? 1 : 2;
+        const creditCost = factor;
 
         setUpscaleModal({ isOpen: false, selectedFactor: factor });
         setGeneratingType('upscale');

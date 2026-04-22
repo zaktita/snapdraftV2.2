@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Models\FeedbackSubmission;
 use App\Models\GenerationHistory;
 use App\Models\Plan;
 use App\Models\Project;
@@ -18,7 +19,7 @@ use Inertia\Inertia;
 
 class AdminDashboardController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
         $totalUsers        = User::count();
         $adminUsers        = User::where('is_admin', true)->count();
@@ -57,6 +58,42 @@ class AdminDashboardController extends Controller
             'subscription_tier' => $u->activeSubscription?->plan?->slug ?? $u->activeSubscription?->plan?->name ?? 'free',
         ]);
 
+        $feedbackQuery = FeedbackSubmission::query()->with('user');
+
+        if ($dateFrom = $request->input('feedback_date_from')) {
+            $feedbackQuery->whereDate('created_at', '>=', $dateFrom);
+        }
+        if ($dateTo = $request->input('feedback_date_to')) {
+            $feedbackQuery->whereDate('created_at', '<=', $dateTo);
+        }
+        if ($category = $request->input('feedback_category')) {
+            $feedbackQuery->where('category', $category);
+        }
+        if ($ratingMin = $request->input('feedback_rating_min')) {
+            $feedbackQuery->where('rating', '>=', (int) $ratingMin);
+        }
+        if ($ratingMax = $request->input('feedback_rating_max')) {
+            $feedbackQuery->where('rating', '<=', (int) $ratingMax);
+        }
+        if ($email = $request->input('feedback_user_email')) {
+            $feedbackQuery->whereHas('user', fn ($q) => $q->where('email', 'like', "%{$email}%"));
+        }
+
+        $feedback = $feedbackQuery
+            ->latest()
+            ->paginate(20)
+            ->withQueryString()
+            ->through(fn ($item) => [
+                'id' => $item->id,
+                'submitted_at' => optional($item->created_at)->toDateTimeString(),
+                'user_id' => $item->user_id,
+                'user_name' => $item->user?->name ?? 'Unknown',
+                'user_email' => $item->user?->email ?? 'Unknown',
+                'rating' => $item->rating,
+                'category' => $item->category,
+                'message' => $item->message,
+            ]);
+
         return Inertia::render('admin/dashboard', [
             'stats' => [
                 'total_users'            => $totalUsers,
@@ -76,7 +113,63 @@ class AdminDashboardController extends Controller
                 'subscription_breakdown' => $subscriptionBreakdown,
             ],
             'recent_users' => $recentUsers,
+            'feedback' => $feedback,
+            'feedback_filters' => $request->only([
+                'feedback_date_from',
+                'feedback_date_to',
+                'feedback_category',
+                'feedback_rating_min',
+                'feedback_rating_max',
+                'feedback_user_email',
+            ]),
+            'feedback_categories' => ['Bug Report', 'Feature Request', 'General Feedback', 'UX / Design'],
         ]);
+    }
+
+    public function downloadFeedback(Request $request)
+    {
+        $query = FeedbackSubmission::query()->with('user');
+
+        if ($dateFrom = $request->input('feedback_date_from')) {
+            $query->whereDate('created_at', '>=', $dateFrom);
+        }
+        if ($dateTo = $request->input('feedback_date_to')) {
+            $query->whereDate('created_at', '<=', $dateTo);
+        }
+        if ($category = $request->input('feedback_category')) {
+            $query->where('category', $category);
+        }
+        if ($ratingMin = $request->input('feedback_rating_min')) {
+            $query->where('rating', '>=', (int) $ratingMin);
+        }
+        if ($ratingMax = $request->input('feedback_rating_max')) {
+            $query->where('rating', '<=', (int) $ratingMax);
+        }
+        if ($email = $request->input('feedback_user_email')) {
+            $query->whereHas('user', fn ($q) => $q->where('email', 'like', "%{$email}%"));
+        }
+
+        $rows = $query->latest()->get();
+        $filename = 'all-feedback-' . now()->format('Y-m-d-His') . '.csv';
+
+        return response()->streamDownload(function () use ($rows) {
+            $handle = fopen('php://output', 'w');
+            fputcsv($handle, ['Submitted At', 'User ID', 'User Name', 'User Email', 'Rating', 'Category', 'Message']);
+
+            foreach ($rows as $row) {
+                fputcsv($handle, [
+                    optional($row->created_at)->toDateTimeString(),
+                    $row->user_id,
+                    $row->user?->name ?? 'Unknown',
+                    $row->user?->email ?? 'Unknown',
+                    $row->rating,
+                    $row->category,
+                    preg_replace("/\r\n|\r|\n/", ' ', (string) $row->message),
+                ]);
+            }
+
+            fclose($handle);
+        }, $filename, ['Content-Type' => 'text/csv; charset=UTF-8']);
     }
 
     public function users(Request $request)

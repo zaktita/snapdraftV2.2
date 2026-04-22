@@ -209,6 +209,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     // Feedback
     Route::get('/feedback', [FeedbackController::class, 'show'])->name('feedback');
     Route::post('/feedback', [FeedbackController::class, 'submit'])->name('feedback.submit');
+    Route::get('/feedback/thank-you', [FeedbackController::class, 'thankYou'])->name('feedback.thank-you');
 
     // Subscription & Billing — redirected to feedback during beta
     Route::prefix('subscription')->name('subscription.')->group(function () {

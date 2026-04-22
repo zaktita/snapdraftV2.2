@@ -225,11 +225,15 @@ class ImageEditController extends Controller
     {
         $validated = $request->validate([
             'image' => 'required|string|max:14000000', // ~10 MB
-            'scale' => 'nullable|numeric|min:1.5|max:4.0',
+            'scale' => 'required|integer|in:2,4',
         ]);
 
+        $user = $request->user();
+        $creditDeducted = false;
+        $creditCost = (int) $validated['scale'];
+
         try {
-            Log::info('[upscale-image] Starting', ['scale' => $validated['scale'] ?? 2]);
+            Log::info('[upscale-image] Starting (Gemini prompt flow)', ['scale' => $validated['scale']]);
 
             // Decode the image
             $imageData = self::decodeDataUrl($validated['image']);
@@ -245,39 +249,33 @@ class ImageEditController extends Controller
             
             $width = imagesx($img);
             $height = imagesy($img);
-            $scale = $validated['scale'] ?? 2.0;
+            $scale = (int) $validated['scale'];
 
             $newWidth = (int)($width * $scale);
             $newHeight = (int)($height * $scale);
 
-            // Create new image with upscaled dimensions
-            $upscaledImg = imagecreatetruecolor($newWidth, $newHeight);
-            
-            // Preserve transparency for PNG images
-            imagealphablending($upscaledImg, false);
-            imagesavealpha($upscaledImg, true);
-            
-            // Use bicubic interpolation for better quality
-            imagecopyresampled(
-                $upscaledImg,
-                $img,
-                0, 0, 0, 0,
-                $newWidth, $newHeight,
-                $width, $height
-            );
-
-            // Convert to base64
-            ob_start();
-            imagepng($upscaledImg, null, 9); // Maximum compression
-            $upscaledData = ob_get_clean();
-            $upscaledBase64 = base64_encode($upscaledData);
-
             imagedestroy($img);
-            imagedestroy($upscaledImg);
+
+            // Gemini does not expose a dedicated upscale endpoint here; use image edit
+            // with explicit upscale instruction, then enforce target dimensions.
+            $imageBase64 = self::extractBase64FromDataUrl($validated['image']);
+            if (!$imageBase64) {
+                return response()->json(['message' => 'Invalid image data'], 422);
+            }
+
+            if ($user->hasActiveSubscription()) {
+                $user->useCredit($creditCost);
+                $creditDeducted = true;
+            }
+
+            $prompt = "Upscale this image by {$scale}x while preserving composition, text, branding, and details. Keep the output visually faithful to the original.";
+            $resultBase64 = $this->aiService->editBase64($imageBase64, $prompt, null);
+            $upscaledBase64 = self::resizeToDimensions($resultBase64, $newWidth, $newHeight);
 
             Log::info('[upscale-image] Success', [
                 'originalSize' => "{$width}x{$height}",
-                'newSize' => "{$newWidth}x{$newHeight}"
+                'newSize' => "{$newWidth}x{$newHeight}",
+                'scale' => $scale,
             ]);
 
             return response()->json([
@@ -290,12 +288,50 @@ class ImageEditController extends Controller
             ]);
 
         } catch (\Throwable $e) {
+            if ($creditDeducted) {
+                try { $user->refundCredit($creditCost); } catch (\Throwable) {}
+            }
             Log::error('[upscale-image] Error: ' . $e->getMessage());
             return response()->json([
                 'message' => 'Image upscaling failed',
                 'error' => $e->getMessage()
             ], 500);
         }
+    }
+
+    private static function resizeToDimensions(string $resultBase64, int $targetW, int $targetH): string
+    {
+        $data = base64_decode($resultBase64);
+        $img  = imagecreatefromstring($data);
+        if (!$img) {
+            return $resultBase64;
+        }
+
+        $srcW = imagesx($img);
+        $srcH = imagesy($img);
+
+        if ($srcW === $targetW && $srcH === $targetH) {
+            imagedestroy($img);
+            return $resultBase64;
+        }
+
+        $out = imagecreatetruecolor($targetW, $targetH);
+        imagealphablending($out, false);
+        imagesavealpha($out, true);
+        $transparent = imagecolorallocatealpha($out, 0, 0, 0, 127);
+        imagefilledrectangle($out, 0, 0, $targetW, $targetH, $transparent);
+        imagealphablending($out, true);
+
+        imagecopyresampled($out, $img, 0, 0, 0, 0, $targetW, $targetH, $srcW, $srcH);
+
+        ob_start();
+        imagepng($out, null, 9);
+        $resized = ob_get_clean();
+
+        imagedestroy($img);
+        imagedestroy($out);
+
+        return base64_encode($resized);
     }
 
     /**

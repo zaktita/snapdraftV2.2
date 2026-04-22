@@ -10,7 +10,7 @@ import { logout } from '@/routes';
 import { edit } from '@/routes/profile';
 import { type User } from '@/types';
 import { Link, router } from '@inertiajs/react';
-import { LogOut, MessageSquareHeart, Settings, HelpCircle, UserPlus, Shield } from 'lucide-react';
+import { LogOut, MessageSquareHeart, Settings, Shield } from 'lucide-react';
 
 interface UserMenuContentProps {
     user: User;
@@ -55,30 +55,6 @@ export function UserMenuContent({ user }: UserMenuContentProps) {
                     >
                         <MessageSquareHeart className="mr-2" />
                         Share Feedback
-                    </Link>
-                </DropdownMenuItem>
-                <DropdownMenuItem asChild>
-                    <Link
-                        className="block w-full"
-                        href="/invite"
-                        as="button"
-                        prefetch
-                        onClick={cleanup}
-                    >
-                        <UserPlus className="mr-2" />
-                        Invite Members
-                    </Link>
-                </DropdownMenuItem>
-                <DropdownMenuItem asChild>
-                    <Link
-                        className="block w-full"
-                        href="/support"
-                        as="button"
-                        prefetch
-                        onClick={cleanup}
-                    >
-                        <HelpCircle className="mr-2" />
-                        Help & Support
                     </Link>
                 </DropdownMenuItem>
             </DropdownMenuGroup>

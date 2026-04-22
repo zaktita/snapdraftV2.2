@@ -45,9 +45,9 @@ class HandleInertiaRequests extends Middleware
             'auth' => [
                 'user' => $request->user()
                     ? array_merge($request->user()->toArray(), [
-                        'credits_remaining'      => $request->user()->creditsRemaining(),
-                        'credits_total'          => $request->user()->creditsTotal(),
-                        'subscription_tier'      => $request->user()->currentTier(),
+                        'credits_remaining' => $request->user()->creditsRemaining(),
+                        'credits_total' => $request->user()->creditsTotal(),
+                        'subscription_tier' => $request->user()->currentTier(),
                         'subscription_plan_name' => $request->user()->subscription()?->plan?->name,
                     ])
                     : null,
@@ -63,16 +63,19 @@ class HandleInertiaRequests extends Middleware
             'error' => session('error'),
             // Impersonation state
             'impersonating' => session('impersonating_user_id')
-                ? (function () use ($request) {
+                ? (function () {
                     $adminId = session('impersonating_user_id');
                     $admin = \App\Models\User::find($adminId);
+
                     return $admin ? ['id' => $admin->id, 'name' => $admin->name, 'email' => $admin->email] : null;
                 })()
                 : null,
             // PostHog client-side configuration
             'posthog' => [
                 'token' => config('posthog.api_key', ''),
-                'host'  => config('posthog.host', ''),
+                'host' => config('posthog.host', ''),
+                'disable_session_recording' => (bool) config('posthog.disable_session_recording', false),
+                'capture_dead_clicks' => (bool) config('posthog.capture_dead_clicks', true),
             ],
         ];
     }

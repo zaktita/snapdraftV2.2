@@ -95,7 +95,7 @@ const stepContent = {
         subtitle: 'Give your project a descriptive name to help organize your work.'
     },
     2: {
-        title: 'Upload Your CSV File',
+        title: 'Upload Your Content Plan File',
         subtitle: "We'll analyze your data and detect the structure.",
         titleAfterUpload: 'Review, Map & Edit Data',
         subtitleAfterUpload: 'Confirm your data is correct before proceeding.'
@@ -135,6 +135,7 @@ export default function CSVWizard() {
     const [localError, setLocalError] = useState<string | null>(null);
     const [imageDragOver, setImageDragOver] = useState(false);
     const [showSkipNotice, setShowSkipNotice] = useState(false);
+    const [resolutionMultiplier, setResolutionMultiplier] = useState<1 | 2 | 4>(1);
 
     const csvInputRef = useRef<HTMLInputElement>(null);
     const imageInputRef = useRef<HTMLInputElement>(null);
@@ -346,7 +347,7 @@ export default function CSVWizard() {
 
         reader.onerror = () => {
             debug('handleFileUpload: reader error');
-            setLocalError('Failed to read the file. Please try a different CSV file.');
+            setLocalError('Failed to read the file. Please try a different content plan file.');
             setShowError(true);
         };
 
@@ -377,7 +378,7 @@ export default function CSVWizard() {
         if (files.length > 0) {
             const file = files[0];
             if (!file.name.toLowerCase().endsWith('.csv') && file.type !== 'text/csv' && file.type !== 'application/vnd.ms-excel') {
-                setLocalError('Please upload a valid CSV file (.csv)');
+                setLocalError('Please upload a valid content plan file (.csv)');
                 setShowError(true);
                 debug('drop: rejected non-csv', { name: file.name, type: file.type });
                 return;
@@ -502,7 +503,7 @@ export default function CSVWizard() {
         if (editableData.length === 0) return;
 
         setCsvData(editableData);
-        setFileName('Custom CSV');
+        setFileName('Custom Content Plan');
 
         const mappings: ColumnMapping = {};
         editableHeaders.forEach(header => {
@@ -536,6 +537,19 @@ export default function CSVWizard() {
 
         setUploadComplete(true);
         setCurrentStep(4);
+    };
+
+    const editConfirmedContentPlan = () => {
+        if (csvData.length === 0) {
+            setUploadComplete(false);
+            return;
+        }
+
+        const headers = Object.keys(csvData[0]);
+        setEditableHeaders(headers);
+        setEditableData(csvData.map((row) => ({ ...row })));
+        setUploadMode('create');
+        setUploadComplete(false);
     };
 
     // Handle image upload
@@ -602,7 +616,7 @@ export default function CSVWizard() {
         // Build a sensible default name if not provided
         const name = projectName.trim().length
             ? projectName.trim()
-            : (fileName ? fileName.replace(/\.[^.]+$/, '') : 'CSV Project');
+            : (fileName ? fileName.replace(/\.[^.]+$/, '') : 'Content Plan Project');
 
         debug('submitToBackend: start', {
             name,
@@ -642,12 +656,18 @@ export default function CSVWizard() {
             debug('submitToBackend: blocked - no credits', { creditsRemaining });
             return;
         }
-        if (selectedData.length > creditsRemaining) {
+        const requiredCredits = selectedData.length * resolutionMultiplier;
+        if (requiredCredits > creditsRemaining) {
             setLocalError(
-                `Not enough credits. You selected ${selectedData.length} rows but only have ${creditsRemaining} credit(s) remaining. Deselect some rows to continue.`
+                `Not enough credits. You selected ${selectedData.length} row(s) at ${resolutionMultiplier}x (${requiredCredits} credit(s) total), but only have ${creditsRemaining} credit(s) remaining.`
             );
             setShowError(true);
-            debug('submitToBackend: blocked - insufficient credits', { selected: selectedData.length, creditsRemaining });
+            debug('submitToBackend: blocked - insufficient credits', {
+                selected: selectedData.length,
+                multiplier: resolutionMultiplier,
+                requiredCredits,
+                creditsRemaining,
+            });
             return;
         }
 
@@ -697,6 +717,7 @@ export default function CSVWizard() {
         fd.append('project_name', name);
         fd.append('csv_file', fileToSubmit);
         fd.append('column_mappings', JSON.stringify(columnMappings));
+        fd.append('resolution_multiplier', String(resolutionMultiplier));
 
         // Add reference images (required: 3-10)
         styleImageFiles.slice(0, 10).forEach((f) => fd.append('reference_images[]', f));
@@ -785,7 +806,7 @@ export default function CSVWizard() {
 
     return (
         <>
-            <Head title="Create CSV Project" />
+            <Head title="Create Content Plan Project" />
 
             <div style={{
                 fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", "Oxygen", "Ubuntu", "Cantarell", sans-serif',
@@ -801,8 +822,8 @@ export default function CSVWizard() {
                     background: 'var(--color-card)',
                     borderRadius: '12px',
                     boxShadow: '0 4px 12px rgba(0, 0, 0, 0.08)',
-                    maxWidth: '900px',
-                    width: '100%',
+                    width: '80vw',
+                    maxWidth: '80vw',
                     overflow: 'hidden'
                 }}>
                     {/* Header */}
@@ -1021,7 +1042,7 @@ export default function CSVWizard() {
                             </div>
                         )}
 
-                        {/* Step 2: Upload CSV */}
+                        {/* Step 2: Upload Content Plan */}
                         {currentStep === 2 && (
                             <div style={{ animation: 'fadeIn 0.3s ease' }}>
                                 {!uploadComplete ? (
@@ -1049,7 +1070,7 @@ export default function CSVWizard() {
                                                 }}
                                             >
                                                 <Upload size={16} style={{ display: 'inline', marginRight: '6px', verticalAlign: 'middle' }} />
-                                                Upload CSV
+                                                Upload Content Plan
                                             </button>
                                             <button
                                                 onClick={() => {
@@ -1076,7 +1097,7 @@ export default function CSVWizard() {
                                                 }}
                                             >
                                                 <Edit3 size={16} style={{ display: 'inline', marginRight: '6px', verticalAlign: 'middle' }} />
-                                                Create CSV
+                                                Create Content Plan
                                             </button>
                                         </div>
 
@@ -1101,7 +1122,7 @@ export default function CSVWizard() {
                                                         }}
                                                     >
                                                         <FileText size={16} />
-                                                        Download CSV Template
+                                                        Download Template
                                                     </button>
                                                 </div>
                                                 <div
@@ -1124,10 +1145,10 @@ export default function CSVWizard() {
                                                         <Upload style={{ width: '64px', height: '64px', strokeWidth: 1.5, color: 'var(--color-muted-foreground)', margin: '0 auto' }} />
                                                     </div>
                                                     <div style={{ fontSize: '16px', fontWeight: 500, color: 'var(--color-foreground)', marginBottom: '8px' }}>
-                                                        Drag & drop your CSV file here, or click to upload
+                                                        Drag & drop your content plan file here, or click to upload
                                                     </div>
                                                     <div style={{ fontSize: '14px', color: 'var(--color-muted-foreground)' }}>
-                                                        Supports CSV files of any size — all rows are loaded and selectable
+                                                        Supports content plan CSV files of any size - all rows are loaded and selectable
                                                     </div>
                                                 </div>
                                                 <input
@@ -1244,23 +1265,46 @@ export default function CSVWizard() {
                                                                     </td>
                                                                     {editableHeaders.map(header => (
                                                                         <td key={header} style={{ padding: '12px 16px', borderBottom: '1px solid var(--color-border)' }}>
-                                                                            <input
-                                                                                type="text"
-                                                                                value={row[header] || ''}
-                                                                                onChange={(e) => updateCell(rowIndex, header, e.target.value)}
-                                                                                placeholder={`Enter ${header}...`}
-                                                                                style={{
-                                                                                    width: '100%',
-                                                                                    fontSize: '14px',
-                                                                                    padding: '8px 12px',
-                                                                                    border: '1px solid var(--color-border)',
-                                                                                    borderRadius: '6px',
-                                                                                    background: 'var(--color-card)',
-                                                                                    color: 'var(--color-foreground)'
-                                                                                }}
-                                                                                onFocus={(e) => e.target.style.borderColor = 'var(--color-primary)'}
-                                                                                onBlur={(e) => e.target.style.borderColor = 'var(--color-border)'}
-                                                                            />
+                                                                            {header.toLowerCase() === 'format' ? (
+                                                                                <select
+                                                                                    value={row[header] || ''}
+                                                                                    onChange={(e) => updateCell(rowIndex, header, e.target.value)}
+                                                                                    style={{
+                                                                                        width: '100%',
+                                                                                        fontSize: '14px',
+                                                                                        padding: '8px 12px',
+                                                                                        border: '1px solid var(--color-border)',
+                                                                                        borderRadius: '6px',
+                                                                                        background: 'var(--color-card)',
+                                                                                        color: 'var(--color-foreground)',
+                                                                                        cursor: 'pointer',
+                                                                                    }}
+                                                                                    onFocus={(e) => e.target.style.borderColor = 'var(--color-primary)'}
+                                                                                    onBlur={(e) => e.target.style.borderColor = 'var(--color-border)'}
+                                                                                >
+                                                                                    {formatPresetOptions.map((opt) => (
+                                                                                        <option key={opt.value} value={opt.value}>{opt.label}</option>
+                                                                                    ))}
+                                                                                </select>
+                                                                            ) : (
+                                                                                <input
+                                                                                    type="text"
+                                                                                    value={row[header] || ''}
+                                                                                    onChange={(e) => updateCell(rowIndex, header, e.target.value)}
+                                                                                    placeholder={`Enter ${header}...`}
+                                                                                    style={{
+                                                                                        width: '100%',
+                                                                                        fontSize: '14px',
+                                                                                        padding: '8px 12px',
+                                                                                        border: '1px solid var(--color-border)',
+                                                                                        borderRadius: '6px',
+                                                                                        background: 'var(--color-card)',
+                                                                                        color: 'var(--color-foreground)'
+                                                                                    }}
+                                                                                    onFocus={(e) => e.target.style.borderColor = 'var(--color-primary)'}
+                                                                                    onBlur={(e) => e.target.style.borderColor = 'var(--color-border)'}
+                                                                                />
+                                                                            )}
                                                                         </td>
                                                                     ))}
                                                                     <td style={{ padding: '12px 16px', textAlign: 'center', borderBottom: '1px solid var(--color-border)' }}>
@@ -1291,7 +1335,7 @@ export default function CSVWizard() {
                                                         color: 'var(--color-muted-foreground)',
                                                         fontSize: '14px'
                                                     }}>
-                                                        No rows yet. Click "Add Row" to start creating your CSV data.
+                                                        No rows yet. Click "Add Row" to start creating your content plan data.
                                                     </div>
                                                 )}
 
@@ -1319,6 +1363,28 @@ export default function CSVWizard() {
                                     </>
                                 ) : (
                                     <>
+                                        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '12px' }}>
+                                            <button
+                                                type="button"
+                                                onClick={editConfirmedContentPlan}
+                                                style={{
+                                                    display: 'inline-flex',
+                                                    alignItems: 'center',
+                                                    gap: '8px',
+                                                    padding: '10px 14px',
+                                                    fontSize: '13px',
+                                                    fontWeight: 600,
+                                                    background: 'var(--color-card)',
+                                                    border: '1px solid var(--color-border)',
+                                                    borderRadius: '8px',
+                                                    color: 'var(--color-foreground)',
+                                                    cursor: 'pointer',
+                                                }}
+                                            >
+                                                <Edit3 size={16} />
+                                                Edit Content Plan
+                                            </button>
+                                        </div>
                                         <div style={{
                                             background: 'var(--color-muted)',
                                             border: '1px solid var(--color-border)',
@@ -1548,7 +1614,7 @@ export default function CSVWizard() {
                                         fontWeight: 500,
                                     }}>
                                         <Grid size={14} style={{ flexShrink: 0 }} />
-                                        CSV loaded with {csvData.length} rows. Now add your brand style references.
+                                        Content plan loaded with {csvData.length} rows. Now add your brand style references.
                                     </div>
                                 )}
 
@@ -1712,10 +1778,38 @@ export default function CSVWizard() {
                                     <div style={{ display: 'flex', alignItems: 'flex-start', gap: '16px', padding: '20px 0' }}>
                                         <AlertCircle size={24} color="var(--color-muted-foreground)" />
                                         <div style={{ flex: 1 }}>
+                                            <div style={{ fontSize: '13px', color: 'var(--color-muted-foreground)', marginBottom: '10px' }}>Resolution</div>
+                                            <div style={{ display: 'flex', gap: '8px', marginBottom: '14px' }}>
+                                                {[1, 2, 4].map((multiplier) => {
+                                                    const isActive = resolutionMultiplier === multiplier;
+                                                    return (
+                                                        <button
+                                                            key={multiplier}
+                                                            type="button"
+                                                            onClick={() => setResolutionMultiplier(multiplier as 1 | 2 | 4)}
+                                                            style={{
+                                                                padding: '8px 12px',
+                                                                borderRadius: '8px',
+                                                                border: `1px solid ${isActive ? 'var(--color-primary)' : 'var(--color-border)'}`,
+                                                                background: isActive ? 'hsl(var(--primary) / 0.12)' : 'var(--color-card)',
+                                                                color: isActive ? 'var(--color-primary)' : 'var(--color-foreground)',
+                                                                fontSize: '13px',
+                                                                fontWeight: 600,
+                                                                cursor: 'pointer',
+                                                            }}
+                                                        >
+                                                            {multiplier}x
+                                                        </button>
+                                                    );
+                                                })}
+                                            </div>
                                             <div style={{ fontSize: '13px', color: 'var(--color-muted-foreground)', marginBottom: '4px' }}>Credit Cost</div>
                                             <div style={{ fontSize: '16px', fontWeight: 500, color: 'var(--color-foreground)' }}>
-                                                This will use {selectedRows.size} of your{' '}
+                                                This will use {selectedRows.size * resolutionMultiplier} of your{' '}
                                                 {page.props.auth?.user?.credits_remaining ?? '—'} available credits
+                                            </div>
+                                            <div style={{ marginTop: '4px', fontSize: '12px', color: 'var(--color-muted-foreground)' }}>
+                                                {selectedRows.size} row{selectedRows.size !== 1 ? 's' : ''} x {resolutionMultiplier}x resolution multiplier
                                             </div>
                                         </div>
                                     </div>
@@ -1810,7 +1904,7 @@ export default function CSVWizard() {
                                 </>
                             ) : currentStep === 5 ? (
                                 <>
-                                    Generate ({selectedRows.size} credit{selectedRows.size !== 1 ? 's' : ''})
+                                    Generate ({selectedRows.size * resolutionMultiplier} credit{(selectedRows.size * resolutionMultiplier) !== 1 ? 's' : ''})
                                     <Zap size={16} />
                                 </>
                             ) : (

@@ -1,5 +1,5 @@
 import AdminLayout from '@/layouts/admin-layout';
-import { Head, Link } from '@inertiajs/react';
+import { Head, Link, router } from '@inertiajs/react';
 import { Users, FolderOpen, Zap, DollarSign, CreditCard, ShieldCheck, TrendingUp, Activity } from 'lucide-react';
 
 interface DashboardProps {
@@ -20,6 +20,28 @@ interface DashboardProps {
         subscription_breakdown: Record<string, number>;
     };
     recent_users: { id: number; name: string; email: string; created_at: string; subscription_tier: string }[];
+    feedback: {
+        data: Array<{
+            id: number;
+            submitted_at: string;
+            user_id: number;
+            user_name: string;
+            user_email: string;
+            rating: number;
+            category: string;
+            message: string;
+        }>;
+        links: Array<{ url: string | null; label: string; active: boolean }>;
+    };
+    feedback_filters: {
+        feedback_date_from?: string;
+        feedback_date_to?: string;
+        feedback_category?: string;
+        feedback_rating_min?: string;
+        feedback_rating_max?: string;
+        feedback_user_email?: string;
+    };
+    feedback_categories: string[];
 }
 
 function StatCard({ label, value, sub, Icon, color }: {
@@ -49,10 +71,30 @@ const TIER_COLORS: Record<string, string> = {
     scale: 'bg-purple-100 text-purple-700',
 };
 
-export default function AdminDashboard({ stats, recent_users }: DashboardProps) {
+export default function AdminDashboard({ stats, recent_users, feedback, feedback_filters, feedback_categories }: DashboardProps) {
     const successRate = stats.total_generations > 0
         ? ((stats.successful_generations / stats.total_generations) * 100).toFixed(1)
         : '0';
+
+    const updateFilter = (key: string, value: string) => {
+        router.get('/admin', {
+            ...feedback_filters,
+            [key]: value,
+        }, { preserveState: true, replace: true });
+    };
+
+    const clearFilters = () => {
+        router.get('/admin', {}, { preserveState: true, replace: true });
+    };
+
+    const buildDownloadUrl = () => {
+        const params = new URLSearchParams();
+        Object.entries(feedback_filters || {}).forEach(([key, value]) => {
+            if (value) params.append(key, value);
+        });
+        const qs = params.toString();
+        return qs ? `/admin/feedback/download?${qs}` : '/admin/feedback/download';
+    };
 
     return (
         <AdminLayout title="Dashboard">
@@ -117,6 +159,7 @@ export default function AdminDashboard({ stats, recent_users }: DashboardProps) 
                         { href: '/admin/credits', label: 'Credits' },
                         { href: '/admin/plans', label: 'Plans' },
                         { href: '/admin/projects', label: 'Projects' },
+                        { href: '/admin#feedback', label: 'Feedback' },
                         { href: '/admin/analytics', label: 'Analytics' },
                     ].map((l) => (
                         <Link key={l.href} href={l.href}
@@ -124,6 +167,116 @@ export default function AdminDashboard({ stats, recent_users }: DashboardProps) 
                             {l.label}
                         </Link>
                     ))}
+                </div>
+
+                <div id="feedback" className="rounded-xl bg-white p-5 shadow-sm ring-1 ring-gray-100">
+                    <div className="mb-4 flex items-center justify-between">
+                        <h2 className="text-sm font-semibold text-gray-700">User Feedback</h2>
+                        <a href={buildDownloadUrl()} className="rounded-lg bg-indigo-50 px-4 py-2 text-sm font-medium text-indigo-700 transition hover:bg-indigo-100">
+                            Download CSV
+                        </a>
+                    </div>
+
+                    <div className="mb-4 grid grid-cols-1 gap-3 md:grid-cols-3 lg:grid-cols-6">
+                        <input
+                            type="date"
+                            value={feedback_filters.feedback_date_from ?? ''}
+                            onChange={(e) => updateFilter('feedback_date_from', e.target.value)}
+                            className="rounded-md border border-gray-200 px-3 py-2 text-sm"
+                        />
+                        <input
+                            type="date"
+                            value={feedback_filters.feedback_date_to ?? ''}
+                            onChange={(e) => updateFilter('feedback_date_to', e.target.value)}
+                            className="rounded-md border border-gray-200 px-3 py-2 text-sm"
+                        />
+                        <select
+                            value={feedback_filters.feedback_category ?? ''}
+                            onChange={(e) => updateFilter('feedback_category', e.target.value)}
+                            className="rounded-md border border-gray-200 px-3 py-2 text-sm"
+                        >
+                            <option value="">All categories</option>
+                            {feedback_categories.map((c) => <option key={c} value={c}>{c}</option>)}
+                        </select>
+                        <input
+                            type="number"
+                            min={1}
+                            max={10}
+                            placeholder="Min rating"
+                            value={feedback_filters.feedback_rating_min ?? ''}
+                            onChange={(e) => updateFilter('feedback_rating_min', e.target.value)}
+                            className="rounded-md border border-gray-200 px-3 py-2 text-sm"
+                        />
+                        <input
+                            type="number"
+                            min={1}
+                            max={10}
+                            placeholder="Max rating"
+                            value={feedback_filters.feedback_rating_max ?? ''}
+                            onChange={(e) => updateFilter('feedback_rating_max', e.target.value)}
+                            className="rounded-md border border-gray-200 px-3 py-2 text-sm"
+                        />
+                        <input
+                            type="text"
+                            placeholder="User email"
+                            value={feedback_filters.feedback_user_email ?? ''}
+                            onChange={(e) => updateFilter('feedback_user_email', e.target.value)}
+                            className="rounded-md border border-gray-200 px-3 py-2 text-sm"
+                        />
+                    </div>
+
+                    <div className="mb-4">
+                        <button onClick={clearFilters} className="text-xs font-medium text-gray-500 hover:text-gray-700">
+                            Clear filters
+                        </button>
+                    </div>
+
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-sm">
+                            <thead className="border-b border-gray-100 text-xs uppercase tracking-wide text-gray-400">
+                                <tr>
+                                    <th className="pb-2 text-left">Submitted</th>
+                                    <th className="pb-2 text-left">User</th>
+                                    <th className="pb-2 text-left">User ID</th>
+                                    <th className="pb-2 text-left">Rating</th>
+                                    <th className="pb-2 text-left">Category</th>
+                                    <th className="pb-2 text-left">Message</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-50">
+                                {feedback.data.map((item) => (
+                                    <tr key={item.id}>
+                                        <td className="py-2 text-xs text-gray-500">{item.submitted_at}</td>
+                                        <td className="py-2">
+                                            <p className="font-medium text-gray-800">{item.user_name}</p>
+                                            <p className="text-xs text-gray-400">{item.user_email}</p>
+                                        </td>
+                                        <td className="py-2 text-gray-700">{item.user_id}</td>
+                                        <td className="py-2 font-semibold text-gray-900">{item.rating}</td>
+                                        <td className="py-2 text-gray-700">{item.category}</td>
+                                        <td className="py-2 max-w-xl text-gray-700">{item.message}</td>
+                                    </tr>
+                                ))}
+                                {feedback.data.length === 0 && (
+                                    <tr>
+                                        <td colSpan={6} className="py-6 text-center text-sm text-gray-500">No feedback found for current filters.</td>
+                                    </tr>
+                                )}
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div className="mt-4 flex flex-wrap gap-2">
+                        {feedback.links.map((link, idx) => (
+                            <button
+                                key={`${link.label}-${idx}`}
+                                disabled={!link.url}
+                                onClick={() => link.url && router.visit(link.url, { preserveScroll: true, preserveState: true })}
+                                className={`rounded-md px-3 py-1 text-xs ${link.active ? 'bg-indigo-100 text-indigo-700' : 'bg-gray-100 text-gray-600'} ${!link.url ? 'opacity-50 cursor-not-allowed' : 'hover:bg-gray-200'}`}
+                                dangerouslySetInnerHTML={{ __html: link.label }}
+                            />
+                        ))}
+                    </div>
                 </div>
             </div>
         </AdminLayout>

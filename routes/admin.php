@@ -60,4 +60,7 @@ Route::middleware(['auth', 'verified', 'admin'])->prefix('admin')->name('admin.'
     // ── Analytics ────────────────────────────────────────────────
     Route::get('/analytics', [AdminDashboardController::class, 'analytics'])->name('analytics');
     Route::get('/usage', [AdminDashboardController::class, 'usage'])->name('usage'); // legacy alias
+
+    // ── Feedback Export ──────────────────────────────────────────
+    Route::get('/feedback/download', [AdminDashboardController::class, 'downloadFeedback'])->name('feedback.download');
 });
