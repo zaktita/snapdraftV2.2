@@ -2,6 +2,7 @@
 
 namespace App\Services\AI;
 
+use App\Services\FormatPresetMapper;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
@@ -19,35 +20,34 @@ class OpenRouterService
     /**
      * Generate an image with optional brand reference images.
      *
-     * @param  string   $prompt
-     * @param  string[] $referenceImages  Storage-relative paths to brand reference images
-     * @param  string[] $productImages    Storage-relative paths to product overlay images
-     * @param  string   $format           square|portrait|landscape
+     * @param  string[]  $referenceImages  Storage-relative paths to brand reference images
+     * @param  string[]  $productImages  Storage-relative paths to product overlay images
+     * @param  string  $format  square|portrait|landscape
      * @return array{image_data: string, mime_type: string}
      */
     public function generateWithReferences(
         string $prompt,
-        array  $referenceImages = [],
-        array  $productImages   = [],
-        string $format          = 'square',
+        array $referenceImages = [],
+        array $productImages = [],
+        string $format = 'square',
     ): array {
-        $model       = config('services.openrouter.image_model', 'bytedance-seed/seedream-4.5');
-        $aspectRatio = $this->resolveAspectRatio($format);
+        $model = config('services.openrouter.image_model', 'bytedance-seed/seedream-4.5');
+        $aspectRatio = FormatPresetMapper::aspectRatio($format);
 
         $messages = [];
 
         $imageParts = [];
         foreach ([...$referenceImages, ...$productImages] as $path) {
             try {
-                $base64   = $this->encodeImageToBase64($path);
+                $base64 = $this->encodeImageToBase64($path);
                 $mimeType = $this->guessMimeType($path);
                 $imageParts[] = [
-                    'type'      => 'image_url',
+                    'type' => 'image_url',
                     'image_url' => ['url' => "data:{$mimeType};base64,{$base64}"],
                 ];
             } catch (\Throwable $e) {
                 Log::warning('OpenRouterService: could not load reference image', [
-                    'path'  => $path,
+                    'path' => $path,
                     'error' => $e->getMessage(),
                 ]);
             }
@@ -65,11 +65,11 @@ class OpenRouterService
         $response = Http::timeout(180)
             ->withHeaders([
                 'Authorization' => "Bearer {$apiKey}",
-                'HTTP-Referer'  => config('app.url'),
-                'X-Title'       => config('app.name', 'SnapDraft'),
+                'HTTP-Referer' => config('app.url'),
+                'X-Title' => config('app.name', 'SnapDraft'),
             ])
             ->post("{$this->baseUrl}/chat/completions", [
-                'model'    => $model,
+                'model' => $model,
                 'messages' => $messages,
                 'extra_body' => [
                     'image_config' => ['aspect_ratio' => $aspectRatio],
@@ -77,14 +77,14 @@ class OpenRouterService
             ]);
 
         if ($response->failed()) {
-            throw new RuntimeException('OpenRouter API request failed: ' . $response->body());
+            throw new RuntimeException('OpenRouter API request failed: '.$response->body());
         }
 
         $data = $response->json();
 
         // OpenRouter image models return base64 inside a data-URL or as raw base64.
         $content = $data['choices'][0]['message']['content'] ?? null;
-        if (!$content) {
+        if (! $content) {
             throw new RuntimeException('OpenRouter returned no content.');
         }
 
@@ -101,13 +101,12 @@ class OpenRouterService
     /**
      * Analyse brand style from reference images and return a structured result.
      *
-     * @param  string[] $imagePaths
-     * @return array
+     * @param  string[]  $imagePaths
      */
     public function analyzeBrandStyle(array $imagePaths): array
     {
         $promptModel = $this->getPromptModel();
-        $apiKey      = config('services.openrouter.api_key');
+        $apiKey = config('services.openrouter.api_key');
 
         if (empty($apiKey)) {
             throw new RuntimeException('OPENROUTER_API_KEY is not configured.');
@@ -116,15 +115,15 @@ class OpenRouterService
         $imageParts = [];
         foreach ($imagePaths as $path) {
             try {
-                $base64   = $this->encodeImageToBase64($path);
+                $base64 = $this->encodeImageToBase64($path);
                 $mimeType = $this->guessMimeType($path);
                 $imageParts[] = [
-                    'type'      => 'image_url',
+                    'type' => 'image_url',
                     'image_url' => ['url' => "data:{$mimeType};base64,{$base64}"],
                 ];
             } catch (\Throwable $e) {
                 Log::warning('OpenRouterService: could not load brand image', [
-                    'path'  => $path,
+                    'path' => $path,
                     'error' => $e->getMessage(),
                 ]);
             }
@@ -135,19 +134,19 @@ class OpenRouterService
         $response = Http::timeout(60)
             ->withHeaders([
                 'Authorization' => "Bearer {$apiKey}",
-                'HTTP-Referer'  => config('app.url'),
+                'HTTP-Referer' => config('app.url'),
             ])
             ->post("{$this->baseUrl}/chat/completions", [
-                'model'           => $promptModel,
+                'model' => $promptModel,
                 'response_format' => ['type' => 'json_object'],
-                'messages'        => [[
-                    'role'    => 'user',
+                'messages' => [[
+                    'role' => 'user',
                     'content' => [...$imageParts, ['type' => 'text', 'text' => $text]],
                 ]],
             ]);
 
         if ($response->failed()) {
-            throw new RuntimeException('OpenRouter brand analysis failed: ' . $response->body());
+            throw new RuntimeException('OpenRouter brand analysis failed: '.$response->body());
         }
 
         $raw = $response->json('choices.0.message.content', '{}');
@@ -179,7 +178,7 @@ class OpenRouterService
             ['type' => 'text', 'text' => 'Remove the green-highlighted areas from this image and fill them with contextually appropriate content that blends naturally.'],
         ];
 
-        $model  = config('services.openrouter.image_model', 'bytedance-seed/seedream-4.5');
+        $model = config('services.openrouter.image_model', 'bytedance-seed/seedream-4.5');
         $apiKey = config('services.openrouter.api_key');
 
         if (empty($apiKey)) {
@@ -189,15 +188,15 @@ class OpenRouterService
         $response = Http::timeout(180)
             ->withHeaders([
                 'Authorization' => "Bearer {$apiKey}",
-                'HTTP-Referer'  => config('app.url'),
+                'HTTP-Referer' => config('app.url'),
             ])
             ->post("{$this->baseUrl}/chat/completions", [
-                'model'    => $model,
+                'model' => $model,
                 'messages' => [['role' => 'user', 'content' => $content]],
             ]);
 
         if ($response->failed()) {
-            throw new RuntimeException('OpenRouter erase request failed: ' . $response->body());
+            throw new RuntimeException('OpenRouter erase request failed: '.$response->body());
         }
 
         $raw = $response->json('choices.0.message.content', '');
@@ -223,7 +222,7 @@ class OpenRouterService
 
         $content[] = ['type' => 'text', 'text' => $prompt];
 
-        $model  = config('services.openrouter.image_model', 'bytedance-seed/seedream-4.5');
+        $model = config('services.openrouter.image_model', 'bytedance-seed/seedream-4.5');
         $apiKey = config('services.openrouter.api_key');
 
         if (empty($apiKey)) {
@@ -233,15 +232,15 @@ class OpenRouterService
         $response = Http::timeout(180)
             ->withHeaders([
                 'Authorization' => "Bearer {$apiKey}",
-                'HTTP-Referer'  => config('app.url'),
+                'HTTP-Referer' => config('app.url'),
             ])
             ->post("{$this->baseUrl}/chat/completions", [
-                'model'    => $model,
+                'model' => $model,
                 'messages' => [['role' => 'user', 'content' => $content]],
             ]);
 
         if ($response->failed()) {
-            throw new RuntimeException('OpenRouter edit request failed: ' . $response->body());
+            throw new RuntimeException('OpenRouter edit request failed: '.$response->body());
         }
 
         $raw = $response->json('choices.0.message.content', '');
@@ -261,15 +260,6 @@ class OpenRouterService
     }
 
     // -------------------------------------------------------------------------
-
-    private function resolveAspectRatio(string $format): string
-    {
-        return match (strtolower($format)) {
-            'portrait'  => '9:16',
-            'landscape' => '16:9',
-            default     => '1:1',
-        };
-    }
 
     private function getPromptModel(): string
     {
@@ -295,8 +285,8 @@ class OpenRouterService
     {
         return match (strtolower(pathinfo($path, PATHINFO_EXTENSION))) {
             'jpg', 'jpeg' => 'image/jpeg',
-            'webp'        => 'image/webp',
-            default       => 'image/png',
+            'webp' => 'image/webp',
+            default => 'image/png',
         };
     }
 }

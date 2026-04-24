@@ -1008,6 +1008,421 @@
   margin-top: 10px;
 }
 
+/* ── Beta apply standalone page (/beta/apply) ── */
+
+.sd-beta-apply-page {
+  --sd-or: #f2600c;
+  --sd-or1: #e85d0a;
+  --sd-or2: #ff7830;
+  --sd-text: oklch(0.25 0.02 265);
+  --sd-text-muted: oklch(0.45 0.02 265);
+  --sd-border: oklch(0.91 0.01 265);
+  --sd-surface: #ffffff;
+  min-height: 100dvh;
+  box-sizing: border-box;
+  color: var(--sd-text);
+  background:
+    radial-gradient(circle at 50% -10%, rgb(242 96 12 / 7%), transparent 42%),
+    linear-gradient(180deg, oklch(0.995 0 0) 0%, oklch(0.985 0.005 265) 55%, oklch(0.98 0.008 265) 100%);
+  font-family:
+    'Geist', 'Inter', 'Avenir Next', 'Segoe UI', 'Helvetica Neue', Arial,
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+.sd-beta-apply-page *,
+.sd-beta-apply-page *::before,
+.sd-beta-apply-page *::after {
+  box-sizing: border-box;
+}
+
+.sd-beta-apply-page-inner {
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 20px 32px;
+  width: 100%;
+  max-width: 460px;
+  margin: 0 auto;
+}
+
+.sd-beta-apply-logo {
+  display: block;
+  margin-bottom: 28px;
+}
+
+.sd-beta-apply-logo .sd-logo-image {
+  display: block;
+  height: 36px;
+  width: auto;
+  margin: 0 auto;
+}
+
+.sd-beta-apply-page-card {
+  width: 100%;
+  padding: 24px 22px 22px;
+  border-radius: 14px;
+  background: var(--sd-surface);
+  border: 1px solid var(--sd-border);
+  box-shadow: 0 12px 40px rgb(15 23 42 / 8%);
+}
+
+.sd-beta-apply-page .sd-beta-apply-title {
+  font-size: 1.5rem;
+}
+
+.sd-beta-apply-page-error {
+  margin-top: 12px;
+  font-size: 13px;
+  color: oklch(0.5 0.2 25);
+}
+
+/* Thank-you state (after successful apply) */
+
+.sd-beta-apply-thanks {
+  text-align: center;
+  padding: 8px 4px 4px;
+}
+
+.sd-beta-apply-thanks-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 72px;
+  height: 72px;
+  margin: 0 auto 20px;
+  border-radius: 50%;
+  background: linear-gradient(
+    145deg,
+    oklch(0.72 0.14 155) 0%,
+    oklch(0.82 0.12 150) 100%
+  );
+  color: #fff;
+  box-shadow:
+    0 4px 14px oklch(0.55 0.12 155 / 35%),
+    inset 0 1px 0 rgb(255 255 255 / 35%);
+}
+
+.sd-beta-apply-thanks-eyebrow {
+  margin: 0 0 10px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--sd-or2);
+}
+
+.sd-beta-apply-thanks-title {
+  margin: 0 0 14px;
+  font-size: 1.55rem;
+  font-weight: 700;
+  line-height: 1.25;
+  color: var(--sd-text);
+  letter-spacing: -0.02em;
+}
+
+.sd-beta-apply-thanks-title em {
+  font-family: ui-serif, Georgia, 'Times New Roman', serif;
+  font-style: italic;
+  font-weight: 600;
+  color: var(--sd-or2);
+}
+
+.sd-beta-apply-thanks-lead {
+  margin: 0 auto 18px;
+  max-width: 34rem;
+  font-size: 15px;
+  line-height: 1.55;
+  color: var(--sd-text-muted);
+}
+
+.sd-beta-apply-thanks-lead strong {
+  color: var(--sd-text);
+  font-weight: 600;
+}
+
+.sd-beta-apply-thanks-email {
+  margin: 0 auto 22px;
+  max-width: 32rem;
+  padding: 14px 16px;
+  border-radius: 12px;
+  background: oklch(0.97 0.008 265);
+  border: 1px solid var(--sd-border);
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--sd-text-muted);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  text-align: center;
+}
+
+.sd-beta-apply-thanks-email-label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--sd-text-soft, oklch(0.42 0.02 265));
+}
+
+.sd-beta-apply-thanks-email-value {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--sd-text);
+  word-break: break-all;
+}
+
+.sd-beta-apply-thanks-email-hint {
+  font-size: 12px;
+  opacity: 0.92;
+}
+
+.sd-beta-apply-thanks-list {
+  margin: 0 auto 26px;
+  padding: 0;
+  max-width: 30rem;
+  text-align: left;
+  list-style: none;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--sd-text-muted);
+}
+
+.sd-beta-apply-thanks-list li {
+  position: relative;
+  padding-left: 1.15rem;
+  margin-bottom: 10px;
+}
+
+.sd-beta-apply-thanks-list li:last-child {
+  margin-bottom: 0;
+}
+
+.sd-beta-apply-thanks-list li::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0.55em;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--sd-or2);
+  opacity: 0.85;
+}
+
+.sd-beta-apply-thanks-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 10px;
+  max-width: 280px;
+  margin: 0 auto;
+}
+
+.sd-beta-apply-thanks-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px 20px;
+  border-radius: 999px;
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: none;
+  transition:
+    background 0.15s ease,
+    transform 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.sd-beta-apply-thanks-btn-primary {
+  background: var(--sd-or2);
+  color: #fff;
+  box-shadow: 0 6px 20px rgb(242 96 12 / 32%);
+}
+
+.sd-beta-apply-thanks-btn-primary:hover {
+  background: var(--sd-or1, #e85d0a);
+  transform: translateY(-1px);
+  box-shadow: 0 8px 24px rgb(242 96 12 / 38%);
+}
+
+.sd-beta-apply-thanks-btn-ghost {
+  background: transparent;
+  color: var(--sd-text-muted);
+  border: 1px solid var(--sd-border);
+}
+
+.sd-beta-apply-thanks-btn-ghost:hover {
+  color: var(--sd-text);
+  border-color: oklch(0.78 0.02 265);
+  background: oklch(0.98 0.005 265);
+}
+
+.sd-beta-apply-page-footer {
+  margin-top: 28px;
+  font-size: 13px;
+  color: var(--sd-text-muted);
+  text-align: center;
+  line-height: 1.6;
+}
+
+.sd-beta-apply-page-footer a {
+  color: var(--sd-or2);
+  font-weight: 500;
+  text-decoration: none;
+}
+
+.sd-beta-apply-page-footer a:hover {
+  text-decoration: underline;
+}
+
+/* ── Beta application form fields (shared) ── */
+
+.sd-beta-apply-head {
+  margin-bottom: 16px;
+}
+
+.sd-beta-apply-eyebrow {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--sd-or2);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 10px;
+}
+
+.sd-beta-apply-title {
+  font-size: 1.35rem;
+  font-weight: 700;
+  line-height: 1.2;
+  margin: 0 0 8px;
+  color: var(--sd-text);
+}
+
+.sd-beta-apply-title em {
+  font-family: ui-serif, Georgia, serif;
+  font-style: italic;
+  font-weight: 600;
+  color: var(--sd-or2);
+}
+
+.sd-beta-apply-sub {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--sd-text-muted);
+}
+
+.sd-beta-apply-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.sd-beta-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--sd-text);
+}
+
+.sd-beta-field span {
+  line-height: 1.35;
+}
+
+.sd-beta-hint {
+  font-weight: 500;
+  font-style: italic;
+  color: var(--sd-text-muted);
+}
+
+.sd-beta-field input,
+.sd-beta-field select,
+.sd-beta-field textarea {
+  width: 100%;
+  border-radius: 10px;
+  border: 1px solid oklch(0.88 0.01 265);
+  background: oklch(0.22 0.02 265);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 500;
+  padding: 10px 12px;
+  outline: none;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.sd-beta-field select {
+  cursor: pointer;
+  appearance: auto;
+}
+
+.sd-beta-field textarea {
+  resize: vertical;
+  min-height: 72px;
+  line-height: 1.45;
+}
+
+.sd-beta-field input::placeholder,
+.sd-beta-field textarea::placeholder {
+  color: oklch(0.65 0.02 265);
+}
+
+.sd-beta-field input:focus,
+.sd-beta-field select:focus,
+.sd-beta-field textarea:focus {
+  border-color: var(--sd-or2);
+  box-shadow: 0 0 0 2px rgb(242 96 12 / 18%);
+}
+
+.sd-beta-apply-foot {
+  margin: 4px 0 0;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--sd-text-muted);
+}
+
+.sd-beta-apply-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 4px;
+}
+
+.sd-beta-apply-actions button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 18px;
+  border-radius: 999px;
+  border: none;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  background: var(--sd-or2);
+  color: #fff;
+  box-shadow: 0 6px 18px rgb(242 96 12 / 28%);
+  transition: background 0.15s ease, transform 0.15s ease, opacity 0.15s ease;
+}
+
+.sd-beta-apply-actions button:hover:not(:disabled) {
+  background: var(--sd-or1);
+  transform: translateY(-1px);
+}
+
+.sd-beta-apply-actions button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
 .sd-hero-card-msg {
   font-size: 13px;
   margin-top: 10px;

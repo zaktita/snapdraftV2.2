@@ -1,16 +1,17 @@
 <?php
 
-use App\Http\Controllers\ProjectController;
-use App\Http\Controllers\ImageController;
+use App\Http\Controllers\Auth\SocialAuthController;
+use App\Http\Controllers\BetaApplicationController;
 use App\Http\Controllers\CanvasController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\FalProxyController;
 use App\Http\Controllers\FeedbackController;
+use App\Http\Controllers\ImageController;
 use App\Http\Controllers\ImageEditController;
+use App\Http\Controllers\ProjectController;
+use App\Http\Controllers\QuickGenerateController;
 use App\Http\Controllers\SearchController;
 use App\Http\Controllers\SimpleTextWizardController;
-use App\Http\Controllers\QuickGenerateController;
-use App\Http\Controllers\Auth\SocialAuthController;
 use App\Http\Controllers\Wizards\CSVWizardController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
@@ -26,6 +27,7 @@ Route::get('/', function () {
     if (auth()->check()) {
         return redirect()->route('dashboard');
     }
+
     return Inertia::render('website/home');
 })->name('home');
 
@@ -42,6 +44,13 @@ Route::get('invite/validate', [\App\Http\Controllers\BetaInviteController::class
 Route::post('waitlist', [\App\Http\Controllers\WaitlistController::class, 'store'])
     ->middleware('throttle:3,1')
     ->name('waitlist.store');
+
+Route::get('beta/apply', [BetaApplicationController::class, 'create'])
+    ->name('beta.apply.form');
+
+Route::post('beta/apply', [BetaApplicationController::class, 'store'])
+    ->middleware('throttle:5,1')
+    ->name('beta.apply');
 
 Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('dashboard', [DashboardController::class, 'index'])->name('dashboard');
@@ -147,12 +156,12 @@ Route::middleware(['auth', 'verified'])->group(function () {
         // Canvas Editor
         Route::get('canvas-editor', function () {
             $projectId = request()->query('projectId');
-            $imageUrl  = request()->query('image');
+            $imageUrl = request()->query('image');
             $projectTitle = request()->query('title', 'Untitled');
 
             return Inertia::render('canvas-editor', [
-                'projectId'    => $projectId,
-                'imageUrl'     => $imageUrl,
+                'projectId' => $projectId,
+                'imageUrl' => $imageUrl,
                 'projectTitle' => $projectTitle,
             ]);
         })->name('canvas.editor');
@@ -213,11 +222,11 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     // Subscription & Billing — redirected to feedback during beta
     Route::prefix('subscription')->name('subscription.')->group(function () {
-        Route::get('/plans', fn() => redirect()->route('feedback'))->name('plans');
-        Route::get('/portal', fn() => redirect()->route('feedback'))->name('portal');
-        Route::post('/upgrade', fn() => redirect()->route('feedback'))->name('upgrade');
-        Route::post('/downgrade', fn() => redirect()->route('feedback'))->name('downgrade');
-        Route::post('/purchase-credits', fn() => redirect()->route('feedback'))->name('purchase-credits');
+        Route::get('/plans', fn () => redirect()->route('feedback'))->name('plans');
+        Route::get('/portal', fn () => redirect()->route('feedback'))->name('portal');
+        Route::post('/upgrade', fn () => redirect()->route('feedback'))->name('upgrade');
+        Route::post('/downgrade', fn () => redirect()->route('feedback'))->name('downgrade');
+        Route::post('/purchase-credits', fn () => redirect()->route('feedback'))->name('purchase-credits');
     });
 
     // Invoices

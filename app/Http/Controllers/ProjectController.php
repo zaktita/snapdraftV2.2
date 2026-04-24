@@ -10,20 +10,20 @@ use App\Jobs\MatchCaptionsJob;
 use App\Models\CsvWizardSession;
 use App\Models\GenerationHistory;
 use App\Models\Project;
-use App\Services\AI\ImageGeneratorService;
 use App\Services\FileUploadService;
+use App\Services\FormatPresetMapper;
 use App\Services\PostHogService;
+use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Bus;
-use Illuminate\Support\Facades\Redirect;
-use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Inertia\Inertia;
 use Inertia\Response;
 
 class ProjectController extends Controller
 {
     use AuthorizesRequests;
+
     public function __construct(
         protected FileUploadService $fileUploadService
     ) {}
@@ -38,10 +38,10 @@ class ProjectController extends Controller
         // Apply search
         if ($request->has('search') && $request->search) {
             $search = $request->search;
-            $query->where(function($q) use ($search) {
+            $query->where(function ($q) use ($search) {
                 $q->where('name', 'like', "%{$search}%")
-                  ->orWhere('title', 'like', "%{$search}%")
-                  ->orWhere('description', 'like', "%{$search}%");
+                    ->orWhere('title', 'like', "%{$search}%")
+                    ->orWhere('description', 'like', "%{$search}%");
             });
         }
 
@@ -83,7 +83,7 @@ class ProjectController extends Controller
             default:
                 // Default: favorites first, then most recent
                 $query->orderBy('is_favorite', 'desc')
-                      ->orderBy('created_at', 'desc');
+                    ->orderBy('created_at', 'desc');
         }
 
         // Paginate results (20 per page)
@@ -132,11 +132,11 @@ class ProjectController extends Controller
 
         // Handle brand reference uploads if present
         if ($request->hasFile('brand_references')) {
-            $directory = 'projects/' . $project->id . '/references';
-            
+            $directory = 'projects/'.$project->id.'/references';
+
             foreach ($request->file('brand_references') as $index => $file) {
                 $uploadResult = $this->fileUploadService->uploadImage($file, $directory);
-                
+
                 $project->brandReferences()->create([
                     'url' => $uploadResult['url'],
                     'thumbnail_url' => $uploadResult['thumbnail_url'],
@@ -147,7 +147,7 @@ class ProjectController extends Controller
 
         app(PostHogService::class)->capture((string) Auth::id(), 'project_created', [
             'project_id' => $project->id,
-            'format'     => $project->format,
+            'format' => $project->format,
         ]);
 
         return redirect()->route('projects.show', $project->id)
@@ -177,7 +177,7 @@ class ProjectController extends Controller
         $progress = null;
         $currentHistoryIds = array_values($project->settings['history_ids'] ?? []);
 
-        if (!empty($currentHistoryIds)) {
+        if (! empty($currentHistoryIds)) {
             $currentGenerations = $project->generationHistory()
                 ->whereIn('id', $currentHistoryIds)
                 ->get();
@@ -186,16 +186,16 @@ class ProjectController extends Controller
                 ->where('status', 'failed')
                 ->values()
                 ->map(fn ($h) => [
-                    'title'   => $h->parameters['title'] ?? null,
+                    'title' => $h->parameters['title'] ?? null,
                     'message' => $h->error_message ?? 'Generation failed',
                 ])
                 ->toArray();
 
             $progress = [
-                'total'           => $currentGenerations->count(),
-                'completed'       => $currentGenerations->where('status', 'completed')->count(),
-                'failed'          => $currentGenerations->where('status', 'failed')->count(),
-                'pending'         => $currentGenerations->whereIn('status', ['pending', 'processing'])->count(),
+                'total' => $currentGenerations->count(),
+                'completed' => $currentGenerations->where('status', 'completed')->count(),
+                'failed' => $currentGenerations->where('status', 'failed')->count(),
+                'pending' => $currentGenerations->whereIn('status', ['pending', 'processing'])->count(),
                 'failure_reasons' => $failureReasons,
             ];
         } elseif ($hasPendingGenerations) {
@@ -206,16 +206,16 @@ class ProjectController extends Controller
                 ->where('status', 'failed')
                 ->values()
                 ->map(fn ($h) => [
-                    'title'   => $h->parameters['title'] ?? null,
+                    'title' => $h->parameters['title'] ?? null,
                     'message' => $h->error_message ?? 'Generation failed',
                 ])
                 ->toArray();
 
             $progress = [
-                'total'           => $allGenerations->count(),
-                'completed'       => $allGenerations->where('status', 'completed')->count(),
-                'failed'          => $allGenerations->where('status', 'failed')->count(),
-                'pending'         => $allGenerations->whereIn('status', ['pending', 'processing'])->count(),
+                'total' => $allGenerations->count(),
+                'completed' => $allGenerations->where('status', 'completed')->count(),
+                'failed' => $allGenerations->where('status', 'failed')->count(),
+                'pending' => $allGenerations->whereIn('status', ['pending', 'processing'])->count(),
                 'failure_reasons' => $failureReasons,
             ];
         }
@@ -296,7 +296,7 @@ class ProjectController extends Controller
         $this->authorize('delete', $project);
 
         app(PostHogService::class)->capture((string) Auth::id(), 'project_deleted', [
-            'project_id'   => $project->id,
+            'project_id' => $project->id,
             'images_count' => $project->images()->count(),
         ]);
 
@@ -313,8 +313,8 @@ class ProjectController extends Controller
     {
         $project = Project::findOrFail($id);
         $this->authorize('update', $project);
-        
-        $project->update(['is_favorite' => !$project->is_favorite]);
+
+        $project->update(['is_favorite' => ! $project->is_favorite]);
 
         return back();
     }
@@ -349,15 +349,16 @@ class ProjectController extends Controller
         // ── No CSV file: regenerate from existing project data ────────────
         $wizardType = $project->settings['wizard_type'] ?? null;
 
-        if (!$wizardType) {
+        if (! $wizardType) {
             return back()->with('error', 'Unable to determine project type for generation.');
         }
 
         switch ($wizardType) {
             case 'csv':
-                if (!isset($project->settings['csv_data'])) {
+                if (! isset($project->settings['csv_data'])) {
                     return back()->with('error', 'CSV data not found for this project.');
                 }
+
                 return $this->dispatchCsvPipeline($project, $user, $project->settings['csv_data']);
 
             default:
@@ -374,16 +375,16 @@ class ProjectController extends Controller
         $historyIds = [];
         foreach ($csvRows as $i => $row) {
             $history = GenerationHistory::create([
-                'user_id'    => $user->id,
+                'user_id' => $user->id,
                 'project_id' => $project->id,
-                'ai_model'   => config('services.gemini.image_model', 'gemini-2.5-flash-image'),
-                'prompt'     => $row['title'],
-                'status'     => 'pending',
+                'ai_model' => config('services.gemini.image_model', 'gemini-2.5-flash-image'),
+                'prompt' => $row['title'],
+                'status' => 'pending',
                 'parameters' => [
                     'csv_row_index' => $i,
-                    'title'         => $row['title'],
-                    'format'        => $row['format'] ?? 'square',
-                    'wizard_type'   => 'csv',
+                    'title' => $row['title'],
+                    'format' => $row['format'] ?? 'square',
+                    'wizard_type' => 'csv',
                 ],
             ]);
             $historyIds[$i] = $history->id;
@@ -402,21 +403,21 @@ class ProjectController extends Controller
         $project->update([
             'settings' => array_merge($project->settings ?? [], [
                 'wizard_type' => 'csv',
-                'csv_data'    => $csvRows,
+                'csv_data' => $csvRows,
                 'history_ids' => $historyIds,
-                'ref_paths'   => $refPaths,
+                'ref_paths' => $refPaths,
             ]),
         ]);
 
         $session = CsvWizardSession::create([
-            'user_id'    => $user->id,
+            'user_id' => $user->id,
             'project_id' => $project->id,
-            'status'     => 'pending',
+            'status' => 'pending',
             'total_jobs' => count($csvRows),
         ]);
 
         // Skip brand analysis if cluster_result already exists
-        $hasCluster = !empty($project->settings['cluster_result']);
+        $hasCluster = ! empty($project->settings['cluster_result']);
 
         if ($hasCluster) {
             Bus::chain([
@@ -452,12 +453,12 @@ class ProjectController extends Controller
         $headers = str_getcsv(array_shift($lines));
 
         // Build reverse map from column mappings
-        $titleCol   = $this->findMappedColumn($columnMappings, 'Product Title');
+        $titleCol = $this->findMappedColumn($columnMappings, 'Product Title');
         $captionCol = $this->findMappedColumn($columnMappings, 'Image Prompt');
-        $formatCol  = $this->findMappedColumn($columnMappings, 'Format');
+        $formatCol = $this->findMappedColumn($columnMappings, 'Format');
 
         // Fallback: auto-detect columns by header name
-        if (!$titleCol) {
+        if (! $titleCol) {
             foreach ($headers as $h) {
                 $lower = strtolower(trim($h));
                 if (str_contains($lower, 'title') || str_contains($lower, 'name')) {
@@ -467,7 +468,7 @@ class ProjectController extends Controller
             }
             $titleCol = $titleCol ?: ($headers[0] ?? null);
         }
-        if (!$captionCol) {
+        if (! $captionCol) {
             foreach ($headers as $h) {
                 $lower = strtolower(trim($h));
                 if (str_contains($lower, 'description') || str_contains($lower, 'prompt') || str_contains($lower, 'caption')) {
@@ -476,7 +477,7 @@ class ProjectController extends Controller
                 }
             }
         }
-        if (!$formatCol) {
+        if (! $formatCol) {
             foreach ($headers as $h) {
                 $lower = strtolower(trim($h));
                 if (str_contains($lower, 'format')) {
@@ -493,27 +494,25 @@ class ProjectController extends Controller
             }
 
             $values = str_getcsv($line);
-            $row    = array_combine($headers, array_pad($values, count($headers), ''));
-            if (!$row) {
+            $row = array_combine($headers, array_pad($values, count($headers), ''));
+            if (! $row) {
                 continue;
             }
 
-            $title   = trim($row[$titleCol] ?? '');
+            $title = trim($row[$titleCol] ?? '');
             $caption = $captionCol ? trim($row[$captionCol] ?? '') : $title;
-            $format  = $formatCol ? strtolower(trim($row[$formatCol] ?? 'square')) : 'square';
+            $format = $formatCol ? strtolower(trim($row[$formatCol] ?? 'square')) : 'square';
 
             if (empty($title)) {
                 continue;
             }
 
-            if (!in_array($format, ['square', 'portrait', 'landscape'], true)) {
-                $format = 'square';
-            }
+            $format = FormatPresetMapper::normalize($format);
 
             $rows[] = [
-                'title'   => $title,
+                'title' => $title,
                 'caption' => $caption ?: $title,
-                'format'  => $format,
+                'format' => $format,
             ];
         }
 
@@ -527,6 +526,7 @@ class ProjectController extends Controller
                 return $csvColumn;
             }
         }
+
         return null;
     }
 
@@ -554,7 +554,7 @@ class ProjectController extends Controller
         // Calculate expected total from project settings
         $expectedTotal = 0;
         $wizardType = $project->settings['wizard_type'] ?? null;
-        
+
         if ($wizardType === 'csv' && isset($project->settings['csv_rows'])) {
             $expectedTotal = $project->settings['csv_rows'];
         } else {
@@ -571,9 +571,9 @@ class ProjectController extends Controller
         $settings = $project->settings ?? [];
 
         // Brand analysis phase
-        if (!empty($settings['brand_analysis_failed'])) {
+        if (! empty($settings['brand_analysis_failed'])) {
             $brandAnalysisPhase = 'failed';
-        } elseif (!empty($settings['brand_analyzed_at'])) {
+        } elseif (! empty($settings['brand_analyzed_at'])) {
             $brandAnalysisPhase = 'completed';
         } else {
             $brandAnalysisPhase = 'pending';
@@ -613,7 +613,7 @@ class ProjectController extends Controller
                 ->select(['id', 'error_message', 'parameters'])
                 ->get()
                 ->map(fn ($h) => [
-                    'title'   => is_array($h->parameters) ? ($h->parameters['title'] ?? null) : null,
+                    'title' => is_array($h->parameters) ? ($h->parameters['title'] ?? null) : null,
                     'message' => $h->error_message ?? 'Generation failed',
                 ])
                 ->values()
@@ -621,7 +621,7 @@ class ProjectController extends Controller
         }
 
         // Brand analysis error if present
-        $brandAnalysisError = !empty($settings['brand_analysis_error'])
+        $brandAnalysisError = ! empty($settings['brand_analysis_error'])
             ? $settings['brand_analysis_error']
             : null;
 
@@ -633,7 +633,7 @@ class ProjectController extends Controller
             'processing' => $processingGenerations,
             'pending' => $pendingGenerations,
             'total' => $totalGenerations,
-            'progress_percentage' => $expectedTotal > 0 
+            'progress_percentage' => $expectedTotal > 0
                 ? round(min(100, ($doneGenerations / $expectedTotal) * 100), 2)
                 : 0,
             'is_complete' => $isComplete,

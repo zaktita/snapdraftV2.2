@@ -2,8 +2,8 @@
 
 namespace App\Services\AI;
 
+use App\Services\FormatPresetMapper;
 use Illuminate\Support\Facades\Log;
-use RuntimeException;
 
 class GoogleGeminiService
 {
@@ -14,17 +14,16 @@ class GoogleGeminiService
     /**
      * Generate an image with optional brand reference images.
      *
-     * @param  string   $prompt
-     * @param  string[] $referenceImages  Storage-relative paths to brand reference images
-     * @param  string[] $productImages    Storage-relative paths to product overlay images
-     * @param  string   $format           square|portrait|landscape
+     * @param  string[]  $referenceImages  Storage-relative paths to brand reference images
+     * @param  string[]  $productImages  Storage-relative paths to product overlay images
+     * @param  string  $format  square|portrait|landscape
      * @return array{image_data: string, mime_type: string}
      */
     public function generateWithReferences(
         string $prompt,
-        array  $referenceImages = [],
-        array  $productImages   = [],
-        string $format          = 'square',
+        array $referenceImages = [],
+        array $productImages = [],
+        string $format = 'square',
     ): array {
         $model = config('services.gemini.image_model', 'gemini-2.0-flash-preview-image-generation');
 
@@ -35,7 +34,7 @@ class GoogleGeminiService
                 $parts[] = $this->client->imageToInlinePart($path);
             } catch (\Throwable $e) {
                 Log::warning('GoogleGeminiService: could not load reference image', [
-                    'path'  => $path,
+                    'path' => $path,
                     'error' => $e->getMessage(),
                 ]);
             }
@@ -43,8 +42,8 @@ class GoogleGeminiService
 
         $parts[] = ['text' => $prompt];
 
-        $contents    = [['parts' => $parts]];
-        $aspectRatio = $this->resolveAspectRatio($format);
+        $contents = [['parts' => $parts]];
+        $aspectRatio = FormatPresetMapper::aspectRatio($format);
 
         $base64 = $this->client->generateImage($model, $contents, $aspectRatio);
 
@@ -54,8 +53,7 @@ class GoogleGeminiService
     /**
      * Analyse brand style from reference images and return a structured result.
      *
-     * @param  string[] $imagePaths
-     * @return array
+     * @param  string[]  $imagePaths
      */
     public function analyzeBrandStyle(array $imagePaths): array
     {
@@ -67,7 +65,7 @@ class GoogleGeminiService
                 $parts[] = $this->client->imageToInlinePart($path);
             } catch (\Throwable $e) {
                 Log::warning('GoogleGeminiService: could not load brand image', [
-                    'path'  => $path,
+                    'path' => $path,
                     'error' => $e->getMessage(),
                 ]);
             }
@@ -76,11 +74,11 @@ class GoogleGeminiService
         $parts[] = ['text' => 'Analyze the visual brand style of these images. Return a JSON object with keys: style_clusters (array), color_palette (array), typography_style (string), composition_notes (string).'];
 
         $schema = [
-            'type'       => 'OBJECT',
+            'type' => 'OBJECT',
             'properties' => [
-                'style_clusters'    => ['type' => 'ARRAY', 'items' => ['type' => 'OBJECT']],
-                'color_palette'     => ['type' => 'ARRAY', 'items' => ['type' => 'STRING']],
-                'typography_style'  => ['type' => 'STRING'],
+                'style_clusters' => ['type' => 'ARRAY', 'items' => ['type' => 'OBJECT']],
+                'color_palette' => ['type' => 'ARRAY', 'items' => ['type' => 'STRING']],
+                'typography_style' => ['type' => 'STRING'],
                 'composition_notes' => ['type' => 'STRING'],
             ],
         ];
@@ -91,9 +89,9 @@ class GoogleGeminiService
     /**
      * Outpaint / extend image content outside its current bounds.
      *
-     * @param  string $imageBase64  Base64-encoded source image
-     * @param  string $maskBase64   Base64-encoded mask (white = area to fill)
-     * @return string  Base64-encoded result image
+     * @param  string  $imageBase64  Base64-encoded source image
+     * @param  string  $maskBase64  Base64-encoded mask (white = area to fill)
+     * @return string Base64-encoded result image
      */
     public function outpaint(string $imageBase64, string $maskBase64): string
     {
@@ -113,8 +111,8 @@ class GoogleGeminiService
     /**
      * Erase green-highlighted areas from an image (replace with contextual content).
      *
-     * @param  string $imageBase64  Base64-encoded image with green highlights marking areas to erase
-     * @return string  Base64-encoded result image
+     * @param  string  $imageBase64  Base64-encoded image with green highlights marking areas to erase
+     * @return string Base64-encoded result image
      */
     public function eraseGreenHighlights(string $imageBase64): string
     {
@@ -133,10 +131,10 @@ class GoogleGeminiService
     /**
      * Generate/inpaint an image region based on a text prompt and mask.
      *
-     * @param  string $imageBase64  Base64-encoded source image
-     * @param  string $maskBase64   Base64-encoded mask (white = area to generate)
-     * @param  string $prompt       Description of what to generate
-     * @return string  Base64-encoded result image
+     * @param  string  $imageBase64  Base64-encoded source image
+     * @param  string  $maskBase64  Base64-encoded mask (white = area to generate)
+     * @param  string  $prompt  Description of what to generate
+     * @return string Base64-encoded result image
      */
     public function generateFromPrompt(string $imageBase64, string $maskBase64, string $prompt): string
     {
@@ -156,10 +154,7 @@ class GoogleGeminiService
     /**
      * Edit an image given a text prompt and an optional mask.
      *
-     * @param  string      $imageBase64
-     * @param  string      $prompt
-     * @param  string|null $maskBase64
-     * @return string  Base64-encoded result image
+     * @return string Base64-encoded result image
      */
     public function editBase64(string $imageBase64, string $prompt, ?string $maskBase64 = null): string
     {
@@ -190,12 +185,4 @@ class GoogleGeminiService
 
     // -------------------------------------------------------------------------
 
-    private function resolveAspectRatio(string $format): string
-    {
-        return match (strtolower($format)) {
-            'portrait'  => '9:16',
-            'landscape' => '16:9',
-            default     => '1:1',
-        };
-    }
 }

@@ -32,9 +32,6 @@ class UserFactory extends Factory
             'two_factor_recovery_codes' => Str::random(10),
             'two_factor_confirmed_at' => now(),
             'is_admin' => false,
-            'subscription_tier' => 'free',
-            'credits_remaining' => 10,
-            'credits_total' => 10,
         ];
     }
 

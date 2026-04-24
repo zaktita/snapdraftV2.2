@@ -14,6 +14,7 @@ import {
     Receipt,
     FolderOpen,
     MessageSquare,
+    ClipboardList,
 } from 'lucide-react';
 
 interface AdminLayoutProps {
@@ -23,6 +24,7 @@ interface AdminLayoutProps {
 
 const navItems = [
     { label: 'Dashboard', href: '/admin', icon: LayoutDashboard, exact: true },
+    { label: 'Beta applications', href: '/admin/beta-applications', icon: ClipboardList },
     { label: 'Users', href: '/admin/users', icon: Users },
     { label: 'Credits', href: '/admin/credits', icon: CreditCard },
     { label: 'Subscriptions', href: '/admin/subscriptions', icon: Receipt },

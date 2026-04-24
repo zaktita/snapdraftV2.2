@@ -2,7 +2,7 @@ import { useInView } from '@/hooks/use-in-view';
 import { cn } from '@/lib/utils';
 import { login, register } from '@/routes';
 import { Head, Link, router } from '@inertiajs/react';
-import { ArrowRight, CheckCircle2 } from 'lucide-react';
+import { ArrowRight } from 'lucide-react';
 import { type FormEvent, useEffect, useRef, useState } from 'react';
 
 /* ── Scroll-reveal wrapper ── */
@@ -28,22 +28,11 @@ function Reveal({
     );
 }
 
-/* ── CSRF helper ── */
-function csrfToken(): string {
-    if (typeof document === 'undefined') return '';
-    return (
-        document
-            .querySelector('meta[name="csrf-token"]')
-            ?.getAttribute('content') ?? ''
-    );
-}
-
 /* ── Page ── */
 
 export default function HomePage() {
     const [scrolled, setScrolled] = useState(false);
     const [openFaq, setOpenFaq] = useState(0);
-    const [showWaitlistCard, setShowWaitlistCard] = useState(false);
     const [showInviteRequiredNotice, setShowInviteRequiredNotice] =
         useState(false);
 
@@ -52,14 +41,7 @@ export default function HomePage() {
     const [inviteError, setInviteError] = useState('');
     const [inviteLoading, setInviteLoading] = useState(false);
 
-    // Waitlist form
-    const [waitlistEmail, setWaitlistEmail] = useState('');
-    const [waitlistDone, setWaitlistDone] = useState(false);
-    const [waitlistError, setWaitlistError] = useState('');
-    const [waitlistLoading, setWaitlistLoading] = useState(false);
-
     const inviteRef = useRef<HTMLInputElement>(null);
-    const waitlistRef = useRef<HTMLInputElement>(null);
 
     useEffect(() => {
         const onScroll = () => setScrolled(window.scrollY > 20);
@@ -75,18 +57,6 @@ export default function HomePage() {
             setShowInviteRequiredNotice(true);
         }
     }, []);
-
-    function openWaitlistCard() {
-        setShowWaitlistCard(true);
-
-        // Let the card render before trying to focus the email input.
-        requestAnimationFrame(() => {
-            waitlistRef.current?.focus();
-            document
-                .getElementById('hero-forms')
-                ?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        });
-    }
 
     async function handleInvite(e: FormEvent) {
         e.preventDefault();
@@ -112,37 +82,6 @@ export default function HomePage() {
             setInviteError('Something went wrong. Please try again.');
         } finally {
             setInviteLoading(false);
-        }
-    }
-
-    async function handleWaitlist(e: FormEvent) {
-        e.preventDefault();
-        const email = waitlistEmail.trim();
-        if (!email) return;
-        setWaitlistError('');
-        setWaitlistLoading(true);
-        try {
-            const res = await fetch('/waitlist', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    Accept: 'application/json',
-                    'X-CSRF-TOKEN': csrfToken(),
-                },
-                body: JSON.stringify({ email }),
-            });
-            if (res.ok) {
-                setWaitlistDone(true);
-            } else {
-                const data = await res.json();
-                setWaitlistError(
-                    data.errors?.email?.[0] || 'Please enter a valid email.',
-                );
-            }
-        } catch {
-            setWaitlistError('Something went wrong. Please try again.');
-        } finally {
-            setWaitlistLoading(false);
         }
     }
 
@@ -219,14 +158,10 @@ export default function HomePage() {
                         <Link href={login().url} className="sd-btn-sm-ghost">
                             Sign in
                         </Link>
-                        <button
-                            type="button"
-                            className="sd-btn-sm"
-                            onClick={openWaitlistCard}
-                        >
+                        <Link href="/beta/apply" className="sd-btn-sm">
                             Request access
                             <ArrowRight size={14} />
-                        </button>
+                        </Link>
                     </div>
                 </nav>
             </header>
@@ -298,58 +233,6 @@ export default function HomePage() {
                                         <p className="sd-hero-inline-error">
                                             {inviteError}
                                         </p>
-                                    )}
-
-                                    {showWaitlistCard && (
-                                        <div className="sd-waitlist-inline-wrap">
-                                            {waitlistDone ? (
-                                                <p className="sd-hero-card-msg sd-hero-card-msg--success">
-                                                    <CheckCircle2 size={16} />
-                                                    We&apos;ve got your request
-                                                    — we&apos;ll email you when a
-                                                    spot opens.
-                                                </p>
-                                            ) : (
-                                                <>
-                                                    <form
-                                                        onSubmit={
-                                                            handleWaitlist
-                                                        }
-                                                        className="sd-hero-inline-form sd-hero-inline-form-waitlist"
-                                                    >
-                                                        <input
-                                                            ref={waitlistRef}
-                                                            type="email"
-                                                            placeholder="Your email to request access"
-                                                            value={
-                                                                waitlistEmail
-                                                            }
-                                                            onChange={(e) =>
-                                                                setWaitlistEmail(
-                                                                    e.target
-                                                                        .value,
-                                                                )
-                                                            }
-                                                        />
-                                                        <button
-                                                            type="submit"
-                                                            disabled={
-                                                                waitlistLoading
-                                                            }
-                                                        >
-                                                            {waitlistLoading
-                                                                ? 'Sending…'
-                                                                : 'Request access'}
-                                                        </button>
-                                                    </form>
-                                                    {waitlistError && (
-                                                        <p className="sd-hero-inline-error">
-                                                            {waitlistError}
-                                                        </p>
-                                                    )}
-                                                </>
-                                            )}
-                                        </div>
                                     )}
                                 </div>
                             </Reveal>
@@ -524,14 +407,10 @@ export default function HomePage() {
                         the product.
                     </p>
                     <div className="sd-cta-row">
-                        <button
-                            type="button"
-                            className="sd-btn-hero"
-                            onClick={openWaitlistCard}
-                        >
+                        <Link href="/beta/apply" className="sd-btn-hero">
                             Request access
                             <ArrowRight size={16} />
-                        </button>
+                        </Link>
                         <Link
                             href={login().url}
                             className="sd-btn-hero-ghost sd-btn-hero-ghost-inv"
