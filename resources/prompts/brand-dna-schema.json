@@ -1,0 +1,57 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "BrandDnaProfile",
+  "type": "object",
+  "required": ["brand", "rules", "clusters"],
+  "properties": {
+    "brand": {
+      "type": "object",
+      "required": ["name", "slug"],
+      "properties": {
+        "name": { "type": "string" },
+        "slug": { "type": "string" },
+        "positioning": { "type": "string" },
+        "audience": { "type": "string" },
+        "sources": { "type": "object" }
+      }
+    },
+    "visual_identity": { "type": "object" },
+    "voice_and_copy": { "type": "object" },
+    "content_pillars": { "type": "array" },
+    "rules": {
+      "type": "object",
+      "required": ["locked", "flex"],
+      "properties": {
+        "locked": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
+        "flex": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "clusters": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["key", "label", "keywords", "images"],
+        "properties": {
+          "key": { "type": "string" },
+          "label": { "type": "string" },
+          "summary": { "type": "string" },
+          "keywords": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
+          "images": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "object",
+              "required": ["position", "label"],
+              "properties": {
+                "position": { "type": "integer", "minimum": 0 },
+                "label": { "type": "string" },
+                "is_anchor": { "type": "boolean" }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

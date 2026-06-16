@@ -24,6 +24,10 @@ class GenerationHistory extends Model
         'image_id',
         'ai_model',
         'prompt',
+        'prompt_json',
+        'compiled_prompt',
+        'cluster_key',
+        'json_valid',
         'tokens_used',
         'cost',
         'status',
@@ -37,6 +41,8 @@ class GenerationHistory extends Model
      * The attributes that should be cast.
      */
     protected $casts = [
+        'prompt_json' => 'array',
+        'json_valid' => 'boolean',
         'tokens_used' => 'integer',
         'cost' => 'decimal:4',
         'parameters' => 'array',
@@ -105,10 +111,16 @@ class GenerationHistory extends Model
      */
     public function markAsCompleted(?array $responseData = null): void
     {
-        $this->update([
+        $attributes = [
             'status' => 'completed',
             'response_data' => $responseData,
-        ]);
+        ];
+
+        if (isset($responseData['image_id'])) {
+            $attributes['image_id'] = $responseData['image_id'];
+        }
+
+        $this->update($attributes);
     }
 
     /**

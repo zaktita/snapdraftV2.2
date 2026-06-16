@@ -943,6 +943,14 @@ export default function CSVWizard() {
                         }}>
                             {getSubtitle()}
                         </p>
+                        <p style={{ margin: '10px 0 0', fontSize: '13px' }}>
+                            <a
+                                href="/projects/create/csv-cluster"
+                                style={{ color: 'var(--color-primary)', textDecoration: 'none', fontWeight: 500 }}
+                            >
+                                Try CSV Cluster Wizard (4-step pipeline) →
+                            </a>
+                        </p>
                     </div>
 
                     {/* Progress Bar */}

@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "BrandPostPrompt",
+  "type": "object",
+  "required": ["meta", "brand_locked", "post", "quality"],
+  "properties": {
+    "meta": {
+      "type": "object",
+      "required": ["brand", "post", "target_generator", "aspect_ratio"],
+      "properties": {
+        "brand": { "type": "string" },
+        "post": { "type": "string" },
+        "target_generator": { "type": "string" },
+        "aspect_ratio": { "type": "string" }
+      }
+    },
+    "reference_images": { "type": "array" },
+    "reference_usage": { "type": "string" },
+    "brand_locked": { "type": "object" },
+    "post": {
+      "type": "object",
+      "required": ["concept", "content_pillar"],
+      "properties": {
+        "concept": { "type": "string", "minLength": 1 },
+        "subject": { "type": "string" },
+        "content_pillar": { "type": "string" },
+        "on_image_text": { "type": "array" },
+        "caption": { "type": "string" },
+        "hashtags": { "type": "array" }
+      }
+    },
+    "quality": {
+      "type": "object",
+      "required": ["include", "avoid"],
+      "properties": {
+        "include": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
+        "avoid": { "type": "array", "items": { "type": "string" }, "minItems": 1 }
+      }
+    }
+  }
+}

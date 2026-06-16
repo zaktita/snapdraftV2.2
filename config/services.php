@@ -66,13 +66,14 @@ return [
 
     'openrouter' => [
         'api_key' => env('OPENROUTER_API_KEY'),
+        'base_url' => env('OPENROUTER_BASE_URL', 'https://openrouter.ai/api/v1'),
         'model' => env('OPENROUTER_MODEL', 'bytedance-seed/seedream-4.5'),
         // Image model for canvas editor (inpainting, outpainting, prompt-based editing)
         'image_model' => 'bytedance-seed/seedream-4.5',
         // Comma-separated model list for the multi-model prompt-tester UI
         'prompt_models' => env('OPENROUTER_PROMPT_MODELS', 'google/gemini-3.1-pro-preview,openai/gpt-4o-mini'),
-        'site_url' => env('APP_URL'),
-        'site_name' => env('APP_NAME', 'SnapDraft'),
+        'site_url' => env('OPENROUTER_SITE_URL', env('APP_URL')),
+        'site_name' => env('OPENROUTER_APP_NAME', env('APP_NAME', 'SnapDraft')),
     ],
 
     'ai' => [

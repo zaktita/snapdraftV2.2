@@ -27,6 +27,7 @@ class DatabaseSeeder extends Seeder
         // Seed billing plans
         $this->call([
             PlanSeeder::class,
+            ModelConfigSeeder::class,
         ]);
     }
 }

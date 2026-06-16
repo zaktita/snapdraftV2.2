@@ -22,12 +22,19 @@ class QuickGenerateSession extends Model
         'selected_cluster_id',
         'selected_image_indices',
         'final_prompt',
+        'prompt_json',
+        'compiled_prompt',
+        'cluster_key',
+        'cluster_label',
+        'selected_cluster_images',
         'error_message',
     ];
 
     protected $casts = [
         'brand_analysis_data' => 'array',
         'selected_image_indices' => 'array',
+        'prompt_json' => 'array',
+        'selected_cluster_images' => 'array',
     ];
 
     /**

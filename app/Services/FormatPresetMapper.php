@@ -65,6 +65,11 @@ final class FormatPresetMapper
 
     public static function aspectRatio(string $format): string
     {
+        $trimmed = trim($format);
+        if (preg_match('/^\d+:\d+$/', $trimmed)) {
+            return $trimmed;
+        }
+
         return self::resolve($format)['aspectRatio'];
     }
 }

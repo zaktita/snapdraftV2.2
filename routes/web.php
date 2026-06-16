@@ -87,6 +87,21 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('projects/wizards/csv/sessions/{session}', [CSVWizardController::class, 'show'])
             ->name('projects.wizards.csv.session');
 
+        Route::get('projects/create/csv-cluster', [\App\Http\Controllers\Wizards\ClusterCsvWizardController::class, 'create'])
+            ->name('projects.wizards.csv-cluster');
+        Route::post('projects/wizards/csv-cluster', [\App\Http\Controllers\Wizards\ClusterCsvWizardController::class, 'store'])
+            ->middleware('throttle.user:5,1')
+            ->name('projects.wizards.csv-cluster.store');
+        Route::get('projects/wizards/csv-cluster/sessions/{session}', [\App\Http\Controllers\Wizards\ClusterCsvWizardController::class, 'show'])
+            ->name('projects.wizards.csv-cluster.session');
+        Route::get('projects/wizards/csv-cluster/sessions/{session}/status', [\App\Http\Controllers\Wizards\ClusterCsvWizardController::class, 'status'])
+            ->name('projects.wizards.csv-cluster.status');
+        Route::get('projects/wizards/csv-cluster/sessions/{session}/rows/{rowIndex}/debug', [\App\Http\Controllers\Wizards\ClusterCsvWizardController::class, 'rowDebug'])
+            ->whereNumber('rowIndex')
+            ->name('projects.wizards.csv-cluster.row-debug');
+        Route::get('projects/wizards/csv-cluster/sessions/{session}/result', [\App\Http\Controllers\Wizards\ClusterCsvWizardController::class, 'result'])
+            ->name('projects.wizards.csv-cluster.result');
+
         Route::get('projects/create/images', function () {
             return Inertia::render('projects/wizards/images');
         })->name('projects.wizards.images');
@@ -97,12 +112,34 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
         // Cluster Generation Test Lab — admin-only
         Route::middleware('admin')->group(function () {
+            Route::get('test/clustering', [\App\Http\Controllers\Test\ClusteringTestController::class, 'index'])
+                ->name('test.clustering');
+            Route::post('test/clustering/analyze', [\App\Http\Controllers\Test\ClusteringTestController::class, 'analyze'])
+                ->name('test.clustering.analyze');
+            Route::post('test/clustering/{project}/match', [\App\Http\Controllers\Test\ClusteringTestController::class, 'matchCaption'])
+                ->name('test.clustering.match');
+            Route::post('test/clustering/{project}/generate-prompt', [\App\Http\Controllers\Test\ClusteringTestController::class, 'generatePrompt'])
+                ->name('test.clustering.generate-prompt');
+            Route::post('test/clustering/{project}/generate-image', [\App\Http\Controllers\Test\ClusteringTestController::class, 'generateImage'])
+                ->name('test.clustering.generate-image');
+
             Route::get('test/cluster-generation', [\App\Http\Controllers\Test\ClusterTestController::class, 'index'])
                 ->name('test.cluster-generation');
             Route::post('test/cluster-generation/analyze', [\App\Http\Controllers\Test\ClusterTestController::class, 'analyze'])
                 ->name('test.cluster-generation.analyze');
             Route::post('test/cluster-generation/generate', [\App\Http\Controllers\Test\ClusterTestController::class, 'generate'])
                 ->name('test.cluster-generation.generate');
+
+            Route::get('test/prompt-forge', [\App\Http\Controllers\Test\PromptForgeTestController::class, 'index'])
+                ->name('test.prompt-forge');
+            Route::post('test/prompt-forge', [\App\Http\Controllers\Test\PromptForgeTestController::class, 'store'])
+                ->name('test.prompt-forge.store');
+            Route::post('test/prompt-forge/{session}/extract', [\App\Http\Controllers\Test\PromptForgeTestController::class, 'extract'])
+                ->name('test.prompt-forge.extract');
+            Route::post('test/prompt-forge/{session}/generate-post', [\App\Http\Controllers\Test\PromptForgeTestController::class, 'generatePost'])
+                ->name('test.prompt-forge.generate-post');
+            Route::post('test/prompt-forge/{session}/generate-image', [\App\Http\Controllers\Test\PromptForgeTestController::class, 'generateImage'])
+                ->name('test.prompt-forge.generate-image');
         });
 
         // Quick Generate Routes
@@ -139,6 +176,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
         Route::get('projects/{id}/generation-progress', [ProjectController::class, 'generationProgress'])
             ->name('projects.generation-progress');
+        Route::get('projects/{id}/images/{imageId}/generation-debug', [ProjectController::class, 'imageGenerationDebug'])
+            ->name('projects.images.generation-debug');
 
         // Image Management Routes
         Route::prefix('projects/{projectId}/images')->group(function () {

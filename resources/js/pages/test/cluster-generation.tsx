@@ -229,14 +229,19 @@ export default function ClusterGenerationTest({
             <div className="mx-auto max-w-6xl space-y-6 p-6">
 
                 {/* ── Header ── */}
-                <div>
-                    <div className="flex items-center gap-2">
-                        <Layers className="h-6 w-6 text-primary" />
-                        <h1 className="text-2xl font-bold">Cluster Generation Test Lab</h1>
+                <div className="flex flex-wrap items-start justify-between gap-4">
+                    <div>
+                        <div className="flex items-center gap-2">
+                            <Layers className="h-6 w-6 text-primary" />
+                            <h1 className="text-2xl font-bold">Cluster Generation Test Lab</h1>
+                        </div>
+                        <p className="text-muted-foreground mt-1 text-sm">
+                            Visualize style clusters → AI reference selection → generation prompt → output image
+                        </p>
                     </div>
-                    <p className="text-muted-foreground mt-1 text-sm">
-                        Visualize style clusters → AI reference selection → generation prompt → output image
-                    </p>
+                    <Button variant="outline" size="sm" asChild>
+                        <a href="/test/prompt-forge">PromptForge Test Lab →</a>
+                    </Button>
                 </div>
 
                 {/* ══════════════════════════════════════════════════════════════

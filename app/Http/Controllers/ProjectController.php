@@ -13,7 +13,9 @@ use App\Models\Project;
 use App\Services\FileUploadService;
 use App\Services\FormatPresetMapper;
 use App\Services\PostHogService;
+use App\Services\Wizards\ImageGenerationDebugPayload;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Bus;
@@ -220,19 +222,32 @@ class ProjectController extends Controller
             ];
         }
 
+        $historiesByImageId = $project->generationHistory()
+            ->whereIn('image_id', $project->images->pluck('id')->filter()->all())
+            ->get()
+            ->keyBy('image_id');
+
+        $historyIdsByRow = $project->settings['history_ids'] ?? [];
+        $wizardType = $project->settings['wizard_type'] ?? null;
+        $isCsvWizard = in_array($wizardType, ['csv', 'csv_cluster'], true);
+
         return Inertia::render('projects/show', [
             'project' => [
                 'id' => $project->id,
                 'title' => $project->title,
                 'description' => $project->description,
-                'wizard_type' => $project->settings['wizard_type'] ?? null,
+                'wizard_type' => $wizardType,
                 'brand_reference_count' => $project->brandReferences()->count(),
                 'created_at' => $project->created_at->toISOString(),
                 'updated_at' => $project->updated_at->toISOString(),
                 'images_count' => $project->images_count,
                 'is_favorite' => $project->is_favorite,
                 'featured_image' => $project->featured_image,
-                'images' => $project->images->map(function ($image) {
+                'images' => $project->images->map(function ($image) use ($historiesByImageId, $historyIdsByRow, $isCsvWizard) {
+                    $rowIndex = data_get($image->metadata, 'csv_row_index');
+                    $hasRowHistory = $rowIndex !== null && isset($historyIdsByRow[$rowIndex]);
+                    $history = $historiesByImageId->get($image->id);
+
                     return [
                         'id' => $image->id,
                         'url' => $image->url,
@@ -240,6 +255,10 @@ class ProjectController extends Controller
                         'prompt' => $image->prompt,
                         'is_favorite' => $image->is_favorite,
                         'metadata' => $image->metadata,
+                        'can_debug_generation' => $isCsvWizard
+                            || $history !== null
+                            || $hasRowHistory
+                            || $rowIndex !== null,
                     ];
                 }),
             ],
@@ -252,7 +271,48 @@ class ProjectController extends Controller
             'csvRowTitles' => ($hasPendingGenerations || ($progress && ($progress['pending'] > 0 || $progress['failed'] > 0)))
                 ? array_values(array_column($project->settings['csv_data'] ?? [], 'title'))
                 : null,
+            'generationDebugEnabled' => $isCsvWizard
+                || ! empty($project->settings['cluster_csv_pipeline'])
+                || ! empty($project->settings['history_ids'])
+                || $project->clusters()->exists(),
         ]);
+    }
+
+    public function imageGenerationDebug(string $id, string $imageId): JsonResponse
+    {
+        $project = Project::findOrFail($id);
+        $this->authorize('view', $project);
+
+        $image = $project->images()->findOrFail($imageId);
+
+        $history = $project->generationHistory()->where('image_id', $image->id)->first();
+
+        if (! $history) {
+            $rowIndex = data_get($image->metadata, 'csv_row_index');
+            if ($rowIndex !== null) {
+                $historyId = $project->settings['history_ids'][$rowIndex] ?? null;
+                $history = $historyId
+                    ? $project->generationHistory()->find($historyId)
+                    : null;
+            }
+        }
+
+        if (! $history) {
+            return response()->json([
+                'available' => false,
+                'message' => 'Generation details not found for this image.',
+            ]);
+        }
+
+        $rowIndex = data_get($history->parameters, 'csv_row_index', data_get($image->metadata, 'csv_row_index'));
+
+        return response()->json(
+            ImageGenerationDebugPayload::forHistory(
+                $project,
+                $history,
+                is_numeric($rowIndex) ? (int) $rowIndex : null,
+            )
+        );
     }
 
     /**

@@ -4,6 +4,7 @@ namespace App\Jobs;
 
 use App\Models\CsvWizardSession;
 use App\Models\Project;
+use App\Services\Wizards\ClusterCsvPipeline;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -50,6 +51,13 @@ class DispatchGenerationBatchJob implements ShouldQueue
             );
 
             $sessionId = $this->sessionId;
+            $projectId = $this->projectId;
+
+            if (ClusterCsvPipeline::isClusterCsvWizard($project)) {
+                ClusterCsvPipeline::setPhase($project, 'images');
+            }
+
+            $session->markAsGenerating(null, count($jobs));
 
             $batch = Bus::batch($jobs)
                 ->allowFailures()
@@ -61,13 +69,20 @@ class DispatchGenerationBatchJob implements ShouldQueue
                         'error' => $e->getMessage(),
                     ]);
                 })
-                ->finally(function () use ($sessionId) {
+                ->finally(function () use ($sessionId, $projectId) {
                     $s = CsvWizardSession::find($sessionId);
                     $s?->markAsCompleted();
+
+                    $project = Project::find($projectId);
+                    if ($project && ClusterCsvPipeline::isClusterCsvWizard($project)) {
+                        ClusterCsvPipeline::setPhase($project, 'complete');
+                    }
                 })
                 ->dispatch();
 
-            $session->markAsGenerating($batch->id, count($jobs));
+            // Store batch id only — do not reset status to "generating" after dispatch.
+            // With QUEUE_CONNECTION=sync the batch (and finally callback) already finished.
+            $session->update(['batch_id' => $batch->id]);
 
             Log::info('DispatchGenerationBatchJob: batch dispatched', [
                 'project_id' => $this->projectId,
@@ -85,6 +100,9 @@ class DispatchGenerationBatchJob implements ShouldQueue
                 'Pipeline aborted: image batch could not be started.'
             );
             $session->markAsFailed('Generation dispatch failed: '.$e->getMessage());
+            if (ClusterCsvPipeline::isClusterCsvWizard($project)) {
+                ClusterCsvPipeline::markFailed($project, $e->getMessage());
+            }
             throw $e;
         }
     }

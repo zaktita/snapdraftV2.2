@@ -11,8 +11,8 @@ use App\Models\CsvWizardSession;
 use App\Models\GenerationHistory;
 use App\Models\Project;
 use App\Services\FileUploadService;
-use App\Services\FormatPresetMapper;
 use App\Services\PostHogService;
+use App\Services\Wizards\CsvRowParser;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Bus;
@@ -23,6 +23,7 @@ class CSVWizardController extends Controller
 {
     public function __construct(
         protected FileUploadService $fileUploadService,
+        protected CsvRowParser $csvRowParser,
     ) {}
 
     /**
@@ -48,7 +49,7 @@ class CSVWizardController extends Controller
         $resolutionMultiplier = (int) $request->input('resolution_multiplier', 1);
 
         // ── 1. Parse CSV ─────────────────────────────────────────────────────
-        $csvRows = $this->parseCsvRows($request->file('csv_file'), $columnMappings);
+        $csvRows = $this->csvRowParser->parse($request->file('csv_file'), $columnMappings);
 
         if (empty($csvRows)) {
             return back()->withErrors(['csv_file' => 'The CSV file contains no valid rows.']);
@@ -109,12 +110,13 @@ class CSVWizardController extends Controller
             $history = GenerationHistory::create([
                 'user_id' => $user->id,
                 'project_id' => $project->id,
-                'ai_model' => config('services.gemini.image_model', 'gemini-2.5-flash-image'),
+                'ai_model' => config('services.gemini.image_model', 'gemini-3.1-flash-image-preview'),
                 'prompt' => $row['title'],
                 'status' => 'pending',
                 'parameters' => [
                     'csv_row_index' => $i,
                     'title' => $row['title'],
+                    'caption' => $row['caption'],
                     'format' => $row['format'],
                     'wizard_type' => 'csv',
                     'resolution_multiplier' => $resolutionMultiplier,
@@ -142,11 +144,23 @@ class CSVWizardController extends Controller
         ]);
 
         // ── 7. Dispatch the 3-phase pipeline chain ────────────────────────────
-        Bus::chain([
-            new AnalyzeBrandJob($project->id, $session->id),
-            new MatchCaptionsJob($project->id, $session->id),
-            new DispatchGenerationBatchJob($project->id, $session->id),
-        ])->dispatch();
+        try {
+            Bus::chain([
+                new AnalyzeBrandJob($project->id, $session->id),
+                new MatchCaptionsJob($project->id, $session->id),
+                new DispatchGenerationBatchJob($project->id, $session->id),
+            ])->dispatch();
+        } catch (\Throwable $e) {
+            Log::error('CSVWizardController: pipeline failed', [
+                'project_id' => $project->id,
+                'session_id' => $session->id,
+                'error' => $e->getMessage(),
+            ]);
+
+            return redirect()
+                ->route('projects.show', $project->id)
+                ->with('error', 'Generation failed: '.$e->getMessage());
+        }
 
         app(PostHogService::class)->capture((string) $user->id, 'csv_generation_started', [
             'project_id' => $project->id,
@@ -189,82 +203,5 @@ class CSVWizardController extends Controller
                 'project_id' => $session->project_id,
             ],
         ]);
-    }
-
-    // ── Helpers ───────────────────────────────────────────────────────────────
-
-    /**
-     * Parse CSV file into normalised rows using column mappings.
-     * column_mappings: { csvColumnName => 'Product Title'|'Image Prompt'|'Format'|... }
-     */
-    private function parseCsvRows(\Illuminate\Http\UploadedFile $file, array $columnMappings): array
-    {
-        $content = file_get_contents($file->getRealPath());
-
-        // Strip BOM if present
-        $content = ltrim($content, "\xEF\xBB\xBF");
-
-        $lines = array_filter(array_map('trim', explode("\n", $content)));
-        $lines = array_values($lines);
-
-        if (count($lines) < 2) {
-            return [];
-        }
-
-        $headers = str_getcsv(array_shift($lines));
-
-        // Build reverse map: semantic field → csv column name
-        $titleCol = $this->findColumn($columnMappings, 'Product Title');
-        $captionCol = $this->findColumn($columnMappings, 'Image Prompt');
-        $formatCol = $this->findColumn($columnMappings, 'Format');
-
-        if (! $titleCol) {
-            // Fallback: use first column as title
-            $titleCol = $headers[0] ?? null;
-        }
-
-        $rows = [];
-
-        foreach ($lines as $line) {
-            if (empty(trim($line))) {
-                continue;
-            }
-
-            $values = str_getcsv($line);
-            $row = array_combine($headers, array_pad($values, count($headers), ''));
-
-            if (! $row) {
-                continue;
-            }
-
-            $title = trim($row[$titleCol] ?? '');
-            $caption = $captionCol ? trim($row[$captionCol] ?? '') : $title;
-            $format = $formatCol ? strtolower(trim($row[$formatCol] ?? 'square')) : 'square';
-
-            if (empty($title)) {
-                continue;
-            }
-
-            $format = FormatPresetMapper::normalize($format);
-
-            $rows[] = [
-                'title' => $title,
-                'caption' => $caption ?: $title,
-                'format' => $format,
-            ];
-        }
-
-        return $rows;
-    }
-
-    private function findColumn(array $columnMappings, string $semanticName): ?string
-    {
-        foreach ($columnMappings as $csvColumn => $mapped) {
-            if ($mapped === $semanticName) {
-                return $csvColumn;
-            }
-        }
-
-        return null;
     }
 }

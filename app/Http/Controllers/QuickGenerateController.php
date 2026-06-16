@@ -6,7 +6,7 @@ use App\Jobs\QuickGenerateVisualJob;
 use App\Models\BrandReference;
 use App\Models\Project;
 use App\Models\QuickGenerateSession;
-use App\Services\AI\BrandReferenceAnalyzer;
+use App\Services\FileUploadService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Log;
@@ -15,48 +15,33 @@ use Inertia\Inertia;
 class QuickGenerateController extends Controller
 {
     public function __construct(
-        protected BrandReferenceAnalyzer $analyzer
-    ) {
-    }
+        protected FileUploadService $fileUploadService,
+    ) {}
 
-    /**
-     * Show the quick generate upload form.
-     */
     public function index()
     {
         return Inertia::render('quick-generate/index');
     }
 
-    /**
-     * Store uploaded references, analyze brand DNA, and show caption form.
-     */
     public function store(Request $request)
     {
-        Log::info('QuickGenerateController: store called', [
-            'reference_count' => $request->hasFile('reference_images') ? count($request->file('reference_images')) : 0,
-            'format' => $request->input('format'),
-        ]);
-
-        set_time_limit(300);
+        set_time_limit(600);
         Gate::authorize('create', Project::class);
 
         $validated = $request->validate([
-            'reference_images' => 'nullable|array|min:1|max:10',
+            'reference_images' => 'required|array|min:1|max:10',
             'reference_images.*' => 'required|image|mimes:jpeg,jpg,png,webp|max:10240',
             'caption' => 'required|string|min:3|max:500',
             'format' => 'required|string|in:1:1,4:5,3:4,2:3,9:16,3:2,4:3,5:4,16:9',
         ]);
 
-        Log::info('QuickGenerateController: validation passed');
-
         try {
-            // Create project
-            $projectName = 'Quick Generate - ' . now()->format('M d, Y g:i A');
+            $projectName = 'Quick Generate - '.now()->format('M d, Y g:i A');
             $project = Project::create([
                 'user_id' => auth()->id(),
                 'name' => $projectName,
                 'title' => $projectName,
-                'description' => 'Generated from caption: ' . $validated['caption'],
+                'description' => 'Generated from caption: '.$validated['caption'],
                 'format' => $validated['format'],
                 'status' => 'processing',
                 'settings' => [
@@ -65,123 +50,116 @@ class QuickGenerateController extends Controller
                 ],
             ]);
 
-            // Store reference images
-            $paths = [];
-            $storedReferences = [];
-            
-            foreach ($request->file('reference_images') as $index => $file) {
-                $storedPath = $file->store('brand-references', 'public');
-                $paths[] = $storedPath;
+            $refPaths = [];
+            $order = 0;
+
+            foreach ($request->file('reference_images') as $file) {
+                $uploaded = $this->fileUploadService->uploadImage(
+                    $file,
+                    "projects/{$project->id}/references"
+                );
+
+                $refPaths[] = $uploaded['url'];
 
                 BrandReference::create([
                     'project_id' => $project->id,
-                    'url' => 'storage/' . $storedPath,
-                    'thumbnail_url' => 'storage/' . $storedPath,
-                    'order' => $index,
+                    'url' => $uploaded['url'],
+                    'thumbnail_url' => $uploaded['thumbnail_url'],
+                    'order' => $order++,
                 ]);
-
-                $storedReferences[] = [
-                    'path' => $storedPath,
-                    'url' => 'storage/' . $storedPath,
-                    'name' => $file->getClientOriginalName(),
-                ];
             }
 
-            // Analyze brand DNA
-            $analysis = $this->analyzer->analyze($paths);
+            $project->update([
+                'settings' => array_merge($project->settings ?? [], [
+                    'ref_paths' => $refPaths,
+                ]),
+            ]);
 
-            // Create session
             $session = QuickGenerateSession::create([
                 'user_id' => auth()->id(),
                 'project_id' => $project->id,
                 'caption' => $validated['caption'],
                 'format' => $validated['format'],
                 'status' => 'pending',
-                'brand_analysis_data' => $analysis,
             ]);
 
-            // Dispatch job
-            QuickGenerateVisualJob::dispatch($session);
+            try {
+                QuickGenerateVisualJob::dispatchSync($session->id);
+            } catch (\Throwable $e) {
+                Log::error('QuickGenerateController: pipeline failed', [
+                    'session_id' => $session->id,
+                    'error' => $e->getMessage(),
+                ]);
 
-            Log::info('QuickGenerateController: Session created', [
-                'session_id' => $session->id,
-                'project_id' => $project->id,
-            ]);
+                return redirect()
+                    ->route('quick-generate.show', $session->id)
+                    ->with('error', 'Generation failed: '.$e->getMessage());
+            }
+
+            $session->refresh();
+
+            if ($session->isCompleted()) {
+                return redirect()->route('quick-generate.result', $session->id);
+            }
 
             return redirect()->route('quick-generate.show', $session->id);
-
         } catch (\Exception $e) {
-            Log::error('QuickGenerateController: Failed to process', [
+            Log::error('QuickGenerateController: failed', [
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString(),
             ]);
 
-            return back()->withErrors(['error' => 'Failed to process: ' . $e->getMessage()]);
+            return back()->withErrors(['error' => 'Failed to process: '.$e->getMessage()]);
         }
     }
 
-    /**
-     * Show processing page with status polling.
-     */
     public function show(QuickGenerateSession $session)
     {
         Gate::authorize('view', $session->project);
 
-        // If completed, redirect to result page
         if ($session->isCompleted()) {
             return redirect()->route('quick-generate.result', $session->id);
         }
 
-        // If failed, show error
-        if ($session->isFailed()) {
-            return Inertia::render('quick-generate/processing', [
-                'session' => $session,
-                'error' => $session->error_message,
-            ]);
-        }
-
-        // Show processing page
         return Inertia::render('quick-generate/processing', [
             'session' => [
                 'id' => $session->id,
                 'status' => $session->status,
                 'caption' => $session->caption,
+                'error_message' => $session->error_message,
             ],
+            'error' => $session->error_message ?? session('error'),
+            'debug' => $this->debugPayload($session),
         ]);
     }
 
-    /**
-     * Show result page with generated visual.
-     */
     public function result(QuickGenerateSession $session)
     {
         Gate::authorize('view', $session->project);
 
-        if (!$session->isCompleted()) {
+        if (! $session->isCompleted()) {
             return redirect()->route('quick-generate.show', $session->id);
         }
 
         $project = $session->project->load('images', 'brandReferences');
-        $generatedImage = $project->images()->first();
+        $generatedImage = $project->images()->latest()->first();
 
         return Inertia::render('quick-generate/result', [
             'session' => [
                 'id' => $session->id,
                 'caption' => $session->caption,
+                'format' => $session->format,
                 'extracted_title' => $session->extracted_title,
                 'extracted_description' => $session->extracted_description,
-                'selected_cluster_id' => $session->selected_cluster_id,
-                'selected_image_indices' => $session->selected_image_indices,
+                'cluster_key' => $session->cluster_key,
+                'cluster_label' => $session->cluster_label,
             ],
             'project' => $project,
             'image' => $generatedImage,
             'references' => $project->brandReferences,
+            'debug' => $this->debugPayload($session, $project),
         ]);
     }
 
-    /**
-     * Get session status for polling.
-     */
     public function status(QuickGenerateSession $session)
     {
         Gate::authorize('view', $session->project);
@@ -192,5 +170,25 @@ class QuickGenerateController extends Controller
             'is_failed' => $session->isFailed(),
             'error_message' => $session->error_message,
         ]);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function debugPayload(QuickGenerateSession $session, ?Project $project = null): array
+    {
+        $project ??= $session->project;
+
+        return [
+            'dna_summary' => $project?->dna_summary,
+            'dna_extracted_at' => $project?->dna_extracted_at?->toIso8601String(),
+            'cluster_key' => $session->cluster_key,
+            'cluster_label' => $session->cluster_label,
+            'prompt_json' => $session->prompt_json,
+            'compiled_prompt' => $session->compiled_prompt,
+            'selected_cluster_images' => $session->selected_cluster_images ?? [],
+            'status' => $session->status,
+            'error_message' => $session->error_message,
+        ];
     }
 }

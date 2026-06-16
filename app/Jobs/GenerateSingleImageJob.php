@@ -6,7 +6,11 @@ use App\Mail\JobFailedNotification;
 use App\Models\GenerationHistory;
 use App\Models\Image;
 use App\Models\Project;
-use App\Services\AI\ImageGeneratorService;
+use App\Models\ProjectCluster;
+use App\Services\AI\GeminiCsvImageGenerator;
+use App\Services\Brand\ProjectClusterSelector;
+use App\Services\FormatPresetMapper;
+use App\Services\Prompt\JsonPromptCompiler;
 use Illuminate\Bus\Batchable;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -25,88 +29,150 @@ class GenerateSingleImageJob implements ShouldQueue
     use Batchable, Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
     public int $timeout = 300;
+
     public int $tries = 2;
 
     public function __construct(
-        public readonly int   $projectId,
-        public readonly int   $sessionId,
+        public readonly int $projectId,
+        public readonly int $sessionId,
         public readonly array $promptItem,
     ) {}
 
-    public function handle(ImageGeneratorService $generatorService): void
-    {
-        // Respect batch cancellation
+    public function handle(
+        JsonPromptCompiler $compiler,
+        GeminiCsvImageGenerator $imageGenerator,
+        ProjectClusterSelector $clusterSelector,
+    ): void {
         if ($this->batch()?->cancelled()) {
             return;
         }
 
-        $project   = Project::findOrFail($this->projectId);
-        $rowIndex  = $this->promptItem['rowIndex'];
+        $project = Project::findOrFail($this->projectId);
+        $rowIndex = $this->promptItem['rowIndex'];
         $historyId = $this->promptItem['historyId']
             ?? ($project->settings['history_ids'][$rowIndex] ?? null);
-        $history   = $historyId ? GenerationHistory::find($historyId) : null;
+        $history = $historyId ? GenerationHistory::find($historyId) : null;
 
-        $user           = $project->user;
+        $user = $project->user;
         $creditDeducted = false;
         $resolutionMultiplier = (int) (
             data_get($this->promptItem, 'resolution_multiplier')
             ?? data_get($history?->parameters, 'resolution_multiplier')
             ?? data_get($project->settings, 'resolution_multiplier', 1)
         );
-        if (!in_array($resolutionMultiplier, [1, 2, 4], true)) {
+        if (! in_array($resolutionMultiplier, [1, 2, 4], true)) {
             $resolutionMultiplier = 1;
         }
 
         try {
             $history?->update(['status' => 'processing']);
 
-            $refPaths = $project->settings['ref_paths'] ?? [];
+            $promptJson = $history?->prompt_json;
+            if (! is_array($promptJson) || trim((string) ($promptJson['post']['concept'] ?? '')) === '') {
+                throw new \RuntimeException("Missing post JSON for row {$rowIndex}.");
+            }
+
+            $format = FormatPresetMapper::normalize((string) ($this->promptItem['format'] ?? 'square'));
+            $aspectRatio = FormatPresetMapper::aspectRatio($format);
+
+            $compiled = $compiler->compile($promptJson);
+            $history?->update(['compiled_prompt' => $compiled]);
+
+            $clusterKey = $this->promptItem['clusterKey'] ?? $history?->cluster_key;
+            if (! is_string($clusterKey) || $clusterKey === '') {
+                throw new \RuntimeException("Missing cluster key for row {$rowIndex}.");
+            }
+
+            $cluster = $project->clusters()->where('key', $clusterKey)->first();
+            if (! $cluster instanceof ProjectCluster) {
+                throw new \RuntimeException("Cluster \"{$clusterKey}\" not found for row {$rowIndex}.");
+            }
+
+            $preferredImageIds = data_get($history?->request_data, 'cluster_image_ids');
+            $clusterImages = $clusterSelector->imagesForCluster($cluster);
+
+            if ($clusterImages->count() < 1 && is_array($preferredImageIds) && $preferredImageIds !== []) {
+                $clusterImages = $clusterSelector->imagesForCluster($cluster, $preferredImageIds);
+            }
+
+            if ($clusterImages->isEmpty()) {
+                throw new \RuntimeException(
+                    "No reference images found for cluster \"{$clusterKey}\" on row {$rowIndex}."
+                );
+            }
+
+            $caption = trim((string) (
+                $this->promptItem['title']
+                ?? data_get($history?->parameters, 'caption')
+                ?? data_get($promptJson, 'post.caption')
+                ?? ''
+            ));
+
+            $imageRequestPrompt = $compiler->buildImageRequestPrompt(
+                $promptJson,
+                $clusterImages->count(),
+                $caption !== '' ? $caption : null,
+            );
+
+            $history?->update([
+                'request_data' => array_merge($history->request_data ?? [], [
+                    'image_generation' => [
+                        'cluster_key' => $clusterKey,
+                        'cluster_image_ids' => $clusterImages->pluck('id')->values()->all(),
+                        'reference_count' => $clusterImages->count(),
+                        'sent_to_model' => 'gemini/buildImageRequestPrompt',
+                        'model' => $imageGenerator->model(),
+                        'image_request_prompt' => $imageRequestPrompt,
+                    ],
+                ]),
+            ]);
 
             Log::info('GenerateSingleImageJob: generating image', [
                 'project_id' => $this->projectId,
-                'row_index'  => $rowIndex,
-                'title'      => $this->promptItem['title'] ?? '',
+                'row_index' => $rowIndex,
+                'cluster_key' => $clusterKey,
+                'reference_count' => $clusterImages->count(),
                 'resolution_multiplier' => $resolutionMultiplier,
             ]);
 
-            // Reserve credits before generation (settled on success, refunded on failure).
             if ($user->hasActiveSubscription()) {
                 $user->useCredit($resolutionMultiplier);
                 $creditDeducted = true;
             }
 
-            $base64Data = $generatorService->generate($this->promptItem, $refPaths, $resolutionMultiplier);
+            $binary = $imageGenerator->generateFromPromptJson(
+                $promptJson,
+                $clusterImages,
+                $aspectRatio,
+                $resolutionMultiplier,
+                $caption !== '' ? $caption : null,
+            );
 
-            // Save image to storage
-            $directory  = "projects/{$this->projectId}/images";
-            $uuid       = Str::uuid()->toString();
-            $imagePath  = "{$directory}/{$uuid}.png";
-            $thumbPath  = "{$directory}/{$uuid}_thumb.png";
+            $directory = "projects/{$this->projectId}/images";
+            $uuid = Str::uuid()->toString();
+            $imagePath = "{$directory}/{$uuid}.png";
+            $thumbPath = "{$directory}/{$uuid}_thumb.png";
 
-            Storage::disk('public')->put($imagePath, base64_decode($base64Data));
+            Storage::disk('public')->put($imagePath, $binary);
 
-            // Generate thumbnail via Intervention Image
             $this->createThumbnail($imagePath, $thumbPath);
 
-            // Determine dimensions
             $absolutePath = storage_path("app/public/{$imagePath}");
             [$width, $height] = getimagesize($absolutePath) ?: [null, null];
 
-            // Persist Image model
             $image = Image::create([
-                'project_id'    => $this->projectId,
-                'url'           => $imagePath,
+                'project_id' => $this->projectId,
+                'url' => $imagePath,
                 'thumbnail_url' => $thumbPath,
-                'prompt'        => $this->promptItem['generationPrompt'],
-                'format'        => $this->promptItem['format'] ?? 'square',
-                'width'         => $width,
-                'height'        => $height,
-                'metadata'      => [
+                'prompt' => json_encode($promptJson, JSON_UNESCAPED_UNICODE),
+                'format' => $format,
+                'width' => $width,
+                'height' => $height,
+                'metadata' => [
                     'csv_row_index' => $rowIndex,
-                    'title'         => $this->promptItem['title'] ?? '',
-                    'cluster_index' => $this->promptItem['clusterIndex'] ?? null,
-                    'overlay_text'  => $this->promptItem['overlayText'] ?? '',
-                    'wizard_type'   => 'csv',
+                    'title' => $this->promptItem['title'] ?? '',
+                    'cluster_key' => $clusterKey,
+                    'wizard_type' => 'csv',
                     'resolution_multiplier' => $resolutionMultiplier,
                 ],
             ]);
@@ -117,26 +183,23 @@ class GenerateSingleImageJob implements ShouldQueue
 
             Log::info('GenerateSingleImageJob: image saved', [
                 'project_id' => $this->projectId,
-                'row_index'  => $rowIndex,
-                'image_id'   => $image->id,
-                'resolution_multiplier' => $resolutionMultiplier,
+                'row_index' => $rowIndex,
+                'image_id' => $image->id,
             ]);
         } catch (\Throwable $e) {
             Log::error('GenerateSingleImageJob: failed', [
                 'project_id' => $this->projectId,
-                'row_index'  => $rowIndex,
-                'error'      => $e->getMessage(),
+                'row_index' => $rowIndex,
+                'error' => $e->getMessage(),
             ]);
 
-            // Refund credit if it was deducted before the failure
             if ($creditDeducted) {
                 try {
                     $user->refundCredit($resolutionMultiplier);
                 } catch (\Throwable $refundError) {
                     Log::warning('GenerateSingleImageJob: failed to refund credit', [
                         'project_id' => $this->projectId,
-                        'resolution_multiplier' => $resolutionMultiplier,
-                        'error'      => $refundError->getMessage(),
+                        'error' => $refundError->getMessage(),
                     ]);
                 }
             }
@@ -146,13 +209,8 @@ class GenerateSingleImageJob implements ShouldQueue
         }
     }
 
-    /**
-     * Convert a raw exception into a short, user-facing failure reason.
-     * Raw technical messages stay in the logs; only friendly text is stored in the DB.
-     */
     private function friendlyErrorMessage(\Throwable $e): string
     {
-        // AIServiceUnavailableException already has a classified human-readable message
         if ($e instanceof \App\Exceptions\AIServiceUnavailableException) {
             return $e->getMessage();
         }
@@ -178,14 +236,11 @@ class GenerateSingleImageJob implements ShouldQueue
         return 'Generation failed due to a technical error. Credits have been refunded.';
     }
 
-    /**
-     * Send a notification email to the user when the job permanently fails.
-     */
     public function failed(\Throwable $exception): void
     {
         try {
             $project = Project::find($this->projectId);
-            $user    = $project?->user;
+            $user = $project?->user;
 
             if ($user && $user->email) {
                 Mail::to($user->email)->queue(new JobFailedNotification(
@@ -199,7 +254,7 @@ class GenerateSingleImageJob implements ShouldQueue
         } catch (\Throwable $e) {
             Log::warning('GenerateSingleImageJob: could not send failure notification', [
                 'project_id' => $this->projectId,
-                'error'      => $e->getMessage(),
+                'error' => $e->getMessage(),
             ]);
         }
     }
@@ -208,16 +263,15 @@ class GenerateSingleImageJob implements ShouldQueue
     {
         try {
             $absoluteSource = storage_path("app/public/{$imagePath}");
-            $manager        = new ImageManager(new Driver());
-            $img            = $manager->read($absoluteSource);
+            $manager = new ImageManager(new Driver());
+            $img = $manager->read($absoluteSource);
 
             $img->scale(width: 400);
 
             $absoluteThumb = storage_path("app/public/{$thumbPath}");
 
-            // Ensure directory exists
             $dir = dirname($absoluteThumb);
-            if (!is_dir($dir)) {
+            if (! is_dir($dir)) {
                 mkdir($dir, 0755, true);
             }
 
@@ -225,9 +279,8 @@ class GenerateSingleImageJob implements ShouldQueue
         } catch (\Throwable $e) {
             Log::warning('GenerateSingleImageJob: thumbnail creation failed', [
                 'error' => $e->getMessage(),
-                'path'  => $imagePath,
+                'path' => $imagePath,
             ]);
-            // Non-fatal: main image is already saved
         }
     }
 }

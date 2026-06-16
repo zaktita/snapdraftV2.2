@@ -102,7 +102,7 @@ class CaptionMatcherService
             }
 
             $overlayText = $match['overlayText'] ?: $row['caption'];
-            $refIndices = array_slice($cluster['imageIndices'], 0, 2);
+            $refIndices = array_slice($cluster['imageIndices'], 0, 3);
 
             $promptBatch[] = [
                 'rowIndex' => $i,

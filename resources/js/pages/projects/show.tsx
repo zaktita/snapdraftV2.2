@@ -7,7 +7,8 @@ import { type BreadcrumbItem } from '@/types';
 import { Head, Link, router, usePage } from '@inertiajs/react';
 import { toast } from 'sonner';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
-import { ArrowLeft, Star, Download, MoreHorizontal, BoxSelect, Square, SquareCheck, Edit, Maximize, RotateCw, Share, Trash2, Check, Plus, CheckCircle, X, ChevronLeft, ChevronRight, Upload, Edit3, FileText, Grid, Clock, AlertCircle, Image as ImageIcon, Zap, Sparkles } from 'lucide-react';
+import { GenerationDebugDialog, type GenerationDebugData } from '@/components/generation-debug-dialog';
+import { ArrowLeft, Star, Download, MoreHorizontal, BoxSelect, Square, SquareCheck, Edit, Maximize, RotateCw, Share, Trash2, Check, Plus, CheckCircle, X, ChevronLeft, ChevronRight, Upload, Edit3, FileText, Grid, Clock, AlertCircle, Image as ImageIcon, Zap, Sparkles, Bug } from 'lucide-react';
 import { useState, useRef, useEffect } from 'react';
 
 interface CSVRow {
@@ -27,6 +28,7 @@ interface Image {
     prompt?: string;
     is_favorite?: boolean;
     metadata?: Record<string, any> | null;
+    can_debug_generation?: boolean;
 }
 
 interface Project {
@@ -57,9 +59,10 @@ interface ProjectShowProps {
         failure_reasons?: Array<{ title?: string | null; message: string }>;
     } | null;
     csvRowTitles?: string[] | null; // Titles from CSV data for titled skeleton slots
+    generationDebugEnabled?: boolean;
 }
 
-export default function ProjectShow({ project, justCreated = false, expectedImages = 0, batchCompleted = false, hasPendingGenerations = false, progress = null, csvRowTitles = null }: ProjectShowProps) {
+export default function ProjectShow({ project, justCreated = false, expectedImages = 0, batchCompleted = false, hasPendingGenerations = false, progress = null, csvRowTitles = null, generationDebugEnabled = false }: ProjectShowProps) {
     const page = usePage<{ success?: string; generating?: boolean }>();
     const [selectedImages, setSelectedImages] = useState<number[]>([]);
     const [favoriteImages, setFavoriteImages] = useState<number[]>([]);
@@ -89,10 +92,71 @@ export default function ProjectShow({ project, justCreated = false, expectedImag
     const [upscaleFactor, setUpscaleFactor] = useState(2);
     const [upscaleImageId, setUpscaleImageId] = useState<number | null>(null);
     const [upscalingByImageId, setUpscalingByImageId] = useState<Record<number, boolean>>({});
+    const [debugImage, setDebugImage] = useState<Image | null>(null);
+    const [debugData, setDebugData] = useState<GenerationDebugData | null>(null);
+    const [debugLoading, setDebugLoading] = useState(false);
+    const [debugError, setDebugError] = useState<string | null>(null);
     const titleInputRef = useRef<HTMLInputElement>(null);
     const csvInputRef = useRef<HTMLInputElement>(null);
     const isGenerationPending = showGeneratingBanner;
     const skeletonCount = Math.max(1, (progress?.total ?? expectedImages) || 1);
+
+    useEffect(() => {
+        console.log('[snapdraft:generation-debug] ProjectShow mounted', {
+            build: '2026-06-16-prompt-cluster-v2',
+            projectId: project.id,
+            wizardType: project.wizard_type,
+            generationDebugEnabled,
+            imageCount: project.images.length,
+            images: project.images.map((img) => ({
+                id: img.id,
+                can_debug_generation: img.can_debug_generation,
+                csv_row_index: img.metadata?.csv_row_index,
+            })),
+        });
+    }, [project.id, project.wizard_type, project.images, generationDebugEnabled]);
+
+    const openImageGenerationDebug = (image: Image) => {
+        const url = `/projects/${project.id}/images/${image.id}/generation-debug`;
+        console.log('[snapdraft:generation-debug] Opening debug dialog', {
+            projectId: project.id,
+            imageId: image.id,
+            url,
+            metadata: image.metadata,
+            can_debug_generation: image.can_debug_generation,
+        });
+
+        setDebugImage(image);
+        setDebugData(null);
+        setDebugError(null);
+        setDebugLoading(true);
+
+        fetch(url)
+            .then((res) => {
+                console.log('[snapdraft:generation-debug] Debug API response', {
+                    status: res.status,
+                    ok: res.ok,
+                    url: res.url,
+                });
+                if (!res.ok) throw new Error(`Failed to load debug data (${res.status})`);
+                return res.json();
+            })
+            .then((data: GenerationDebugData) => {
+                console.log('[snapdraft:generation-debug] Debug payload', data);
+                setDebugData(data);
+            })
+            .catch((err) => {
+                console.error('[snapdraft:generation-debug] Debug fetch failed', err);
+                setDebugError('Could not load generation debug data for this image.');
+            })
+            .finally(() => setDebugLoading(false));
+    };
+
+    const closeImageGenerationDebug = () => {
+        setDebugImage(null);
+        setDebugData(null);
+        setDebugError(null);
+    };
 
     const parseCSV = (text: string): CSVRow[] => {
         const lines = text.trim().split('\n');
@@ -1485,7 +1549,14 @@ export default function ProjectShow({ project, justCreated = false, expectedImag
                                                     aria-label="More options"
                                                     onClick={(e) => {
                                                         e.stopPropagation();
-                                                        setOpenImageMenuIndex(openImageMenuIndex === index ? null : index);
+                                                        const next = openImageMenuIndex === index ? null : index;
+                                                        console.log('[snapdraft:generation-debug] Image menu toggled', {
+                                                            index,
+                                                            imageId: image.id,
+                                                            open: next !== null,
+                                                            menuIncludesPromptCluster: true,
+                                                        });
+                                                        setOpenImageMenuIndex(next);
                                                     }}
                                                 >
                                                     <MoreHorizontal className="size-4" style={{ color: '#000000' }} />
@@ -1501,6 +1572,16 @@ export default function ProjectShow({ project, justCreated = false, expectedImag
                                                             onClick={() => { setOpenImageMenuIndex(null); openLightbox(index); }}
                                                         >
                                                             <Maximize className="size-3.5" /> Expand
+                                                        </button>
+                                                        <button
+                                                            className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors hover:bg-muted"
+                                                            onClick={() => {
+                                                                console.log('[snapdraft:generation-debug] Menu: Prompt & cluster clicked', { imageId: image.id });
+                                                                setOpenImageMenuIndex(null);
+                                                                openImageGenerationDebug(image);
+                                                            }}
+                                                        >
+                                                            <Bug className="size-3.5" /> Prompt & cluster
                                                         </button>
                                                         <button
                                                             className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors hover:bg-muted"
@@ -1595,6 +1676,17 @@ export default function ProjectShow({ project, justCreated = false, expectedImag
                                                     }}
                                                 >
                                                     <Maximize className="size-4" style={{ color: '#000000' }} />
+                                                </button>
+                                                <button
+                                                    className="flex size-10 items-center justify-center rounded-full transition-all hover:scale-110 hover:shadow-lg"
+                                                    style={{ backgroundColor: '#ffffff' }}
+                                                    title="Prompt & cluster"
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        openImageGenerationDebug(image);
+                                                    }}
+                                                >
+                                                    <Bug className="size-4" style={{ color: '#000000' }} />
                                                 </button>
                                                 <button
                                                     className="flex size-10 items-center justify-center rounded-full transition-all hover:scale-110 hover:shadow-lg"
@@ -1844,6 +1936,15 @@ export default function ProjectShow({ project, justCreated = false, expectedImag
                             >
                                 <Sparkles className={`size-4 ${upscalingByImageId[project.images[lightboxImageIndex].id] ? 'animate-pulse' : ''}`} />
                             </button>
+                            <button
+                                className="flex size-10 items-center justify-center rounded-full bg-white text-black transition-all hover:bg-gray-100"
+                                title="Prompt & cluster"
+                                onClick={() => {
+                                    openImageGenerationDebug(project.images[lightboxImageIndex]);
+                                }}
+                            >
+                                <Bug className="size-4" />
+                            </button>
                         </div>
                     </div>
                 </div>
@@ -1859,6 +1960,15 @@ export default function ProjectShow({ project, justCreated = false, expectedImag
                 onSelectFactor={(factor) => setUpscaleFactor(factor)}
                 onConfirm={runUpscale}
                 isLoading={!!(upscaleImageId && upscalingByImageId[upscaleImageId])}
+            />
+
+            <GenerationDebugDialog
+                open={debugImage !== null}
+                onOpenChange={(open) => !open && closeImageGenerationDebug()}
+                title={debugImage ? `Image #${debugImage.id}` : 'Generation debug'}
+                loading={debugLoading}
+                error={debugError}
+                data={debugData}
             />
         </AppLayout>
     );

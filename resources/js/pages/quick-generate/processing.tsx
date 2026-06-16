@@ -18,12 +18,20 @@ interface Session {
     caption: string;
 }
 
+interface DebugPayload {
+    compiled_prompt?: string | null;
+    prompt_json?: Record<string, unknown> | null;
+    cluster_key?: string | null;
+    error_message?: string | null;
+}
+
 interface ProcessingProps {
     session: Session;
     error?: string;
+    debug?: DebugPayload;
 }
 
-export default function QuickGenerateProcessing({ session, error }: ProcessingProps) {
+export default function QuickGenerateProcessing({ session, error, debug }: ProcessingProps) {
     const [statusMessage, setStatusMessage] = useState('Preparing...');
 
     useEffect(() => {
@@ -71,7 +79,12 @@ export default function QuickGenerateProcessing({ session, error }: ProcessingPr
                                 <Zap className="h-8 w-8" />
                             </div>
                             <h1 className="mb-4 text-2xl font-bold">Generation Failed</h1>
-                            <p className="text-muted-foreground mb-6 max-w-md">{error}</p>
+                            <p className="text-muted-foreground mb-6 max-w-md">{error ?? debug?.error_message}</p>
+                            {debug?.compiled_prompt && (
+                                <pre className="text-muted-foreground mx-auto mb-4 max-w-2xl overflow-auto rounded border p-3 text-left text-xs">
+                                    {debug.compiled_prompt}
+                                </pre>
+                            )}
                             <button
                                 onClick={() => router.visit(quickGenerate.index().url)}
                                 className="hover:bg-primary/90 rounded-md bg-primary px-6 py-2 text-sm font-medium text-primary-foreground"

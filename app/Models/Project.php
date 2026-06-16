@@ -23,6 +23,9 @@ class Project extends Model
         'format',
         'status',
         'settings',
+        'dna_json',
+        'dna_summary',
+        'dna_extracted_at',
         'is_favorite',
         'featured_image',
         'images_count',
@@ -33,6 +36,8 @@ class Project extends Model
      */
     protected $casts = [
         'settings' => 'array',
+        'dna_json' => 'array',
+        'dna_extracted_at' => 'datetime',
         'is_favorite' => 'boolean',
         'images_count' => 'integer',
     ];
@@ -67,6 +72,11 @@ class Project extends Model
     public function generationHistory(): HasMany
     {
         return $this->hasMany(GenerationHistory::class);
+    }
+
+    public function clusters(): HasMany
+    {
+        return $this->hasMany(ProjectCluster::class)->orderBy('position');
     }
 
     /**
