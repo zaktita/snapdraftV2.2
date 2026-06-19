@@ -25,8 +25,8 @@ class ClusteringService
      */
     public function cluster(array $storagePaths): array
     {
-        if (count($storagePaths) < 2) {
-            throw new RuntimeException('At least 2 reference images are required for clustering.');
+        if (count($storagePaths) < 3) {
+            throw new RuntimeException('At least 3 reference images are required for clustering.');
         }
 
         $imageParts = array_map(
@@ -83,18 +83,19 @@ class ClusteringService
 
     /**
      * Mirrors test.ts validateClusters(): each image assigned to exactly one cluster,
-     * each cluster has 2-3 images.
+     * each cluster has at least min_images_per_cluster images.
      */
     private function validateClusters(array $result, int $imageCount): void
     {
+        $min = (int) config('ai.cluster_selection.min_images_per_cluster', 3);
         $seen = [];
 
         foreach ($result['clusters'] as $i => $cluster) {
             $count = count($cluster['imageIndices']);
 
-            if ($count < 2 || $count > 3) {
+            if ($count < $min) {
                 throw new RuntimeException(
-                    "Cluster {$i} (\"{$cluster['name']}\") has {$count} images — must be 2 or 3."
+                    "Cluster {$i} (\"{$cluster['name']}\") has {$count} images — must be at least {$min}."
                 );
             }
 

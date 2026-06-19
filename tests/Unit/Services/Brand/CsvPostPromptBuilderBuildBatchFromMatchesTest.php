@@ -65,7 +65,14 @@ class CsvPostPromptBuilderBuildBatchFromMatchesTest extends TestCase
         $postResult = new PostGenerationResult(
             rawText: '{}',
             analysisProse: null,
-            promptJson: ['post' => ['concept' => 'Launch concept']],
+            promptJson: [
+                'brand_locked' => ['layout' => 'split'],
+                'post' => [
+                    'concept' => 'Launch concept',
+                    'on_image_text' => ['headline' => 'Launch now'],
+                ],
+                'quality' => ['include' => ['photorealistic'], 'avoid' => ['cartoon']],
+            ],
             tweaks: [],
             tokensIn: 10,
             tokensOut: 20,

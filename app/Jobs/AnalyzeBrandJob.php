@@ -63,14 +63,16 @@ class AnalyzeBrandJob implements ShouldQueue
                 ClusterCsvPipeline::setPhase($project->refresh(), 'clustering_done');
             }
         } catch (\Throwable $e) {
+            $friendly = $this->friendlyErrorMessage($e);
+
             Log::error('AnalyzeBrandJob: failed', [
                 'project_id' => $this->projectId,
                 'error' => $e->getMessage(),
             ]);
             if (ClusterCsvPipeline::isClusterCsvWizard($project)) {
-                ClusterCsvPipeline::markFailed($project, $e->getMessage());
+                ClusterCsvPipeline::markFailed($project, $friendly);
             }
-            $session->markAsFailed('Brand analysis failed: '.$e->getMessage());
+            $session->markAsFailed('Brand analysis failed: '.$friendly);
             $project->generationHistory()
                 ->whereIn('status', ['pending', 'processing'])
                 ->update([
@@ -79,5 +81,24 @@ class AnalyzeBrandJob implements ShouldQueue
                 ]);
             throw $e;
         }
+    }
+
+    private function friendlyErrorMessage(\Throwable $e): string
+    {
+        $msg = strtolower($e->getMessage());
+
+        if (str_contains($msg, 'leaked')) {
+            return 'Gemini API key was revoked. Set a new GEMINI_API_KEY or AI_CLUSTER_DRIVER=openrouter in .env.';
+        }
+
+        if (str_contains($msg, 'unauthorized') || str_contains($msg, '401') || str_contains($msg, '403') || str_contains($msg, 'api key')) {
+            return 'AI service authentication failed. Check GEMINI_API_KEY / OPENROUTER_API_KEY in .env.';
+        }
+
+        if (str_contains($msg, 'openrouter') && str_contains($msg, 'not configured')) {
+            return 'OpenRouter is not configured. Set OPENROUTER_API_KEY in .env.';
+        }
+
+        return $e->getMessage();
     }
 }

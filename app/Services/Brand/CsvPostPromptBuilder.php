@@ -4,9 +4,12 @@ namespace App\Services\Brand;
 
 use App\Models\GenerationHistory;
 use App\Models\Project;
+use App\Models\ProjectCluster;
+use App\Services\AI\DTO\PostGenerationResult;
 use App\Services\AI\OpenRouter\OpenRouterCsvPostGenerator;
 use App\Services\FormatPresetMapper;
 use App\Services\Prompt\SkillPromptBuilder;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Log;
 use RuntimeException;
 
@@ -18,8 +21,6 @@ class CsvPostPromptBuilder
     ) {}
 
     /**
-     * Build post JSON prompts for every CSV row and return a slim batch for image jobs.
-     *
      * @return list<array{rowIndex: int, historyId: int, title: string, format: string, clusterKey: string, resolution_multiplier: int}>
      */
     public function buildBatch(Project $project): array
@@ -35,85 +36,42 @@ class CsvPostPromptBuilder
         $promptBatch = [];
 
         foreach ($csvData as $i => $row) {
-            $historyId = $historyIds[$i] ?? null;
-            $history = $historyId ? GenerationHistory::find($historyId) : null;
-
-            if (! $history) {
-                throw new RuntimeException("No generation history record for CSV row {$i}.");
+            $history = $this->resolveHistory($historyIds, $i);
+            if ($history === null) {
+                continue;
             }
 
-            $caption = trim((string) ($row['caption'] ?? $row['title'] ?? ''));
-            $format = FormatPresetMapper::normalize((string) ($row['format'] ?? 'square'));
-            $aspectRatio = FormatPresetMapper::aspectRatio($format);
+            try {
+                $caption = trim((string) ($row['caption'] ?? $row['title'] ?? ''));
+                $format = FormatPresetMapper::normalize((string) ($row['format'] ?? 'square'));
+                $aspectRatio = FormatPresetMapper::aspectRatio($format);
 
-            Log::info('CsvPostPromptBuilder: generating post JSON', [
-                'project_id' => $project->id,
-                'row_index' => $i,
-                'caption' => $caption,
-            ]);
-
-            $result = $this->postGenerator->generateForRow($project, $caption, $aspectRatio);
-
-            if ($result->promptJson === null || trim((string) ($result->promptJson['post']['concept'] ?? '')) === '') {
-                throw new RuntimeException("Post JSON generation failed for row {$i}: missing post.concept.");
-            }
-
-            $promptJson = $result->promptJson;
-            if (! isset($promptJson['meta']['aspect_ratio'])) {
-                $promptJson['meta'] = array_merge($promptJson['meta'] ?? [], [
-                    'aspect_ratio' => $aspectRatio,
-                    'target_generator' => 'nano-banana',
+                Log::info('CsvPostPromptBuilder: generating post JSON', [
+                    'project_id' => $project->id,
+                    'row_index' => $i,
+                    'caption' => $caption,
                 ]);
+
+                $result = $this->postGenerator->generateForRow($project, $caption, $aspectRatio);
+                $promptBatch[] = $this->finalizeRow(
+                    $project,
+                    $i,
+                    $row,
+                    $history,
+                    $result,
+                    $format,
+                    $aspectRatio,
+                    $resolutionMultiplier,
+                );
+            } catch (\Throwable $e) {
+                $this->failRow($project->id, $i, $history, $e);
             }
-
-            $project->loadMissing(['clusters.images.brandReference']);
-            $cluster = $project->clusters()->where('key', $result->clusterKey)->first()
-                ?? $project->clusters()->first();
-            $selectedClusterImages = $cluster
-                ? $this->clusterSelector->imagesForCluster($cluster)
-                : collect();
-
-            $promptJson = $this->enrichPromptJsonWithCluster(
-                $promptJson,
-                $project,
-                $cluster,
-                $selectedClusterImages,
-            );
-
-            $history->update([
-                'prompt_json' => $promptJson,
-                'cluster_key' => $result->clusterKey,
-                'json_valid' => $result->jsonValid,
-                'ai_model' => config('services.gemini.image_model', 'gemini-3.1-flash-image-preview'),
-                'request_data' => [
-                    'post_generation' => [
-                        'analysis_prose' => $result->analysisProse,
-                        'json_validation_errors' => $result->jsonValidationErrors,
-                        'tweaks' => $result->tweaks,
-                        'tokens_in' => $result->tokensIn,
-                        'tokens_out' => $result->tokensOut,
-                        'latency_ms' => $result->latencyMs,
-                    ],
-                    'cluster_image_ids' => $selectedClusterImages->pluck('id')->values()->all(),
-                ],
-            ]);
-
-            $promptBatch[] = [
-                'rowIndex' => $i,
-                'historyId' => $history->id,
-                'title' => $row['title'] ?? '',
-                'format' => $format,
-                'clusterKey' => $result->clusterKey,
-                'resolution_multiplier' => $resolutionMultiplier,
-            ];
         }
 
         return $promptBatch;
     }
 
     /**
-     * Build post JSON prompts using pre-matched clusters from cluster_csv_pipeline.row_matches.
-     *
      * @return list<array{rowIndex: int, historyId: int, title: string, format: string, clusterKey: string, resolution_multiplier: int}>
      */
     public function buildBatchFromMatches(Project $project): array
@@ -135,99 +93,66 @@ class CsvPostPromptBuilder
         $promptBatch = [];
 
         foreach ($csvData as $i => $row) {
-            $match = $rowMatches[$i] ?? null;
-            if (! is_array($match) || empty($match['cluster_key'])) {
-                throw new RuntimeException("No cluster match for CSV row {$i}.");
+            $history = $this->resolveHistory($historyIds, $i);
+            if ($history === null) {
+                continue;
             }
 
-            $historyId = $historyIds[$i] ?? null;
-            $history = $historyId ? GenerationHistory::find($historyId) : null;
+            try {
+                $match = $rowMatches[$i] ?? null;
+                if (! is_array($match) || empty($match['cluster_key'])) {
+                    throw new RuntimeException("No cluster match for CSV row {$i}.");
+                }
 
-            if (! $history) {
-                throw new RuntimeException("No generation history record for CSV row {$i}.");
-            }
+                $caption = trim((string) ($row['caption'] ?? $row['title'] ?? ''));
+                $format = FormatPresetMapper::normalize((string) ($row['format'] ?? 'square'));
+                $aspectRatio = FormatPresetMapper::aspectRatio($format);
 
-            $caption = trim((string) ($row['caption'] ?? $row['title'] ?? ''));
-            $format = FormatPresetMapper::normalize((string) ($row['format'] ?? 'square'));
-            $aspectRatio = FormatPresetMapper::aspectRatio($format);
+                $cluster = $project->clusters()->where('key', $match['cluster_key'])->first();
+                if (! $cluster) {
+                    throw new RuntimeException("Cluster \"{$match['cluster_key']}\" not found for row {$i}.");
+                }
 
-            $cluster = $project->clusters()->where('key', $match['cluster_key'])->first();
-            if (! $cluster) {
-                throw new RuntimeException("Cluster \"{$match['cluster_key']}\" not found for row {$i}.");
-            }
-
-            Log::info('CsvPostPromptBuilder: generating post JSON from match', [
-                'project_id' => $project->id,
-                'row_index' => $i,
-                'cluster_key' => $cluster->key,
-            ]);
-
-            $result = $this->postGenerator->generateForRowWithCluster(
-                $project,
-                $caption,
-                $aspectRatio,
-                $cluster,
-            );
-
-            if ($result->promptJson === null || trim((string) ($result->promptJson['post']['concept'] ?? '')) === '') {
-                throw new RuntimeException("Post JSON generation failed for row {$i}: missing post.concept.");
-            }
-
-            $promptJson = $result->promptJson;
-            if (! isset($promptJson['meta']['aspect_ratio'])) {
-                $promptJson['meta'] = array_merge($promptJson['meta'] ?? [], [
-                    'aspect_ratio' => $aspectRatio,
-                    'target_generator' => 'nano-banana',
+                Log::info('CsvPostPromptBuilder: generating post JSON from match', [
+                    'project_id' => $project->id,
+                    'row_index' => $i,
+                    'cluster_key' => $cluster->key,
                 ]);
+
+                $result = $this->postGenerator->generateForRowWithCluster(
+                    $project,
+                    $caption,
+                    $aspectRatio,
+                    $cluster,
+                );
+
+                $preferredIds = $match['cluster_image_ids'] ?? null;
+                $selectedClusterImages = $this->clusterSelector->imagesForCluster(
+                    $cluster,
+                    is_array($preferredIds) && $preferredIds !== [] ? $preferredIds : null,
+                );
+
+                $promptBatch[] = $this->finalizeRow(
+                    $project,
+                    $i,
+                    $row,
+                    $history,
+                    $result,
+                    $format,
+                    $aspectRatio,
+                    $resolutionMultiplier,
+                    $cluster,
+                    $selectedClusterImages,
+                );
+            } catch (\Throwable $e) {
+                $this->failRow($project->id, $i, $history, $e);
             }
-
-            $preferredIds = $match['cluster_image_ids'] ?? null;
-            $selectedClusterImages = $this->clusterSelector->imagesForCluster(
-                $cluster,
-                is_array($preferredIds) && $preferredIds !== [] ? $preferredIds : null,
-            );
-
-            $promptJson = $this->enrichPromptJsonWithCluster(
-                $promptJson,
-                $project,
-                $cluster,
-                $selectedClusterImages,
-            );
-
-            $history->update([
-                'prompt_json' => $promptJson,
-                'cluster_key' => $cluster->key,
-                'json_valid' => $result->jsonValid,
-                'ai_model' => config('services.gemini.image_model', 'gemini-3.1-flash-image-preview'),
-                'request_data' => [
-                    'post_generation' => [
-                        'analysis_prose' => $result->analysisProse,
-                        'json_validation_errors' => $result->jsonValidationErrors,
-                        'tweaks' => $result->tweaks,
-                        'tokens_in' => $result->tokensIn,
-                        'tokens_out' => $result->tokensOut,
-                        'latency_ms' => $result->latencyMs,
-                    ],
-                    'cluster_image_ids' => $selectedClusterImages->pluck('id')->values()->all(),
-                ],
-            ]);
-
-            $promptBatch[] = [
-                'rowIndex' => $i,
-                'historyId' => $history->id,
-                'title' => $row['title'] ?? '',
-                'format' => $format,
-                'clusterKey' => $cluster->key,
-                'resolution_multiplier' => $resolutionMultiplier,
-            ];
         }
 
         return $promptBatch;
     }
 
     /**
-     * Same as buildBatch(), but returns full PromptForge lab debug for each row.
-     *
      * @return array{
      *     prompt_batch: list<array{rowIndex: int, historyId: int, title: string, format: string, clusterKey: string, resolution_multiplier: int}>,
      *     step2_debug: list<array<string, mixed>>
@@ -250,122 +175,68 @@ class CsvPostPromptBuilder
         $step2Debug = [];
 
         foreach ($csvData as $i => $row) {
-            $historyId = $historyIds[$i] ?? null;
-            $history = $historyId ? GenerationHistory::find($historyId) : null;
-
-            if (! $history) {
-                throw new RuntimeException("No generation history record for CSV row {$i}.");
+            $history = $this->resolveHistory($historyIds, $i);
+            if ($history === null) {
+                continue;
             }
 
-            $caption = trim((string) ($row['caption'] ?? $row['title'] ?? ''));
-            $format = FormatPresetMapper::normalize((string) ($row['format'] ?? 'square'));
-            $aspectRatio = FormatPresetMapper::aspectRatio($format);
+            try {
+                $caption = trim((string) ($row['caption'] ?? $row['title'] ?? ''));
+                $format = FormatPresetMapper::normalize((string) ($row['format'] ?? 'square'));
+                $aspectRatio = FormatPresetMapper::aspectRatio($format);
 
-            Log::info('CsvPostPromptBuilder: generating post JSON (lab)', [
-                'project_id' => $project->id,
-                'row_index' => $i,
-                'caption' => $caption,
-            ]);
-
-            $clusterScores = $clusterSelector->scoreClusters($project, $caption);
-            $result = $this->postGenerator->generateForRow($project, $caption, $aspectRatio);
-
-            if ($result->promptJson === null || trim((string) ($result->promptJson['post']['concept'] ?? '')) === '') {
-                throw new RuntimeException("Post JSON generation failed for row {$i}: missing post.concept.");
-            }
-
-            $promptJson = $result->promptJson;
-            if (! isset($promptJson['meta']['aspect_ratio'])) {
-                $promptJson['meta'] = array_merge($promptJson['meta'] ?? [], [
-                    'aspect_ratio' => $aspectRatio,
-                    'target_generator' => 'nano-banana',
+                Log::info('CsvPostPromptBuilder: generating post JSON (lab)', [
+                    'project_id' => $project->id,
+                    'row_index' => $i,
+                    'caption' => $caption,
                 ]);
+
+                $clusterScores = $clusterSelector->scoreClusters($project, $caption);
+                $result = $this->postGenerator->generateForRow($project, $caption, $aspectRatio);
+
+                $project->loadMissing(['clusters.images.brandReference']);
+                $cluster = $project->clusters()->where('key', $result->clusterKey)->first()
+                    ?? $project->clusters()->first();
+
+                $selectedClusterImages = $cluster
+                    ? $clusterSelector->imagesForCluster($cluster)
+                    : collect();
+
+                $promptBatch[] = $this->finalizeRow(
+                    $project,
+                    $i,
+                    $row,
+                    $history,
+                    $result,
+                    $format,
+                    $aspectRatio,
+                    $resolutionMultiplier,
+                    $cluster,
+                    $selectedClusterImages,
+                );
+
+                $history->refresh();
+
+                $step2Debug[] = $this->buildLabDebugEntry(
+                    $i,
+                    $caption,
+                    $format,
+                    $aspectRatio,
+                    $result,
+                    $cluster,
+                    $selectedClusterImages,
+                    $clusterScores,
+                    $promptBuilder,
+                    is_array($history->prompt_json) ? $history->prompt_json : null,
+                );
+            } catch (\Throwable $e) {
+                $this->failRow($project->id, $i, $history, $e);
+                $step2Debug[] = [
+                    'row_index' => $i,
+                    'json_valid' => false,
+                    'error' => $e->getMessage(),
+                ];
             }
-
-            $project->loadMissing(['clusters.images.brandReference']);
-            $cluster = $project->clusters()->where('key', $result->clusterKey)->first()
-                ?? $project->clusters()->first();
-
-            $selectedClusterImages = $cluster
-                ? $clusterSelector->imagesForCluster($cluster)
-                : collect();
-
-            $promptJson = $this->enrichPromptJsonWithCluster(
-                $promptJson,
-                $project,
-                $cluster,
-                $selectedClusterImages,
-            );
-
-            $selectedForDebug = [];
-            if ($cluster) {
-                $selectedForDebug = $selectedClusterImages
-                    ->map(function ($img) {
-                        $ref = $img->brandReference;
-
-                        return [
-                            'brand_reference_id' => $ref?->id,
-                            'url' => $ref?->url,
-                            'label' => $ref ? 'Reference '.($ref->order + 1) : null,
-                            'is_anchor' => $img->is_anchor,
-                        ];
-                    })
-                    ->values()
-                    ->all();
-            }
-
-            $history->update([
-                'prompt_json' => $promptJson,
-                'cluster_key' => $result->clusterKey,
-                'json_valid' => $result->jsonValid,
-                'ai_model' => config('services.gemini.image_model', 'gemini-3.1-flash-image-preview'),
-                'request_data' => [
-                    'post_generation' => [
-                        'raw_text' => $result->rawText,
-                        'analysis_prose' => $result->analysisProse,
-                        'json_validation_errors' => $result->jsonValidationErrors,
-                        'tweaks' => $result->tweaks,
-                        'tokens_in' => $result->tokensIn,
-                        'tokens_out' => $result->tokensOut,
-                        'estimated_cost_usd' => $result->estimatedCostUsd,
-                        'latency_ms' => $result->latencyMs,
-                    ],
-                    'cluster_image_ids' => $selectedClusterImages->pluck('id')->values()->all(),
-                ],
-            ]);
-
-            $promptBatch[] = [
-                'rowIndex' => $i,
-                'historyId' => $history->id,
-                'title' => $row['title'] ?? '',
-                'format' => $format,
-                'clusterKey' => $result->clusterKey,
-                'resolution_multiplier' => $resolutionMultiplier,
-            ];
-
-            $step2Debug[] = [
-                'row_index' => $i,
-                'raw_text' => $result->rawText,
-                'analysis_prose' => $result->analysisProse,
-                'tweaks' => $result->tweaks,
-                'prompt_json' => $promptJson,
-                'json_valid' => $result->jsonValid,
-                'json_validation_errors' => $result->jsonValidationErrors,
-                'cluster_key' => $result->clusterKey,
-                'cluster_label' => $cluster?->label,
-                'cluster_scores' => $clusterScores,
-                'selected_cluster_images' => $selectedForDebug,
-                'system_prompt' => $promptBuilder->systemPrompt('generate_post'),
-                'prompt_config' => $promptBuilder->promptConfig('generate_post'),
-                'model_slug' => config('ai.default_post_model_slug', 'gpt-4o'),
-                'tokens_in' => $result->tokensIn,
-                'tokens_out' => $result->tokensOut,
-                'estimated_cost_usd' => $result->estimatedCostUsd,
-                'latency_ms' => $result->latencyMs,
-                'caption_used' => $caption,
-                'format' => $format,
-                'aspect_ratio' => $aspectRatio,
-            ];
         }
 
         return [
@@ -375,8 +246,6 @@ class CsvPostPromptBuilder
     }
 
     /**
-     * Generate a single post JSON prompt for lab/testing (no GenerationHistory required).
-     *
      * @return array<string, mixed>
      */
     public function buildLabPrompt(
@@ -404,18 +273,7 @@ class CsvPostPromptBuilder
 
         $clusterScores = $this->clusterSelector->scoreClusters($project, $caption);
         $result = $this->postGenerator->generateForRow($project, $caption, $aspectRatio);
-
-        if ($result->promptJson === null || trim((string) ($result->promptJson['post']['concept'] ?? '')) === '') {
-            throw new RuntimeException('Post JSON generation failed: missing post.concept.');
-        }
-
-        $promptJson = $result->promptJson;
-        if (! isset($promptJson['meta']['aspect_ratio'])) {
-            $promptJson['meta'] = array_merge($promptJson['meta'] ?? [], [
-                'aspect_ratio' => $aspectRatio,
-                'target_generator' => 'nano-banana',
-            ]);
-        }
+        $this->assertRowResultValid($result, 0);
 
         $project->loadMissing(['clusters.images.brandReference']);
         $cluster = $project->clusters()->where('key', $result->clusterKey)->first()
@@ -425,29 +283,13 @@ class CsvPostPromptBuilder
             ? $this->clusterSelector->imagesForCluster($cluster)
             : collect();
 
-        $promptJson = $this->enrichPromptJsonWithCluster(
-            $promptJson,
+        $promptJson = $this->enrichPromptJson(
+            $result->promptJson,
             $project,
             $cluster,
             $selectedClusterImages,
+            $aspectRatio,
         );
-
-        $selectedForDebug = [];
-        if ($cluster) {
-            $selectedForDebug = $selectedClusterImages
-                ->map(function ($img) {
-                    $ref = $img->brandReference;
-
-                    return [
-                        'brand_reference_id' => $ref?->id,
-                        'url' => $ref?->url,
-                        'label' => $ref ? 'Reference '.($ref->order + 1) : null,
-                        'is_anchor' => $img->is_anchor,
-                    ];
-                })
-                ->values()
-                ->all();
-        }
 
         return [
             'raw_text' => $result->rawText,
@@ -459,7 +301,7 @@ class CsvPostPromptBuilder
             'cluster_key' => $result->clusterKey,
             'cluster_label' => $cluster?->label,
             'cluster_scores' => $clusterScores,
-            'selected_cluster_images' => $selectedForDebug,
+            'selected_cluster_images' => $this->clusterImagesForDebug($selectedClusterImages),
             'system_prompt' => $promptBuilder->systemPrompt('generate_post'),
             'model_slug' => config('ai.default_post_model_slug', 'gpt-4o'),
             'tokens_in' => $result->tokensIn,
@@ -476,16 +318,145 @@ class CsvPostPromptBuilder
     }
 
     /**
-     * @param  \Illuminate\Support\Collection<int, \App\Models\ProjectClusterImage>  $selectedClusterImages
-     * @param  array<string, mixed>  $promptJson
+     * @param  array<string, mixed>  $row
+     * @param  Collection<int, \App\Models\ProjectClusterImage>|null  $selectedClusterImages
+     * @return array{rowIndex: int, historyId: int, title: string, format: string, clusterKey: string, resolution_multiplier: int}
+     */
+    protected function finalizeRow(
+        Project $project,
+        int $rowIndex,
+        array $row,
+        GenerationHistory $history,
+        PostGenerationResult $result,
+        string $format,
+        string $aspectRatio,
+        int $resolutionMultiplier,
+        ?ProjectCluster $cluster = null,
+        ?Collection $selectedClusterImages = null,
+    ): array {
+        $this->assertRowResultValid($result, $rowIndex);
+
+        $project->loadMissing(['clusters.images.brandReference']);
+
+        if ($cluster === null) {
+            $cluster = $project->clusters()->where('key', $result->clusterKey)->first()
+                ?? $project->clusters()->first();
+        }
+
+        if ($selectedClusterImages === null) {
+            $selectedClusterImages = $cluster
+                ? $this->clusterSelector->imagesForCluster($cluster)
+                : collect();
+        }
+
+        $promptJson = $this->enrichPromptJson(
+            $result->promptJson,
+            $project,
+            $cluster,
+            $selectedClusterImages,
+            $aspectRatio,
+        );
+
+        $history->update([
+            'prompt_json' => $promptJson,
+            'cluster_key' => $cluster?->key ?? $result->clusterKey,
+            'json_valid' => $result->jsonValid,
+            'ai_model' => config('services.gemini.image_model', 'gemini-3.1-flash-image-preview'),
+            'request_data' => [
+                'post_generation' => [
+                    'analysis_prose' => $result->analysisProse,
+                    'json_validation_errors' => $result->jsonValidationErrors,
+                    'tweaks' => $result->tweaks,
+                    'tokens_in' => $result->tokensIn,
+                    'tokens_out' => $result->tokensOut,
+                    'latency_ms' => $result->latencyMs,
+                ],
+                'cluster_image_ids' => $selectedClusterImages->pluck('id')->values()->all(),
+            ],
+        ]);
+
+        return [
+            'rowIndex' => $rowIndex,
+            'historyId' => $history->id,
+            'title' => $row['title'] ?? '',
+            'format' => $format,
+            'clusterKey' => $cluster?->key ?? $result->clusterKey,
+            'resolution_multiplier' => $resolutionMultiplier,
+        ];
+    }
+
+    protected function assertRowResultValid(PostGenerationResult $result, int $rowIndex): void
+    {
+        if ($result->promptJson === null || trim((string) ($result->promptJson['post']['concept'] ?? '')) === '') {
+            throw new RuntimeException("Post JSON generation failed for row {$rowIndex}: missing post.concept.");
+        }
+
+        if (! $result->jsonValid) {
+            throw new RuntimeException(
+                "Post JSON validation failed for row {$rowIndex}: "
+                .implode('; ', $result->jsonValidationErrors ?: ['unknown validation error'])
+            );
+        }
+    }
+
+    /**
+     * @param  array<int, int>  $historyIds
+     */
+    protected function resolveHistory(array $historyIds, int $rowIndex): ?GenerationHistory
+    {
+        $historyId = $historyIds[$rowIndex] ?? null;
+
+        if (! $historyId) {
+            Log::error('CsvPostPromptBuilder: missing history for row', [
+                'row_index' => $rowIndex,
+            ]);
+
+            return null;
+        }
+
+        $history = GenerationHistory::find($historyId);
+        if (! $history) {
+            Log::error('CsvPostPromptBuilder: history record not found', [
+                'row_index' => $rowIndex,
+                'history_id' => $historyId,
+            ]);
+        }
+
+        return $history;
+    }
+
+    protected function failRow(int $projectId, int $rowIndex, GenerationHistory $history, \Throwable $e): void
+    {
+        Log::error('CsvPostPromptBuilder: row failed', [
+            'project_id' => $projectId,
+            'row_index' => $rowIndex,
+            'error' => $e->getMessage(),
+        ]);
+
+        $history->markAsFailed('Post prompt generation failed: '.$e->getMessage());
+    }
+
+    /**
+     * @param  array<string, mixed>|null  $promptJson
+     * @param  Collection<int, \App\Models\ProjectClusterImage>  $selectedClusterImages
      * @return array<string, mixed>
      */
-    protected function enrichPromptJsonWithCluster(
-        array $promptJson,
+    protected function enrichPromptJson(
+        ?array $promptJson,
         Project $project,
-        ?\App\Models\ProjectCluster $cluster,
-        $selectedClusterImages,
+        ?ProjectCluster $cluster,
+        Collection $selectedClusterImages,
+        string $aspectRatio,
     ): array {
+        $promptJson ??= [];
+
+        if (! isset($promptJson['meta']['aspect_ratio'])) {
+            $promptJson['meta'] = array_merge($promptJson['meta'] ?? [], [
+                'aspect_ratio' => $aspectRatio,
+                'target_generator' => 'nano-banana',
+            ]);
+        }
+
         if (! $cluster) {
             return $promptJson;
         }
@@ -496,5 +467,69 @@ class CsvPostPromptBuilder
             .'Match layout, palette, typography, background treatment, composition, and text placement from this cluster family.';
 
         return $promptJson;
+    }
+
+    /**
+     * @param  Collection<int, \App\Models\ProjectClusterImage>  $selectedClusterImages
+     * @return list<array<string, mixed>>
+     */
+    protected function clusterImagesForDebug(Collection $selectedClusterImages): array
+    {
+        return $selectedClusterImages
+            ->map(function ($img) {
+                $ref = $img->brandReference;
+
+                return [
+                    'brand_reference_id' => $ref?->id,
+                    'url' => $ref?->url,
+                    'label' => $ref ? 'Reference '.($ref->order + 1) : null,
+                    'is_anchor' => $img->is_anchor,
+                ];
+            })
+            ->values()
+            ->all();
+    }
+
+    /**
+     * @param  array<string, mixed>  $row
+     * @param  Collection<int, \App\Models\ProjectClusterImage>  $selectedClusterImages
+     * @param  array<string, mixed>  $clusterScores
+     * @return array<string, mixed>
+     */
+    protected function buildLabDebugEntry(
+        int $rowIndex,
+        string $caption,
+        string $format,
+        string $aspectRatio,
+        PostGenerationResult $result,
+        ?ProjectCluster $cluster,
+        Collection $selectedClusterImages,
+        array $clusterScores,
+        SkillPromptBuilder $promptBuilder,
+        ?array $promptJson,
+    ): array {
+        return [
+            'row_index' => $rowIndex,
+            'raw_text' => $result->rawText,
+            'analysis_prose' => $result->analysisProse,
+            'tweaks' => $result->tweaks,
+            'prompt_json' => $promptJson,
+            'json_valid' => $result->jsonValid,
+            'json_validation_errors' => $result->jsonValidationErrors,
+            'cluster_key' => $result->clusterKey,
+            'cluster_label' => $cluster?->label,
+            'cluster_scores' => $clusterScores,
+            'selected_cluster_images' => $this->clusterImagesForDebug($selectedClusterImages),
+            'system_prompt' => $promptBuilder->systemPrompt('generate_post'),
+            'prompt_config' => $promptBuilder->promptConfig('generate_post'),
+            'model_slug' => config('ai.default_post_model_slug', 'gpt-4o'),
+            'tokens_in' => $result->tokensIn,
+            'tokens_out' => $result->tokensOut,
+            'estimated_cost_usd' => $result->estimatedCostUsd,
+            'latency_ms' => $result->latencyMs,
+            'caption_used' => $caption,
+            'format' => $format,
+            'aspect_ratio' => $aspectRatio,
+        ];
     }
 }

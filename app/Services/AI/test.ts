@@ -123,7 +123,7 @@ INSTRUCTIONS:
 - Provide a "globalAnalysis" summarizing the overall brand identity found across all images.
 - Provide "globalRules": 4-6 actionable constraints that apply across every cluster (e.g. "Never place text directly over photographs", "Always use the brand footer lockup").
 - Group every image into a cluster. Each image MUST belong to exactly one cluster.
-- CLUSTER SIZE CONSTRAINT: Each cluster MUST contain exactly 2 or 3 images.
+- CLUSTER SIZE CONSTRAINT: Each cluster MUST contain at least 3 images.
 - If an image is an outlier, pair it with its most similar counterpart.
 - For each cluster:
   - "dominantColor" MUST be a hex code (e.g. "#EA6E2A"). If multiple dominant colors, pick the single most prominent.
@@ -186,8 +186,8 @@ INSTRUCTIONS:
 function validateClusters(result: ClusterResponse, imageCount: number): void {
   const seen = new Set<number>();
   for (const [i, cluster] of result.clusters.entries()) {
-    if (cluster.imageIndices.length < 2 || cluster.imageIndices.length > 3) {
-      throw new Error(`Cluster ${i} ("${cluster.name}") has ${cluster.imageIndices.length} images — must be 2 or 3.`);
+    if (cluster.imageIndices.length < 3) {
+      throw new Error(`Cluster ${i} ("${cluster.name}") has ${cluster.imageIndices.length} images — must be at least 3.`);
     }
     for (const idx of cluster.imageIndices) {
       if (idx < 0 || idx >= imageCount) {

@@ -91,10 +91,14 @@ class AIServiceManager
      * @param  string|null $maskBase64
      * @return string  Base64-encoded result image
      */
-    public function editBase64(string $imageBase64, string $prompt, ?string $maskBase64 = null): string
-    {
+    public function editBase64(
+        string $imageBase64,
+        string $prompt,
+        ?string $maskBase64 = null,
+        ?string $aspectRatio = null,
+    ): string {
         return $this->callWithFallback(
-            fn ($svc) => $svc->editBase64($imageBase64, $prompt, $maskBase64),
+            fn ($svc) => $svc->editBase64($imageBase64, $prompt, $maskBase64, $aspectRatio),
             'editBase64',
         );
     }

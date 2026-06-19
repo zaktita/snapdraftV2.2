@@ -210,8 +210,12 @@ class OpenRouterService
     /**
      * Edit an image given a text prompt and an optional mask.
      */
-    public function editBase64(string $imageBase64, string $prompt, ?string $maskBase64 = null): string
-    {
+    public function editBase64(
+        string $imageBase64,
+        string $prompt,
+        ?string $maskBase64 = null,
+        ?string $aspectRatio = null,
+    ): string {
         $content = [
             ['type' => 'image_url', 'image_url' => ['url' => "data:image/png;base64,{$imageBase64}"]],
         ];
@@ -229,15 +233,21 @@ class OpenRouterService
             throw new RuntimeException('OPENROUTER_API_KEY is not configured.');
         }
 
+        $payload = [
+            'model' => $model,
+            'messages' => [['role' => 'user', 'content' => $content]],
+        ];
+
+        if ($aspectRatio !== null) {
+            $payload['image_config'] = ['aspect_ratio' => $aspectRatio];
+        }
+
         $response = Http::timeout(180)
             ->withHeaders([
                 'Authorization' => "Bearer {$apiKey}",
                 'HTTP-Referer' => config('app.url'),
             ])
-            ->post("{$this->baseUrl}/chat/completions", [
-                'model' => $model,
-                'messages' => [['role' => 'user', 'content' => $content]],
-            ]);
+            ->post("{$this->baseUrl}/chat/completions", $payload);
 
         if ($response->failed()) {
             throw new RuntimeException('OpenRouter edit request failed: '.$response->body());

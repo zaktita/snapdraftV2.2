@@ -231,10 +231,11 @@ class ProjectClusterSelector
     public function imagesForCluster(ProjectCluster $cluster, ?array $preferredIds = null): Collection
     {
         $cluster->loadMissing('images.brandReference');
-        $max = (int) config('ai.cluster_selection.max_images_per_cluster', 3);
+        $limit = $this->imagesPerClusterLimit();
+        $ordered = $this->orderedClusterImages($cluster);
 
         if ($preferredIds !== null && $preferredIds !== []) {
-            $byId = $cluster->images->keyBy('id');
+            $byId = $ordered->keyBy('id');
             $picked = collect();
 
             foreach ($preferredIds as $id) {
@@ -244,12 +245,22 @@ class ProjectClusterSelector
                 }
             }
 
+            foreach ($ordered as $image) {
+                if ($picked->count() >= $limit) {
+                    break;
+                }
+
+                if (! $picked->contains('id', $image->id)) {
+                    $picked->push($image);
+                }
+            }
+
             if ($picked->isNotEmpty()) {
-                return $picked->take($max)->values();
+                return $picked->take($limit)->values();
             }
         }
 
-        return $this->pickImages($cluster);
+        return $ordered->take($limit)->values();
     }
 
     /**
@@ -257,14 +268,27 @@ class ProjectClusterSelector
      */
     protected function pickImages(ProjectCluster $cluster): Collection
     {
-        $max = (int) config('ai.cluster_selection.max_images_per_cluster', 3);
+        return $this->imagesForCluster($cluster);
+    }
 
-        return $cluster->images()
-            ->with('brandReference')
-            ->orderBy('position')
-            ->take($max)
-            ->get()
+    /**
+     * Top cluster images for the image model: anchor first, then by position.
+     *
+     * @return Collection<int, ProjectClusterImage>
+     */
+    protected function orderedClusterImages(ProjectCluster $cluster): Collection
+    {
+        return $cluster->images
+            ->sortBy([
+                ['is_anchor', 'desc'],
+                ['position', 'asc'],
+            ])
             ->values();
+    }
+
+    protected function imagesPerClusterLimit(): int
+    {
+        return (int) config('ai.cluster_selection.max_images_per_cluster', 3);
     }
 
     /**

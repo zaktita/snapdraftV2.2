@@ -8,7 +8,7 @@ class ClusterCsvPipeline
 {
     public static function isClusterCsvWizard(Project $project): bool
     {
-        return ($project->settings['wizard_type'] ?? null) === 'csv_cluster';
+        return in_array($project->settings['wizard_type'] ?? null, ['csv_cluster', 'prompt_forge_lab'], true);
     }
 
     /**

@@ -40,7 +40,7 @@ class ClusterTestController extends Controller
         Gate::authorize('create', \App\Models\Project::class);
 
         $request->validate([
-            'reference_images'   => 'required|array|min:2|max:10',
+            'reference_images'   => 'required|array|min:3|max:10',
             'reference_images.*' => 'required|image|mimes:jpeg,jpg,png,webp|max:10240',
         ]);
 

@@ -1,31 +1,21 @@
 import {
     AlertModal,
     ConfirmModal,
-    PromptModal,
-    UpscaleModal,
 } from '@/components/canvas-modals';
+import { CanvasBottomBar } from '@/components/canvas-bottom-bar';
+import { CanvasLeftPanel } from '@/components/canvas-left-panel';
+import { CanvasTopBar } from '@/components/canvas-top-bar';
+import { CanvasViewport } from '@/components/canvas-viewport';
 import { Skeleton } from '@/components/ui/skeleton';
 import { debug } from '@/lib/debug';
+import { CANVAS_COLORS, MAGIC_WAND_CURSOR } from '@/lib/canvas-editor-tokens';
+import type {
+    AnnotationPoint,
+    CanvasTool,
+    EditHistoryEntry,
+    PendingComment,
+} from '@/lib/canvas-editor-types';
 import { Head, router } from '@inertiajs/react';
-import {
-    ArrowLeft,
-    ChevronLeft,
-    Crop,
-    Download,
-    Eraser,
-    Lightbulb,
-    Maximize2,
-    MousePointer,
-    PenTool,
-    Redo2,
-    RotateCcw,
-    Save,
-    Scissors,
-    Type,
-    Undo2,
-    Wand2,
-    ZoomIn,
-} from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 
 // Utility to parse query params
@@ -95,11 +85,60 @@ const CANVAS_DEFAULTS = {
     TOAST_DISMISS_MS: 3000,
     CANVAS_PADDING: 100,
     ERASE_GAP: 20,
+    MAX_ANNOTATIONS: 10,
 };
 
 // Object ID counter to prevent collisions
 let objectIdCounter = 0;
 const generateObjectId = () => ++objectIdCounter;
+
+let annotationIdCounter = 0;
+const generateAnnotationId = () => ++annotationIdCounter;
+
+let editHistoryIdCounter = 0;
+const generateEditHistoryId = () => ++editHistoryIdCounter;
+
+const getAnnotationPinRadius = (width: number, height: number) => {
+    const base = Math.min(width, height) * 0.015;
+    return Math.max(12, Math.min(36, base));
+};
+
+const buildAnnotationPrompt = (annotations: AnnotationPoint[]) => {
+    const lines = [...annotations]
+        .sort((a, b) => a.number - b.number)
+        .map((a) => `${a.number}. ${a.description}`);
+
+    return `The orange-red numbered circles in this image mark specific areas to edit. Apply ALL of the following changes at the location of each corresponding number. Rules: (1) remove all orange-red circles and numbers from the output, (2) leave every pixel outside the marked areas completely unchanged unless a change requires it, (3) output must be the same pixel dimensions as the input.\n\n${lines.join('\n')}`;
+};
+
+const drawPinOnContext = (
+    ctx: CanvasRenderingContext2D,
+    x: number,
+    y: number,
+    number: number,
+    radius: number,
+    selected = false,
+) => {
+    ctx.beginPath();
+    ctx.arc(x, y, radius, 0, Math.PI * 2);
+    ctx.fillStyle = CANVAS_COLORS.commentPin;
+    ctx.fill();
+    if (selected) {
+        ctx.strokeStyle = '#FFFFFF';
+        ctx.lineWidth = Math.max(2, radius * 0.15);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.arc(x, y, radius + 3, 0, Math.PI * 2);
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.85)';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+    }
+    ctx.fillStyle = '#FFFFFF';
+    ctx.font = `bold ${Math.round(radius * 1.1)}px sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(String(number), x, y);
+};
 
 // Utility function to convert image to data URL
 const imageToDataUrl = (img: HTMLImageElement): string => {
@@ -120,13 +159,14 @@ export default function CanvasEditor(props: CanvasEditorProps) {
     const projectTitle = props.projectTitle ?? query.projectTitle ?? 'Untitled';
     // Canvas refs
     const canvasRef = useRef<HTMLCanvasElement>(null);
+    const viewportRef = useRef<HTMLDivElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     // State
     const [canvas, setCanvas] = useState<HTMLCanvasElement | null>(null);
     const [ctx, setCtx] = useState<CanvasRenderingContext2D | null>(null);
     const [image, setImage] = useState<HTMLImageElement | null>(null);
-    const [currentTool, setCurrentTool] = useState('select');
+    const [currentTool, setCurrentTool] = useState<CanvasTool>('select');
     const [brushSize, setBrushSize] = useState(CANVAS_DEFAULTS.BRUSH_SIZE);
     const [brushOpacity, setBrushOpacity] = useState(CANVAS_DEFAULTS.BRUSH_OPACITY);
     const [isPainting, setIsPainting] = useState(false);
@@ -150,10 +190,15 @@ export default function CanvasEditor(props: CanvasEditorProps) {
     const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
     const [showUploadZone, setShowUploadZone] = useState(true);
     const [generatingType, setGeneratingType] = useState<string | null>(null);
-    const [actionHistory, setActionHistory] = useState<Array<{ type: string; message: string; time: number }>>([]);
     const [cursorPosition, setCursorPosition] = useState({ x: 0, y: 0 });
-    const [upscaleModal, setUpscaleModal] = useState({ isOpen: false, selectedFactor: 2 });
     const internalClipboardRef = useRef<HTMLImageElement | null>(null);
+    const annotationDragMovedRef = useRef(false);
+
+    const [annotations, setAnnotations] = useState<AnnotationPoint[]>([]);
+    const [selectedAnnotationId, setSelectedAnnotationId] = useState<number | null>(null);
+    const [draggingAnnotationId, setDraggingAnnotationId] = useState<number | null>(null);
+    const [pendingComment, setPendingComment] = useState<PendingComment | null>(null);
+    const [editHistory, setEditHistory] = useState<EditHistoryEntry[]>([]);
 
     // Crop rectangle state (in canvas coordinates)
     const [cropMode, setCropMode] = useState(false);
@@ -307,8 +352,13 @@ export default function CanvasEditor(props: CanvasEditorProps) {
                 }
             }
 
-            // Delete selected (not main image)
-            if (e.code === 'Delete') {
+            // Delete selected annotation or object
+            if (e.code === 'Delete' || e.code === 'Backspace') {
+                if (selectedAnnotationId !== null) {
+                    e.preventDefault();
+                    deleteAnnotation(selectedAnnotationId);
+                    return;
+                }
                 if (selectedObject && !selectedObject.isMainImage) {
                     // Remove selected object
                     setCanvasObjects((prev) =>
@@ -325,43 +375,23 @@ export default function CanvasEditor(props: CanvasEditorProps) {
                 if (e.code === 'KeyV') {
                     e.preventDefault();
                     selectTool('select');
-                    return;
-                }
-                if (e.code === 'KeyR') {
-                    e.preventDefault();
-                    selectTool('retouch');
+                    setPendingComment(null);
                     return;
                 }
                 if (e.code === 'KeyE') {
                     e.preventDefault();
-                    selectTool('erase');
+                    selectTool('edit');
                     return;
                 }
-                if (e.code === 'KeyU') {
+                if (e.code === 'Escape' && pendingComment) {
                     e.preventDefault();
-                    fileInputRef.current?.click();
+                    setPendingComment(null);
                     return;
                 }
-                // Enhancement tool shortcuts
-                if (e.code === 'KeyX') {
+                if (e.code === 'Escape' && currentTool === 'edit') {
                     e.preventDefault();
-                    if (!isGenerating) {
-                        handleExpandImage();
-                    }
-                    return;
-                }
-                if (e.code === 'KeyS') {
-                    e.preventDefault();
-                    if (!isGenerating) {
-                        handleUpscaleImage();
-                    }
-                    return;
-                }
-                if (e.code === 'KeyB') {
-                    e.preventDefault();
-                    if (!isGenerating) {
-                        handleRemoveBackground();
-                    }
+                    selectTool('select');
+                    setPendingComment(null);
                     return;
                 }
             }
@@ -380,7 +410,7 @@ export default function CanvasEditor(props: CanvasEditorProps) {
             window.removeEventListener('keydown', handleKeyDown);
             window.removeEventListener('keyup', handleKeyUp);
         };
-    }, [undoStack, redoStack, lines, selectedObject]);
+    }, [undoStack, redoStack, lines, selectedObject, selectedAnnotationId, pendingComment, currentTool]);
 
     // Load image from URL when canvas and imageUrl are ready
     useEffect(() => {
@@ -519,18 +549,6 @@ export default function CanvasEditor(props: CanvasEditorProps) {
         }
     }, [alertModal.isOpen, alertModal.type]);
 
-    // Auto-clear action history toasts
-    useEffect(() => {
-        if (actionHistory.length > 0) {
-            const latestAction = actionHistory[0];
-            const timer = setTimeout(() => {
-                setActionHistory((prev) => prev.filter(item => item.time !== latestAction.time));
-            }, CANVAS_DEFAULTS.TOAST_DISMISS_MS);
-
-            return () => clearTimeout(timer);
-        }
-    }, [actionHistory.length > 0 ? actionHistory[0]?.time : null]);
-
     // Sync draggedObject and selectedObject when canvasObjects change during drag
     useEffect(() => {
         if (draggedObject) {
@@ -563,6 +581,9 @@ export default function CanvasEditor(props: CanvasEditorProps) {
         isDragging,
         isGenerating,
         resizingObject,
+        annotations,
+        selectedAnnotationId,
+        draggingAnnotationId,
     ]);
 
     // Debug important state changes
@@ -598,6 +619,18 @@ export default function CanvasEditor(props: CanvasEditorProps) {
         );
         debug.log('[State] hasMaskForSelection:', hasMask);
     }, [selectedObject, lines]);
+
+    useEffect(() => {
+        if (selectedAnnotationId === null) return;
+        const annotation = annotations.find((a) => a.id === selectedAnnotationId);
+        if (
+            !annotation ||
+            !selectedObject ||
+            annotation.objectId !== selectedObject.id
+        ) {
+            setSelectedAnnotationId(null);
+        }
+    }, [selectedObject, annotations, selectedAnnotationId]);
 
     const resizeCanvas = () => {
         if (!canvas) return;
@@ -660,6 +693,8 @@ export default function CanvasEditor(props: CanvasEditorProps) {
                 setSelectedObject(mainImageObj);
                 setShowUploadZone(false);
                 setLines([]);
+                setAnnotations([]);
+                setSelectedAnnotationId(null);
                 debug.log('[Canvas] Main image object created and selected', {
                     id: mainImageObj.id,
                     scale: newScale,
@@ -716,26 +751,14 @@ export default function CanvasEditor(props: CanvasEditorProps) {
             }
         });
 
+        if (selectedObject) {
+            drawAnnotationPins(selectedObject);
+        }
+
         // Draw selection highlight
         const sel = draggedObject || selectedObject;
         if (sel) {
             drawSelectionHighlight(sel);
-        }
-
-        // Draw custom brush cursor when retouch or erase tool is active and hovering over image
-        if (
-            (currentTool === 'retouch' || currentTool === 'erase') &&
-            selectedObject &&
-            !isDragging &&
-            !isPainting
-        ) {
-            const hoveredObject = getObjectAtPoint(
-                cursorPosition.x,
-                cursorPosition.y,
-            );
-            if (hoveredObject === selectedObject) {
-                drawBrushCursor();
-            }
         }
     };
 
@@ -810,6 +833,63 @@ export default function CanvasEditor(props: CanvasEditorProps) {
         ctx.restore();
     };
 
+    const getAnnotationsForObject = (objectId: number) =>
+        annotations
+            .filter((a) => a.objectId === objectId)
+            .sort((a, b) => a.number - b.number);
+
+    const getPinScreenRadius = (obj: CanvasObject) =>
+        getAnnotationPinRadius(obj.image.width, obj.image.height) * scale;
+
+    const getAnnotationAtPoint = (
+        screenX: number,
+        screenY: number,
+        obj: CanvasObject,
+    ): AnnotationPoint | null => {
+        const objectAnnotations = getAnnotationsForObject(obj.id);
+        for (let i = objectAnnotations.length - 1; i >= 0; i--) {
+            const ann = objectAnnotations[i];
+            const sx = panX + (obj.x + ann.x) * scale;
+            const sy = panY + (obj.y + ann.y) * scale;
+            const r = getPinScreenRadius(obj) + 4;
+            const dx = screenX - sx;
+            const dy = screenY - sy;
+            if (dx * dx + dy * dy <= r * r) {
+                return ann;
+            }
+        }
+        return null;
+    };
+
+    const drawAnnotationPins = (imageObj: CanvasObject) => {
+        if (!ctx) return;
+
+        const objectAnnotations = getAnnotationsForObject(imageObj.id);
+        if (objectAnnotations.length === 0) return;
+
+        ctx.save();
+        ctx.translate(panX + imageObj.x * scale, panY + imageObj.y * scale);
+        ctx.scale(scale, scale);
+
+        const radius = getAnnotationPinRadius(
+            imageObj.image.width,
+            imageObj.image.height,
+        );
+
+        objectAnnotations.forEach((ann) => {
+            drawPinOnContext(
+                ctx,
+                ann.x,
+                ann.y,
+                ann.number,
+                radius,
+                ann.id === selectedAnnotationId,
+            );
+        });
+
+        ctx.restore();
+    };
+
     const drawSelectionHighlight = (obj: CanvasObject) => {
         if (!ctx) return;
 
@@ -819,7 +899,7 @@ export default function CanvasEditor(props: CanvasEditorProps) {
         const sh = obj.image.height * scale;
 
         ctx.save();
-        ctx.strokeStyle = '#2196F3';
+        ctx.strokeStyle = CANVAS_COLORS.selectionStroke;
         ctx.lineWidth = 2;
         ctx.setLineDash([5, 5]);
         ctx.strokeRect(sx - 1, sy - 1, sw + 2, sh + 2);
@@ -863,7 +943,7 @@ export default function CanvasEditor(props: CanvasEditorProps) {
         ctx.globalCompositeOperation = 'source-over';
 
         // Draw crop rectangle border
-        ctx.strokeStyle = '#2196F3';
+        ctx.strokeStyle = CANVAS_COLORS.selectionStroke;
         ctx.lineWidth = 2;
         ctx.setLineDash([]);
         ctx.strokeRect(screenX, screenY, screenW, screenH);
@@ -1038,6 +1118,28 @@ export default function CanvasEditor(props: CanvasEditorProps) {
 
         if (e.button === 2) return;
 
+        if (currentTool === 'edit' && !isGenerating && !pendingComment) {
+            const clickedObject = getObjectAtPoint(x, y);
+            if (!clickedObject) return;
+
+            setSelectedObject(clickedObject);
+
+            const hitPin = getAnnotationAtPoint(x, y, clickedObject);
+            if (hitPin) {
+                setSelectedAnnotationId(hitPin.id);
+                setDraggingAnnotationId(hitPin.id);
+                annotationDragMovedRef.current = false;
+                return;
+            }
+
+            const imagePos = screenToObjectCoordinates(x, y, clickedObject);
+            if (isPointInObject(imagePos.x, imagePos.y, clickedObject)) {
+                setSelectedAnnotationId(null);
+                handleAddAnnotationAt(x, y, imagePos.x, imagePos.y, clickedObject.id);
+            }
+            return;
+        }
+
         // Check resize handles first (only in select mode on selected non-main object)
         if (currentTool === 'select' && selectedObject && !selectedObject.isMainImage) {
             const rHandle = getResizeHandleAtPoint(x, y, selectedObject);
@@ -1060,13 +1162,7 @@ export default function CanvasEditor(props: CanvasEditorProps) {
         if (clickedObject) {
             setSelectedObject(clickedObject);
 
-            if ((currentTool === 'retouch' || currentTool === 'erase') && clickedObject === selectedObject) {
-                const imagePos = screenToObjectCoordinates(x, y, clickedObject);
-                if (isPointInObject(imagePos.x, imagePos.y, clickedObject)) {
-                    setIsPainting(true);
-                    startNewLine(imagePos.x, imagePos.y, clickedObject.id);
-                }
-            } else if (currentTool === 'select') {
+            if (currentTool === 'select') {
                 const objScreenX = panX + clickedObject.x * scale;
                 const objScreenY = panY + clickedObject.y * scale;
                 setDraggedObject(clickedObject);
@@ -1171,11 +1267,28 @@ export default function CanvasEditor(props: CanvasEditorProps) {
             return;
         }
 
-        if (isPainting && (currentTool === 'retouch' || currentTool === 'erase') && selectedObject) {
+        if (draggingAnnotationId !== null && selectedObject) {
             const imagePos = screenToObjectCoordinates(x, y, selectedObject);
-            if (isPointInObject(imagePos.x, imagePos.y, selectedObject)) {
-                addPointToCurrentLine(imagePos.x, imagePos.y);
-            }
+            const radius = getAnnotationPinRadius(
+                selectedObject.image.width,
+                selectedObject.image.height,
+            );
+            const clampedX = Math.max(
+                radius,
+                Math.min(selectedObject.image.width - radius, imagePos.x),
+            );
+            const clampedY = Math.max(
+                radius,
+                Math.min(selectedObject.image.height - radius, imagePos.y),
+            );
+            annotationDragMovedRef.current = true;
+            setAnnotations((prev) =>
+                prev.map((ann) =>
+                    ann.id === draggingAnnotationId
+                        ? { ...ann, x: clampedX, y: clampedY }
+                        : ann,
+                ),
+            );
         }
     };
 
@@ -1188,6 +1301,12 @@ export default function CanvasEditor(props: CanvasEditorProps) {
     const handleMouseUp = () => {
         if (cropDragHandle) { setCropDragHandle(null); setCropDragStart(null); }
         if (resizingObject) { setResizingObject(null); setResizeHandle(null); setResizeStart(null); }
+        if (draggingAnnotationId !== null) {
+            if (!annotationDragMovedRef.current) {
+                void handleEditAnnotation(draggingAnnotationId);
+            }
+            setDraggingAnnotationId(null);
+        }
         setIsDragging(false);
         if (isPainting) setIsPainting(false);
         if (draggedObject) setDraggedObject(null);
@@ -1211,6 +1330,28 @@ export default function CanvasEditor(props: CanvasEditorProps) {
         const x = t.clientX - rect.left;
         const y = t.clientY - rect.top;
 
+        if (currentTool === 'edit' && !isGenerating && !pendingComment) {
+            const clickedObject = getObjectAtPoint(x, y);
+            if (!clickedObject) return;
+
+            setSelectedObject(clickedObject);
+
+            const hitPin = getAnnotationAtPoint(x, y, clickedObject);
+            if (hitPin) {
+                setSelectedAnnotationId(hitPin.id);
+                setDraggingAnnotationId(hitPin.id);
+                annotationDragMovedRef.current = false;
+                return;
+            }
+
+            const imagePos = screenToObjectCoordinates(x, y, clickedObject);
+            if (isPointInObject(imagePos.x, imagePos.y, clickedObject)) {
+                setSelectedAnnotationId(null);
+                handleAddAnnotationAt(x, y, imagePos.x, imagePos.y, clickedObject.id);
+            }
+            return;
+        }
+
         // Resize handle?
         if (currentTool === 'select' && selectedObject && !selectedObject.isMainImage) {
             const rHandle = getResizeHandleAtPoint(x, y, selectedObject);
@@ -1225,13 +1366,7 @@ export default function CanvasEditor(props: CanvasEditorProps) {
         const clickedObject = getObjectAtPoint(x, y);
         if (clickedObject) {
             setSelectedObject(clickedObject);
-            if ((currentTool === 'retouch' || currentTool === 'erase') && clickedObject === selectedObject) {
-                const imagePos = screenToObjectCoordinates(x, y, clickedObject);
-                if (isPointInObject(imagePos.x, imagePos.y, clickedObject)) {
-                    setIsPainting(true);
-                    startNewLine(imagePos.x, imagePos.y, clickedObject.id);
-                }
-            } else if (currentTool === 'select') {
+            if (currentTool === 'select') {
                 setDraggedObject(clickedObject);
                 setDragOffset({ x: x - (panX + clickedObject.x * scale), y: y - (panY + clickedObject.y * scale) });
             }
@@ -1600,15 +1735,6 @@ export default function CanvasEditor(props: CanvasEditorProps) {
             message,
             type,
         });
-
-        // Add to action history for toast notifications
-        if (actionType) {
-            const timestamp = Date.now();
-            setActionHistory((prev) => [
-                { type: actionType, message: `${title}: ${message}`, time: timestamp },
-                ...prev.slice(0, 4), // Keep only last 5 items
-            ]);
-        }
     };
 
     const showConfirm = (
@@ -1628,6 +1754,465 @@ export default function CanvasEditor(props: CanvasEditorProps) {
                 resolve,
             });
         });
+    };
+
+    const pushEditHistory = (
+        entry: Omit<EditHistoryEntry, 'id' | 'timestamp'>,
+    ) => {
+        setEditHistory((prev) => [
+            {
+                ...entry,
+                id: generateEditHistoryId(),
+                timestamp: Date.now(),
+            },
+            ...prev,
+        ]);
+    };
+
+    const addGeneratedObject = (
+        sourceObject: CanvasObject,
+        newImage: HTMLImageElement,
+        label: string,
+        historyType: EditHistoryEntry['type'],
+        meta?: EditHistoryEntry['meta'],
+    ) => {
+        const generatedObj: CanvasObject = {
+            id: generateObjectId(),
+            image: newImage,
+            x: sourceObject.x + sourceObject.image.width + CANVAS_DEFAULTS.ERASE_GAP,
+            y: sourceObject.y,
+            label,
+            isMainImage: false,
+        };
+
+        let thumbnailSrc = '';
+        try {
+            thumbnailSrc = imageToDataUrl(newImage);
+        } catch {
+            thumbnailSrc = newImage.src;
+        }
+
+        setCanvasObjects((prev) => [...prev, generatedObj]);
+        setSelectedObject(generatedObj);
+        pushEditHistory({
+            type: historyType,
+            label,
+            objectId: generatedObj.id,
+            thumbnailSrc,
+            meta,
+        });
+
+        return generatedObj;
+    };
+
+    const openPendingComment = (
+        screenX: number,
+        screenY: number,
+        imageX: number,
+        imageY: number,
+        objectId: number,
+        editingAnnotationId?: number,
+        defaultValue?: string,
+    ) => {
+        setPendingComment({
+            screenX,
+            screenY,
+            imageX,
+            imageY,
+            objectId,
+            editingAnnotationId,
+            defaultValue,
+        });
+    };
+
+    const handleCommentSubmit = (text: string) => {
+        if (!pendingComment) return;
+
+        if (pendingComment.editingAnnotationId) {
+            setAnnotations((prev) =>
+                prev.map((ann) =>
+                    ann.id === pendingComment.editingAnnotationId
+                        ? { ...ann, description: text }
+                        : ann,
+                ),
+            );
+            setSelectedAnnotationId(pendingComment.editingAnnotationId);
+        } else {
+            const existing = annotations.filter(
+                (a) => a.objectId === pendingComment.objectId,
+            );
+            if (existing.length >= CANVAS_DEFAULTS.MAX_ANNOTATIONS) {
+                showAlert(
+                    'Annotation Limit',
+                    `You can add up to ${CANVAS_DEFAULTS.MAX_ANNOTATIONS} markers per image.`,
+                    'warning',
+                );
+                setPendingComment(null);
+                return;
+            }
+
+            const number = existing.length + 1;
+            const newAnnotation: AnnotationPoint = {
+                id: generateAnnotationId(),
+                objectId: pendingComment.objectId,
+                x: pendingComment.imageX,
+                y: pendingComment.imageY,
+                description: text,
+                number,
+            };
+            setAnnotations((prev) => [...prev, newAnnotation]);
+            setSelectedAnnotationId(newAnnotation.id);
+        }
+
+        setPendingComment(null);
+    };
+
+    const handleCommentCancel = () => {
+        setPendingComment(null);
+    };
+
+    const handleEditAnnotation = (annotationId: number) => {
+        const annotation = annotations.find((a) => a.id === annotationId);
+        const obj = canvasObjects.find((o) => o.id === annotation?.objectId);
+        if (!annotation || !obj) return;
+
+        const screenX = panX + (obj.x + annotation.x) * scale;
+        const screenY = panY + (obj.y + annotation.y) * scale;
+        openPendingComment(
+            screenX,
+            screenY,
+            annotation.x,
+            annotation.y,
+            annotation.objectId,
+            annotation.id,
+            annotation.description,
+        );
+    };
+
+    const renumberAnnotationsForObject = (
+        items: AnnotationPoint[],
+        objectId: number,
+    ) => {
+        const sameObject = items
+            .filter((a) => a.objectId === objectId)
+            .sort((a, b) => a.number - b.number)
+            .map((a, index) => ({ ...a, number: index + 1 }));
+        const others = items.filter((a) => a.objectId !== objectId);
+        return [...others, ...sameObject];
+    };
+
+    const deleteAnnotation = (id: number) => {
+        setAnnotations((prev) => {
+            const target = prev.find((a) => a.id === id);
+            if (!target) return prev;
+            const filtered = prev.filter((a) => a.id !== id);
+            return renumberAnnotationsForObject(filtered, target.objectId);
+        });
+        if (selectedAnnotationId === id) {
+            setSelectedAnnotationId(null);
+        }
+    };
+
+    const clearAnnotationsForObject = (objectId: number) => {
+        setAnnotations((prev) => prev.filter((a) => a.objectId !== objectId));
+        setSelectedAnnotationId(null);
+    };
+
+    const handleAddAnnotationAt = (
+        screenX: number,
+        screenY: number,
+        imageX: number,
+        imageY: number,
+        objectId: number,
+    ) => {
+        const existing = getAnnotationsForObject(objectId);
+        if (existing.length >= CANVAS_DEFAULTS.MAX_ANNOTATIONS) {
+            showAlert(
+                'Annotation Limit',
+                `You can add up to ${CANVAS_DEFAULTS.MAX_ANNOTATIONS} markers per image.`,
+                'warning',
+            );
+            return;
+        }
+
+        openPendingComment(screenX, screenY, imageX, imageY, objectId);
+    };
+
+    const handleClearAnnotations = async () => {
+        if (!selectedObject) return;
+        const objectAnnotations = getAnnotationsForObject(selectedObject.id);
+        if (objectAnnotations.length === 0) return;
+
+        const confirmed = await showConfirm(
+            'Clear Annotations',
+            'Remove all markers and descriptions for this image?',
+            'Clear All',
+            true,
+        );
+        if (!confirmed) return;
+
+        clearAnnotationsForObject(selectedObject.id);
+    };
+
+    const createAnnotatedComposite = (
+        target: CanvasObject | null,
+    ): HTMLCanvasElement | null => {
+        if (!target) return null;
+
+        const compositeCanvas = document.createElement('canvas');
+        compositeCanvas.width = target.image.width;
+        compositeCanvas.height = target.image.height;
+        const compositeCtx = compositeCanvas.getContext('2d');
+        if (!compositeCtx) return null;
+
+        compositeCtx.drawImage(target.image, 0, 0);
+
+        const radius = getAnnotationPinRadius(
+            target.image.width,
+            target.image.height,
+        );
+        const objectAnnotations = getAnnotationsForObject(target.id);
+
+        objectAnnotations.forEach((ann) => {
+            drawPinOnContext(
+                compositeCtx,
+                ann.x,
+                ann.y,
+                ann.number,
+                radius,
+            );
+        });
+
+        debug.log('[Annotate] Created annotated composite', {
+            width: compositeCanvas.width,
+            height: compositeCanvas.height,
+            markers: objectAnnotations.length,
+        });
+
+        return compositeCanvas;
+    };
+
+    const handleApplyAnnotations = async () => {
+        if (!selectedObject) {
+            showAlert(
+                'No Selection',
+                'Please select an image first.',
+                'warning',
+            );
+            return;
+        }
+
+        const objectAnnotations = getAnnotationsForObject(selectedObject.id);
+        if (objectAnnotations.length === 0) {
+            showAlert(
+                'No Annotations',
+                'Add at least one marker before applying changes.',
+                'warning',
+            );
+            return;
+        }
+
+        setIsGenerating(true);
+        setGeneratingType('edit');
+        startGenTimer();
+
+        try {
+            const compositeCanvas = createAnnotatedComposite(selectedObject);
+            if (!compositeCanvas) {
+                throw new Error('Failed to create annotated composite');
+            }
+
+            let imageToSend = '';
+            try {
+                imageToSend = compositeCanvas.toDataURL('image/png');
+            } catch (e) {
+                debug.error('[Annotate] toDataURL failed, likely CORS taint', e);
+                showAlert(
+                    'Image Security Error',
+                    'Cannot read the image due to browser security (CORS). Try uploading a local image.',
+                    'error',
+                );
+                return;
+            }
+
+            const prompt = buildAnnotationPrompt(objectAnnotations);
+
+            const response = await fetch('/api/ai-edit-image', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN':
+                        document
+                            .querySelector('meta[name="csrf-token"]')
+                            ?.getAttribute('content') || '',
+                },
+                body: JSON.stringify({
+                    image: imageToSend,
+                    prompt,
+                }),
+            });
+
+            if (!response.ok) {
+                let details = 'Unknown error';
+                try {
+                    const text = await response.text();
+                    try {
+                        const json = JSON.parse(text);
+                        details = json?.error || json?.message || text;
+                    } catch {
+                        details = text || details;
+                    }
+                } catch {
+                    // ignore
+                }
+                throw new Error(
+                    `API error (${response.status}): ${String(details).slice(0, 400)}`,
+                );
+            }
+
+            const result = await response.json();
+            debug.log('[Annotate] API result', result);
+
+            if (result.generatedImage) {
+                const newImage = new window.Image();
+                newImage.onload = () => {
+                    const sourceObject = selectedObject;
+                    if (!sourceObject) return;
+
+                    addGeneratedObject(
+                        sourceObject,
+                        newImage,
+                        `${sourceObject.label || 'Image'} (Edit)`,
+                        'edit',
+                    );
+                    clearAnnotationsForObject(sourceObject.id);
+                };
+                newImage.src = result.generatedImage;
+            } else {
+                throw new Error('No generated image in API response');
+            }
+        } catch (error) {
+            debug.error('[Annotate] Error:', error);
+            showAlert(
+                'Error',
+                error instanceof Error ? error.message : 'Annotated edit failed',
+                'error',
+            );
+        } finally {
+            setIsGenerating(false);
+            setGeneratingType(null);
+            stopGenTimer();
+            debug.log('[Annotate] Finished');
+        }
+    };
+
+    const handleResizeAspectRatio = async (aspectRatio: string) => {
+        if (!selectedObject) {
+            showAlert('No Selection', 'Please select an image first.', 'warning');
+            return;
+        }
+
+        setIsGenerating(true);
+        setGeneratingType('resize');
+        startGenTimer();
+
+        try {
+            let imageToSend = '';
+            try {
+                imageToSend = imageToDataUrl(selectedObject.image);
+            } catch (e) {
+                debug.error('[Resize] toDataURL failed', e);
+                showAlert(
+                    'Image Security Error',
+                    'Cannot read the image due to browser security (CORS). Try uploading a local image.',
+                    'error',
+                );
+                return;
+            }
+
+            const prompt = `Intelligently recompose this image to fit a ${aspectRatio} aspect ratio. Preserve the main subject and visual intent. Extend, crop, or reposition content naturally — do not distort or stretch. The output must match ${aspectRatio} proportions.`;
+
+            const response = await fetch('/api/ai-edit-image', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN':
+                        document
+                            .querySelector('meta[name="csrf-token"]')
+                            ?.getAttribute('content') || '',
+                },
+                body: JSON.stringify({
+                    image: imageToSend,
+                    prompt,
+                    aspect_ratio: aspectRatio,
+                }),
+            });
+
+            if (!response.ok) {
+                let details = 'Unknown error';
+                try {
+                    const text = await response.text();
+                    try {
+                        const json = JSON.parse(text);
+                        details = json?.error || json?.message || text;
+                    } catch {
+                        details = text || details;
+                    }
+                } catch {
+                    // ignore
+                }
+                throw new Error(
+                    `API error (${response.status}): ${String(details).slice(0, 400)}`,
+                );
+            }
+
+            const result = await response.json();
+
+            if (result.generatedImage) {
+                const newImage = new window.Image();
+                newImage.onload = () => {
+                    const sourceObject = selectedObject;
+                    if (!sourceObject) return;
+
+                    addGeneratedObject(
+                        sourceObject,
+                        newImage,
+                        `${sourceObject.label || 'Image'} (${aspectRatio})`,
+                        'resize',
+                        { aspectRatio },
+                    );
+                };
+                newImage.src = result.generatedImage;
+            } else {
+                throw new Error('No generated image in API response');
+            }
+        } catch (error) {
+            debug.error('[Resize] Error:', error);
+            showAlert(
+                'Error',
+                error instanceof Error ? error.message : 'Resize failed',
+                'error',
+            );
+        } finally {
+            setIsGenerating(false);
+            setGeneratingType(null);
+            stopGenTimer();
+        }
+    };
+
+    const handleContextMenu = (e: React.MouseEvent<HTMLCanvasElement>) => {
+        e.preventDefault();
+        if (currentTool !== 'edit' || !selectedObject || isGenerating) return;
+
+        const rect = canvas?.getBoundingClientRect();
+        if (!rect) return;
+
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+        const hitPin = getAnnotationAtPoint(x, y, selectedObject);
+        if (hitPin) {
+            deleteAnnotation(hitPin.id);
+        }
     };
 
     // Action handlers
@@ -2359,15 +2944,15 @@ export default function CanvasEditor(props: CanvasEditorProps) {
     };
 
     // Enhancement: Upscale Image using FAL AI
-    const handleUpscaleImage = async () => {
+    const handleUpscaleImage = async (factor: number) => {
         if (isGenerating) return;
 
         if (!selectedObject) {
-            showAlert('No Selection', 'Please select an image first.', 'warning', 'upscale');
+            showAlert('No Selection', 'Please select an image first.', 'warning');
             return;
         }
 
-        setUpscaleModal({ isOpen: true, selectedFactor: 2 });
+        await handleConfirmUpscale(factor);
     };
 
     const handleConfirmUpscale = async (factor: number) => {
@@ -2378,7 +2963,6 @@ export default function CanvasEditor(props: CanvasEditorProps) {
 
         const creditCost = factor;
 
-        setUpscaleModal({ isOpen: false, selectedFactor: factor });
         setGeneratingType('upscale');
         setIsGenerating(true);
         startGenTimer();
@@ -2483,18 +3067,15 @@ export default function CanvasEditor(props: CanvasEditorProps) {
                 clearTimeout(imageLoadTimeout);
                 debug.log('[Upscale] Image loaded successfully');
 
-                const upscaledObj = {
-                    id: generateObjectId(),
-                    image: newImage,
-                    x: selectedObject.x + selectedObject.image.width + 20,
-                    y: selectedObject.y,
-                    label: `${selectedObject.label || 'Image'} (Upscaled ${factor}x)`,
-                    isMainImage: false,
-                };
-                setCanvasObjects(prev => [...prev, upscaledObj]);
-                setSelectedObject(upscaledObj);
+                const upscaledObj = addGeneratedObject(
+                    selectedObject,
+                    newImage,
+                    `${selectedObject.label || 'Image'} (Upscaled ${factor}x)`,
+                    'upscale',
+                    { upscaleFactor: factor },
+                );
+                void upscaledObj;
 
-                showAlert('Success', `Upscaled ${factor}x! ${creditCost} ${creditCost === 1 ? 'credit' : 'credits'} deducted.`, 'info', 'upscale');
                 setIsGenerating(false);
                 setGeneratingType(null);
                 stopGenTimer();
@@ -2524,87 +3105,6 @@ export default function CanvasEditor(props: CanvasEditorProps) {
             const errorMessage = error instanceof Error ? error.message : 'Upscale failed';
             debug.log('[Upscale] Error:', errorMessage);
             showAlert('Error', errorMessage, 'error', 'upscale');
-            setIsGenerating(false);
-            setGeneratingType(null);
-            stopGenTimer();
-        }
-    };
-
-    const handleConfirmUpscaleModal = () => {
-        handleConfirmUpscale(upscaleModal.selectedFactor);
-    };
-
-    // Enhancement: Remove Background
-    const handleRemoveBackground = async () => {
-        if (isGenerating) return;
-
-        if (!selectedObject) {
-            showAlert('No Selection', 'Please select an image first.', 'warning', 'remove-bg');
-            return;
-        }
-
-        setGeneratingType('remove-bg');
-        setIsGenerating(true);
-        startGenTimer();
-        setUndoStack((prev) => {
-            const newStack = [...prev, lines];
-            return newStack.length > CANVAS_DEFAULTS.UNDO_LIMIT ? newStack.slice(1) : newStack;
-        });
-
-        try {
-            debug.log('[Remove Background] Starting background removal...');
-
-            const imageDataUrl = imageToDataUrl(selectedObject.image);
-
-            const result = await callApi('/api/remove-background', {
-                image: imageDataUrl,
-            });
-
-            if (result.processedImage) {
-                const processedImg = new Image();
-                processedImg.crossOrigin = 'anonymous';
-                processedImg.onload = () => {
-                    debug.log('[Remove Background] Processed image loaded, updating canvas...');
-                    // Add as new object beside the original instead of replacing
-                    const newObject: CanvasObject = {
-                        id: generateObjectId(),
-                        image: processedImg,
-                        x: selectedObject.x + selectedObject.image.width + CANVAS_DEFAULTS.OBJECT_SPACING,
-                        y: selectedObject.y,
-                        label: 'No Background',
-                        isMainImage: false,
-                    };
-                    setCanvasObjects((prev) => [...prev, newObject]);
-                    setSelectedObject(newObject);
-
-                    const dimensionsMatch = result.originalWidth === processedImg.width &&
-                        result.originalHeight === processedImg.height;
-                    const method = result.method === 'improved-algorithm' ? 'advanced algorithm' : 'simple algorithm';
-                    const message = dimensionsMatch
-                        ? `Background removed (${processedImg.width}x${processedImg.height}, PNG with transparency)`
-                        : `Background removed using ${method}`;
-
-                    showAlert('Success', message, 'info', 'remove-bg');
-
-                    // Clear loading states after image loads
-                    setIsGenerating(false);
-                    setGeneratingType(null);
-                    stopGenTimer();
-                };
-                processedImg.onerror = (e) => {
-                    debug.error('[Remove Background] Error loading processed image:', e);
-                    showAlert('Error', 'Failed to load processed image', 'error', 'remove-bg');
-                    setIsGenerating(false);
-                    setGeneratingType(null);
-                    stopGenTimer();
-                };
-                processedImg.src = result.processedImage;
-            } else {
-                throw new Error('No processed image in API result');
-            }
-        } catch (error) {
-            debug.error('[Remove Background] Error:', error);
-            showAlert('Error', error instanceof Error ? error.message : 'Failed to remove background', 'error', 'remove-bg');
             setIsGenerating(false);
             setGeneratingType(null);
             stopGenTimer();
@@ -2710,15 +3210,44 @@ export default function CanvasEditor(props: CanvasEditorProps) {
                 if (hover && !hover.isMainImage) return 'grab';
             }
         }
-        if ((currentTool === 'retouch' || currentTool === 'erase') && selectedObject) {
-            return 'none'; // Hide cursor, we'll draw custom brush cursor
+        if (currentTool === 'edit' && selectedObject) {
+            return MAGIC_WAND_CURSOR;
         }
         return 'default';
     };
 
-    const selectTool = (toolName: string) => {
+    const selectTool = (toolName: CanvasTool) => {
         setCurrentTool(toolName);
+        if (toolName === 'select') {
+            setPendingComment(null);
+        }
     };
+
+    const pinCount = selectedObject
+        ? getAnnotationsForObject(selectedObject.id).length
+        : 0;
+
+    const pendingMarkerNumber = pendingComment
+        ? pendingComment.editingAnnotationId
+            ? annotations.find((a) => a.id === pendingComment.editingAnnotationId)?.number
+            : getAnnotationsForObject(pendingComment.objectId).length + 1
+        : undefined;
+
+    const handleSelectHistoryEntry = (objectId: number) => {
+        const obj = canvasObjects.find((o) => o.id === objectId);
+        if (obj) {
+            setSelectedObject(obj);
+        }
+    };
+
+    const generatingLabel =
+        generatingType === 'edit'
+            ? 'Applying edits...'
+            : generatingType === 'upscale'
+              ? 'Upscaling...'
+              : generatingType === 'resize'
+                ? 'Resizing...'
+                : 'Processing...';
 
     return (
         <>
@@ -2759,790 +3288,38 @@ export default function CanvasEditor(props: CanvasEditorProps) {
                     position: 'relative',
                 }}
             >
-                {/* Top Header */}
-                <div
-                    style={{
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'center',
-                        padding: '10px 20px',
-                        background: 'var(--color-card)',
-                        borderBottom: '1px solid var(--color-border)',
-                        zIndex: 100,
-                        gap: '24px',
-                    }}
-                >
-                    <div
-                        style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '16px',
-                        }}
-                    >
-                        <button
-                            onClick={closeEditor}
-                            style={{
-                                padding: '6px 10px',
-                                border: 'none',
-                                borderRadius: '6px',
-                                background: 'transparent',
-                                cursor: 'pointer',
-                                fontSize: '14px',
-                                color: 'var(--color-muted-foreground)',
-                                transition: 'all 0.15s ease',
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '6px',
-                            }}
-                        >
-                            <ArrowLeft size={16} />
-                            <span>{projectId ? 'Back to Project' : 'Back to Projects'}</span>
-                        </button>
-                        <div
-                            style={{
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '8px',
-                            }}
-                        >
-                            <h1
-                                style={{
-                                    fontSize: '14px',
-                                    fontWeight: 600,
-                                    color: 'var(--color-foreground)',
-                                    margin: 0,
-                                }}
-                            >
-                                {projectTitle}
-                            </h1>
-                        </div>
-                    </div>
+                <CanvasTopBar
+                    projectTitle={projectTitle}
+                    projectId={projectId}
+                    scale={scale}
+                    onBack={closeEditor}
+                    onZoomIn={zoomIn}
+                    onZoomOut={zoomOut}
+                    onResetZoom={resetZoom}
+                    onFitToScreen={fitToScreen}
+                    onSave={applyChanges}
+                    onDownload={downloadImage}
+                    isGenerating={isGenerating}
+                />
+
+                <div style={{ flex: 1, display: 'flex', overflow: 'hidden', minHeight: 0 }}>
+                    <CanvasLeftPanel
+                        collapsed={sidebarCollapsed}
+                        onToggleCollapse={() => setSidebarCollapsed((v) => !v)}
+                        annotations={annotations}
+                        selectedAnnotationId={selectedAnnotationId}
+                        selectedObjectId={selectedObject?.id ?? null}
+                        editHistory={editHistory}
+                        selectedHistoryObjectId={selectedObject?.id ?? null}
+                        onSelectAnnotation={setSelectedAnnotationId}
+                        onEditAnnotation={handleEditAnnotation}
+                        onDeleteAnnotation={deleteAnnotation}
+                        onSelectHistoryEntry={handleSelectHistoryEntry}
+                        isGenerating={isGenerating}
+                    />
 
                     <div
-                        style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '8px',
-                            flex: '0 0 auto',
-                        }}
-                    >
-                        <div
-                            style={{
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '4px',
-                            }}
-                        >
-                            <button onClick={zoomOut} style={zoomButtonStyle}>
-                                −
-                            </button>
-                            <span
-                                style={{
-                                    fontSize: '13px',
-                                    fontWeight: 400,
-                                    color: 'var(--color-muted-foreground)',
-                                    minWidth: '50px',
-                                    textAlign: 'center',
-                                    cursor: 'pointer',
-                                    padding: '4px 8px',
-                                    borderRadius: '4px',
-                                    transition: 'all 0.15s ease',
-                                }}
-                                onClick={resetZoom}
-                            >
-                                {Math.round(scale * 100)}%
-                            </span>
-                            <button onClick={zoomIn} style={zoomButtonStyle}>
-                                +
-                            </button>
-                        </div>
-                        <div
-                            style={{
-                                width: '1px',
-                                height: '20px',
-                                background: 'var(--color-border)',
-                                margin: '0 8px',
-                            }}
-                        />
-                        <button
-                            onClick={fitToScreen}
-                            style={headerButtonStyle}
-                            title="Fit canvas to screen"
-                        >
-                            <Maximize2 size={14} />
-                            <span>Fit</span>
-                        </button>
-                    </div>
-
-                    <div style={{ display: 'flex', gap: '6px' }}>
-                        <button
-                            onClick={undo}
-                            disabled={undoStack.length === 0}
-                            style={{
-                                ...headerButtonStyle,
-                                opacity: undoStack.length === 0 ? 0.4 : 1,
-                                cursor:
-                                    undoStack.length === 0
-                                        ? 'not-allowed'
-                                        : 'pointer',
-                            }}
-                            title="Undo (Ctrl+Z)"
-                        >
-                            <Undo2 size={14} />
-                            <span>Undo</span>
-                        </button>
-                        <button
-                            onClick={redo}
-                            disabled={redoStack.length === 0}
-                            style={{
-                                ...headerButtonStyle,
-                                opacity: redoStack.length === 0 ? 0.4 : 1,
-                                cursor:
-                                    redoStack.length === 0
-                                        ? 'not-allowed'
-                                        : 'pointer',
-                            }}
-                            title="Redo (Ctrl+Shift+Z)"
-                        >
-                            <Redo2 size={14} />
-                            <span>Redo</span>
-                        </button>
-                        <button
-                            onClick={resetDrawing}
-                            style={{
-                                ...headerButtonStyle,
-                                color: 'var(--color-destructive)',
-                                borderColor: 'transparent',
-                            }}
-                            title="Clear all brush strokes"
-                        >
-                            <RotateCcw size={14} />
-                            <span>Reset</span>
-                        </button>
-                        <div
-                            style={{
-                                width: '1px',
-                                height: '20px',
-                                background: 'var(--color-border)',
-                                margin: '0 8px',
-                            }}
-                        />
-                        <button
-                            onClick={applyChanges}
-                            style={headerButtonStyle}
-                            title="Apply changes to selected image"
-                        >
-                            <Save size={14} />
-                            <span>Apply</span>
-                        </button>
-                        <button
-                            onClick={downloadImage}
-                            style={{
-                                ...headerButtonStyle,
-                                background: 'var(--color-primary)',
-                                color: 'var(--color-primary-foreground)',
-                                borderColor: 'var(--color-primary)',
-                            }}
-                        >
-                            <Download size={14} />
-                            <span>Download</span>
-                        </button>
-                    </div>
-                </div>
-
-                {/* Main Container */}
-                <div
-                    style={{
-                        flex: 1,
-                        display: 'flex',
-                        position: 'relative',
-                        overflow: 'hidden',
-                    }}
-                >
-                    {/* Skeleton beside original image when generating enhancements */}
-                    {isGenerating && generatingType && selectedObject && !['erase', 'ai-edit', 'replace-text'].includes(generatingType) && (
-                        <div
-                            style={{
-                                position: 'absolute',
-                                left: panX + selectedObject.x * scale + selectedObject.image.width * scale + 30,
-                                top: panY + selectedObject.y * scale,
-                                width: selectedObject.image.width * scale,
-                                height: selectedObject.image.height * scale,
-                                zIndex: 1000,
-                                pointerEvents: 'none',
-                            }}
-                        >
-                            <Skeleton
-                                className="w-full h-full rounded-2xl"
-                                style={{
-                                    boxShadow: '0 8px 24px rgba(0, 0, 0, 0.12), 0 2px 8px rgba(0, 0, 0, 0.08)',
-                                }}
-                            />
-                            <div
-                                style={{
-                                    position: 'absolute',
-                                    bottom: '16px',
-                                    left: '50%',
-                                    transform: 'translateX(-50%)',
-                                    fontSize: '13px',
-                                    color: 'var(--color-foreground)',
-                                    fontWeight: 600,
-                                    textAlign: 'center',
-                                    padding: '8px 16px',
-                                    background: 'var(--color-background)',
-                                    borderRadius: '8px',
-                                    boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)',
-                                    letterSpacing: '0.3px',
-                                }}
-                            >
-                                {generatingType === 'expand' && 'Expanding...'}
-                                {generatingType === 'upscale' && 'Upscaling...'}
-                                {generatingType === 'remove-bg' && 'Removing background...'}
-                                {generatingType === 'crop' && 'Resizing canvas...'}
-                                {genElapsedSecs > 0 && (
-                                    <span style={{ display: 'block', fontSize: '11px', opacity: 0.65, marginTop: '2px' }}>
-                                        {genElapsedSecs}s
-                                    </span>
-                                )}
-                            </div>
-                        </div>
-                    )}
-
-                    {/* Full overlay skeleton for other operations */}
-                    {isGenerating && !generatingType && (
-                        <div
-                            style={{
-                                position: 'absolute',
-                                top: 0,
-                                left: 0,
-                                width: '100%',
-                                height: '100%',
-                                zIndex: 1000,
-                                background: 'color-mix(in oklab, var(--color-background) 70%, transparent)',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                            }}
-                        >
-                            <div
-                                style={{
-                                    display: 'flex',
-                                    flexDirection: 'column',
-                                    alignItems: 'center',
-                                    gap: '16px',
-                                    background: 'var(--color-card)',
-                                    padding: '32px 40px',
-                                    borderRadius: '16px',
-                                    boxShadow: '0 8px 24px rgba(0, 0, 0, 0.12)',
-                                }}
-                            >
-                                <Skeleton className="w-24 h-24 rounded-xl" />
-                                <div className="space-y-2">
-                                    <Skeleton className="h-4 w-48" />
-                                    <Skeleton className="h-3 w-36" />
-                                </div>
-                            </div>
-                        </div>
-                    )}
-
-                    {/* Overlay for AI brush-based operations (erase / ai-edit / replace-text) */}
-                    {isGenerating && generatingType && ['erase', 'ai-edit', 'replace-text'].includes(generatingType) && (
-                        <div
-                            style={{
-                                position: 'absolute',
-                                top: 0,
-                                left: 0,
-                                width: '100%',
-                                height: '100%',
-                                zIndex: 1000,
-                                background: 'color-mix(in oklab, var(--color-background) 65%, transparent)',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                            }}
-                        >
-                            <div
-                                style={{
-                                    display: 'flex',
-                                    flexDirection: 'column',
-                                    alignItems: 'center',
-                                    gap: '16px',
-                                    background: 'var(--color-card)',
-                                    padding: '32px 40px',
-                                    borderRadius: '16px',
-                                    boxShadow: '0 8px 24px rgba(0, 0, 0, 0.12)',
-                                    minWidth: '220px',
-                                }}
-                            >
-                                <Skeleton className="w-24 h-24 rounded-xl" />
-                                <div style={{ textAlign: 'center' }}>
-                                    <div style={{ fontWeight: 600, fontSize: '14px', color: 'var(--color-foreground)' }}>
-                                        {generatingType === 'erase' && 'Erasing...'}
-                                        {generatingType === 'ai-edit' && 'Applying AI Edit...'}
-                                        {generatingType === 'replace-text' && 'Replacing Text...'}
-                                    </div>
-                                    {genElapsedSecs > 0 && (
-                                        <div style={{ fontSize: '12px', opacity: 0.6, marginTop: '4px' }}>
-                                            {genElapsedSecs}s elapsed
-                                        </div>
-                                    )}
-                                    <div style={{ fontSize: '12px', opacity: 0.5, marginTop: '4px' }}>
-                                        This may take up to a minute
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    )}
-                    {/* Sidebar */}
-                    <div
-                        style={{
-                            position: 'absolute',
-                            left: '16px',
-                            top: '16px',
-                            width: sidebarCollapsed ? '60px' : '260px',
-                            background: 'var(--color-card)',
-                            border: '1px solid var(--color-border)',
-                            borderRadius: '12px',
-                            boxShadow: 'var(--shadow-lg)',
-                            display: 'flex',
-                            flexDirection: 'column',
-                            transition: 'all 0.15s ease',
-                            zIndex: 50,
-                            maxHeight: 'calc(100% - 32px)',
-                        }}
-                    >
-                        {!sidebarCollapsed && (
-                            <div
-                                style={{
-                                    padding: '20px 16px 16px',
-                                    borderBottom: '1px solid var(--color-border)',
-                                }}
-                            >
-                                <div
-                                    style={{
-                                        fontSize: '12px',
-                                        fontWeight: 600,
-                                        color: 'var(--color-foreground)',
-                                        marginBottom: 0,
-                                    }}
-                                >
-                                    Canvas Editor
-                                </div>
-                                <div
-                                    style={{
-                                        fontSize: '11px',
-                                        color: 'var(--color-muted-foreground)',
-                                        marginTop: '4px',
-                                    }}
-                                >
-                                    Edit and enhance your image
-                                </div>
-                            </div>
-                        )}
-
-                        <div
-                            style={{
-                                overflowY: 'auto',
-                                padding: '16px',
-                                flex: 1,
-                            }}
-                        >
-                            {/* Tools Section */}
-                            <div style={{ marginBottom: '24px' }}>
-                                {!sidebarCollapsed && (
-                                    <div
-                                        style={{
-                                            fontSize: '11px',
-                                            fontWeight: 600,
-                                            color: 'var(--color-muted-foreground)',
-                                            marginBottom: '6px',
-                                            padding: '0 4px',
-                                        }}
-                                    >
-                                        Tools
-                                    </div>
-                                )}
-                                <div
-                                    style={{
-                                        display: 'flex',
-                                        flexDirection: 'column',
-                                        gap: '2px',
-                                        alignItems: sidebarCollapsed
-                                            ? 'center'
-                                            : 'stretch',
-                                    }}
-                                >
-                                    <ToolButton
-                                        icon={<Crop size={18} />}
-                                        label="Crop / Resize"
-                                        active={generatingType === 'crop'}
-                                        onClick={handleCropResize}
-                                        collapsed={sidebarCollapsed}
-                                        disabled={isGenerating}
-                                        shortcut="C"
-                                    />
-                                    {/* AI Generate Quick Action */}
-                                    <ToolButton
-                                        icon={<MousePointer size={18} />}
-                                        label="Select"
-                                        active={currentTool === 'select'}
-                                        onClick={() => selectTool('select')}
-                                        collapsed={sidebarCollapsed}
-                                        shortcut="V"
-                                    />
-                                    <ToolButton
-                                        icon={<PenTool size={18} />}
-                                        label="Retouch"
-                                        active={currentTool === 'retouch'}
-                                        onClick={() => selectTool('retouch')}
-                                        collapsed={sidebarCollapsed}
-                                        shortcut="R"
-                                    />
-                                </div>
-                            </div>
-
-                            {/* Brush Controls */}
-                            {!sidebarCollapsed && (currentTool === 'retouch' || currentTool === 'erase') && (
-                                <div style={{ marginBottom: '24px' }}>
-                                    <div
-                                        style={{
-                                            fontSize: '11px',
-                                            fontWeight: 600,
-                                            color: 'var(--color-muted-foreground)',
-                                            marginBottom: '6px',
-                                            padding: '0 4px',
-                                        }}
-                                    >
-                                        Brush Settings
-                                    </div>
-
-                                    <div style={{ marginBottom: '20px' }}>
-                                        <div
-                                            style={{
-                                                display: 'flex',
-                                                justifyContent: 'space-between',
-                                                alignItems: 'center',
-                                                fontSize: '14px',
-                                                fontWeight: 400,
-                                                color: 'var(--color-foreground)',
-                                                marginBottom: '10px',
-                                            }}
-                                        >
-                                            <span>Size</span>
-                                            <span
-                                                style={{
-                                                    fontSize: '13px',
-                                                    color: 'var(--color-muted-foreground)',
-                                                    fontWeight: 500,
-                                                }}
-                                            >
-                                                {brushSize}px
-                                            </span>
-                                        </div>
-                                        <input
-                                            type="range"
-                                            min="10"
-                                            max="100"
-                                            value={brushSize}
-                                            onChange={(e) =>
-                                                setBrushSize(
-                                                    parseInt(e.target.value),
-                                                )
-                                            }
-                                            style={sliderStyle}
-                                        />
-                                    </div>
-
-                                    <div>
-                                        <div
-                                            style={{
-                                                display: 'flex',
-                                                justifyContent: 'space-between',
-                                                alignItems: 'center',
-                                                fontSize: '14px',
-                                                fontWeight: 400,
-                                                color: 'var(--color-foreground)',
-                                                marginBottom: '10px',
-                                            }}
-                                        >
-                                            <span>Opacity</span>
-                                            <span
-                                                style={{
-                                                    fontSize: '13px',
-                                                    color: 'var(--color-muted-foreground)',
-                                                    fontWeight: 500,
-                                                }}
-                                            >
-                                                {brushOpacity}%
-                                            </span>
-                                        </div>
-                                        <input
-                                            type="range"
-                                            min="10"
-                                            max="100"
-                                            value={brushOpacity}
-                                            onChange={(e) =>
-                                                setBrushOpacity(
-                                                    parseInt(e.target.value),
-                                                )
-                                            }
-                                            style={sliderStyle}
-                                        />
-                                    </div>
-                                </div>
-                            )}
-
-                            {/* AI Tools Section — always visible */}
-                            <div style={{ marginBottom: '24px' }}>
-                                {!sidebarCollapsed && (
-                                    <div
-                                        style={{
-                                            fontSize: '11px',
-                                            fontWeight: 600,
-                                            color: 'var(--color-muted-foreground)',
-                                            marginBottom: '6px',
-                                            padding: '0 4px',
-                                        }}
-                                    >
-                                        AI Tools
-                                    </div>
-                                )}
-                                <div
-                                    style={{
-                                        display: 'flex',
-                                        flexDirection: 'column',
-                                        gap: '2px',
-                                        alignItems: sidebarCollapsed ? 'center' : 'stretch',
-                                    }}
-                                >
-                                    <ToolButton
-                                        icon={<Eraser size={18} />}
-                                        label="Erase"
-                                        active={false}
-                                        onClick={handleErase}
-                                        collapsed={sidebarCollapsed}
-                                        disabled={
-                                            isGenerating ||
-                                            !(selectedObject && lines.some((l) => l.objectId === selectedObject.id))
-                                        }
-                                        shortcut="E"
-                                        creditCost={1}
-                                    />
-                                    <ToolButton
-                                        icon={<Wand2 size={18} />}
-                                        label="AI Edit"
-                                        active={false}
-                                        onClick={handleAiEdit}
-                                        collapsed={sidebarCollapsed}
-                                        disabled={isGenerating || !selectedObject}
-                                        shortcut="A"
-                                        creditCost={1}
-                                    />
-                                    <ToolButton
-                                        icon={<Type size={18} />}
-                                        label="Replace Text"
-                                        active={false}
-                                        onClick={handleReplaceText}
-                                        collapsed={sidebarCollapsed}
-                                        disabled={
-                                            isGenerating ||
-                                            !(selectedObject && lines.some((l) => l.objectId === selectedObject.id))
-                                        }
-                                        shortcut="T"
-                                        creditCost={1}
-                                    />
-                                </div>
-                            </div>
-
-                            {/* Tips Section */}
-                            {!sidebarCollapsed && (
-                                <div
-                                    style={{
-                                        background: 'var(--color-muted)',
-                                        border: '1px solid var(--color-border)',
-                                        borderRadius: '6px',
-                                        padding: '12px 14px',
-                                    }}
-                                >
-                                    <div
-                                        style={{
-                                            fontSize: '14px',
-                                            fontWeight: 500,
-                                            color: 'var(--color-foreground)',
-                                            marginBottom: '8px',
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            gap: '8px',
-                                        }}
-                                    >
-                                        <Lightbulb size={16} />
-                                        <span>Navigation Tips</span>
-                                    </div>
-                                    <div
-                                        style={{
-                                            fontSize: '13px',
-                                            color: 'var(--color-muted-foreground)',
-                                            marginBottom: '6px',
-                                            lineHeight: 1.6,
-                                            paddingLeft: '16px',
-                                            position: 'relative',
-                                        }}
-                                    >
-                                        <span
-                                            style={{
-                                                position: 'absolute',
-                                                left: '4px',
-                                                color: 'var(--color-muted-foreground)',
-                                                fontWeight: 600,
-                                            }}
-                                        >
-                                            •
-                                        </span>
-                                        Pan canvas with{' '}
-                                        <strong>Space + Drag</strong> or{' '}
-                                        <strong>Middle Mouse Button</strong>
-                                    </div>
-                                    <div
-                                        style={{
-                                            fontSize: '13px',
-                                            color: 'var(--color-muted-foreground)',
-                                            marginBottom: '6px',
-                                            lineHeight: 1.6,
-                                            paddingLeft: '16px',
-                                            position: 'relative',
-                                        }}
-                                    >
-                                        <span
-                                            style={{
-                                                position: 'absolute',
-                                                left: '4px',
-                                                color: 'var(--color-muted-foreground)',
-                                                fontWeight: 600,
-                                            }}
-                                        >
-                                            •
-                                        </span>
-                                        Zoom with <strong>Mouse Wheel</strong>
-                                    </div>
-                                    <div
-                                        style={{
-                                            fontSize: '13px',
-                                            color: 'var(--color-muted-foreground)',
-                                            marginBottom: '6px',
-                                            lineHeight: 1.6,
-                                            paddingLeft: '16px',
-                                            position: 'relative',
-                                        }}
-                                    >
-                                        <span
-                                            style={{
-                                                position: 'absolute',
-                                                left: '4px',
-                                                color: 'var(--color-muted-foreground)',
-                                                fontWeight: 600,
-                                            }}
-                                        >
-                                            •
-                                        </span>
-                                        Reset view with <strong>Ctrl+0</strong>
-                                    </div>
-                                    <div
-                                        style={{
-                                            fontSize: '13px',
-                                            color: 'var(--color-muted-foreground)',
-                                            marginBottom: '6px',
-                                            lineHeight: 1.6,
-                                            paddingLeft: '16px',
-                                            position: 'relative',
-                                        }}
-                                    >
-                                        <span
-                                            style={{
-                                                position: 'absolute',
-                                                left: '4px',
-                                                color: 'var(--color-muted-foreground)',
-                                                fontWeight: 600,
-                                            }}
-                                        >
-                                            •
-                                        </span>
-                                        Undo with <strong>Ctrl+Z</strong>, Redo
-                                        with <strong>Ctrl+Shift+Z</strong>
-                                    </div>
-                                    <div
-                                        style={{
-                                            fontSize: '13px',
-                                            color: 'var(--color-muted-foreground)',
-                                            lineHeight: 1.6,
-                                            paddingLeft: '16px',
-                                            position: 'relative',
-                                        }}
-                                    >
-                                        <span
-                                            style={{
-                                                position: 'absolute',
-                                                left: '4px',
-                                                color: 'var(--color-muted-foreground)',
-                                                fontWeight: 600,
-                                            }}
-                                        >
-                                            •
-                                        </span>
-                                        Press <strong>V</strong>,{' '}
-                                        <strong>R</strong>, <strong>B</strong>,{' '}
-                                        <strong>E</strong>, or{' '}
-                                        <strong>U</strong> to switch tools
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-                    </div>
-
-                    {/* Sidebar Toggle */}
-                    <button
-                        onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-                        style={{
-                            position: 'absolute',
-                            left: sidebarCollapsed
-                                ? 'calc(60px + 16px)'
-                                : 'calc(260px + 16px)',
-                            top: 'calc(16px + 20px)',
-                            width: '28px',
-                            height: '28px',
-                            background: 'var(--color-card)',
-                            border: '1px solid var(--color-border)',
-                            borderRadius: '6px',
-                            cursor: 'pointer',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            transition: 'all 0.15s ease',
-                            zIndex: 60,
-                            boxShadow: 'var(--shadow-xs)',
-                        }}
-                    >
-                        <ChevronLeft
-                            size={16}
-                            style={{
-                                transition: 'all 0.15s ease',
-                                transform: sidebarCollapsed
-                                    ? 'rotate(180deg)'
-                                    : 'rotate(0deg)',
-                            }}
-                        />
-                    </button>
-
-                    {/* Canvas Wrapper */}
-                    <div
-                        style={{
-                            flex: 1,
-                            position: 'relative',
-                            overflow: 'hidden',
-                            background: 'var(--color-muted)',
-                            border: isDragOver ? '2px dashed var(--color-primary)' : '2px solid transparent',
-                            borderRadius: isDragOver ? '8px' : undefined,
-                            transition: 'border 0.15s ease',
-                        }}
+                        style={{ flex: 1, position: 'relative', display: 'flex', flexDirection: 'column', minWidth: 0 }}
                         onDragOver={(e) => { e.preventDefault(); setIsDragOver(true); }}
                         onDragLeave={() => setIsDragOver(false)}
                         onDrop={(e) => {
@@ -3550,209 +3327,103 @@ export default function CanvasEditor(props: CanvasEditorProps) {
                             setIsDragOver(false);
                             const file = e.dataTransfer.files[0];
                             if (file && file.type.startsWith('image/')) {
-                                const url = URL.createObjectURL(file);
-                                const img = new Image();
-                                img.onload = () => {
-                                    const id = Date.now();
-                                    const newObj: CanvasObject = {
-                                        id,
-                                        image: img,
-                                        x: 50,
-                                        y: 50,
-                                        isMainImage: canvasObjects.length === 0,
-                                        label: file.name.replace(/\.[^/.]+$/, ''),
-                                    };
-                                    setCanvasObjects(prev => [...prev, newObj]);
-                                    setSelectedObject(newObj);
-                                };
-                                img.src = url;
+                                loadImageFile(file);
                             }
                         }}
                     >
-                        {isDragOver && (
-                            <div style={{
-                                position: 'absolute', inset: 0, zIndex: 2000, pointerEvents: 'none',
-                                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                background: 'color-mix(in oklab, var(--color-primary) 10%, transparent)',
-                                borderRadius: '6px',
-                            }}>
-                                <div style={{ background: 'var(--color-card)', padding: '24px 40px', borderRadius: '12px', fontWeight: 600, fontSize: '15px', color: 'var(--color-primary)', boxShadow: '0 4px 16px rgba(0,0,0,0.12)' }}>
-                                    Drop image here
-                                </div>
-                            </div>
-                        )}
-                        <div
-                            style={{
-                                width: '100%',
-                                height: '100%',
-                                position: 'relative',
-                                overflow: 'hidden',
-                            }}
-                        >
-                            <canvas
-                                ref={canvasRef}
-                                onMouseDown={handleMouseDown}
-                                onMouseMove={handleMouseMove}
-                                onMouseUp={handleMouseUp}
-                                onWheel={handleWheel}
-                                onTouchStart={handleTouchStart}
-                                onTouchMove={handleTouchMove}
-                                onTouchEnd={handleTouchEnd}
-                                style={{
-                                    display: showUploadZone ? 'none' : 'block',
-                                    cursor: getCursorStyle(),
-                                    touchAction: 'none',
-                                }}
-                            />
-
-                            {/* Crop Mode Overlay Buttons */}
-                            {cropMode && !showUploadZone && (
+                        <CanvasViewport
+                            viewportRef={viewportRef}
+                            canvasRef={canvasRef}
+                            showUploadZone={showUploadZone}
+                            cursorStyle={getCursorStyle()}
+                            pendingComment={pendingComment}
+                            pendingMarkerNumber={pendingMarkerNumber}
+                            onCommentSubmit={handleCommentSubmit}
+                            onCommentCancel={handleCommentCancel}
+                            onMouseDown={handleMouseDown}
+                            onMouseMove={handleMouseMove}
+                            onMouseUp={handleMouseUp}
+                            onContextMenu={handleContextMenu}
+                            onWheel={handleWheel}
+                            onTouchStart={handleTouchStart}
+                            onTouchMove={handleTouchMove}
+                            onTouchEnd={handleTouchEnd}
+                            uploadZone={
                                 <div
-                                    style={{
-                                        position: 'absolute',
-                                        bottom: '24px',
-                                        left: '50%',
-                                        transform: 'translateX(-50%)',
-                                        display: 'flex',
-                                        gap: '12px',
-                                        zIndex: 1000,
-                                    }}
-                                >
-                                    <button
-                                        onClick={handleCancelCrop}
-                                        disabled={isGenerating}
-                                        style={{
-                                            padding: '10px 24px',
-                                            background: 'var(--color-card)',
-                                            border: '1px solid var(--color-border)',
-                                            borderRadius: '8px',
-                                            color: 'var(--color-foreground)',
-                                            cursor: isGenerating ? 'not-allowed' : 'pointer',
-                                            fontWeight: 500,
-                                            fontSize: '14px',
-                                            opacity: isGenerating ? 0.5 : 1,
-                                            transition: 'all 0.15s ease',
-                                        }}
-                                    >
-                                        Cancel
-                                    </button>
-                                    <button
-                                        onClick={cropIntent === 'expand' ? handleConfirmExpand : handleConfirmCrop}
-                                        disabled={isGenerating}
-                                        style={{
-                                            padding: '10px 24px',
-                                            background: '#2196F3',
-                                            border: 'none',
-                                            borderRadius: '8px',
-                                            color: 'white',
-                                            cursor: isGenerating ? 'not-allowed' : 'pointer',
-                                            fontWeight: 500,
-                                            fontSize: '14px',
-                                            opacity: isGenerating ? 0.5 : 1,
-                                            transition: 'all 0.15s ease',
-                                        }}
-                                    >
-                                        {cropIntent === 'expand' ? 'Confirm Expand' : 'Confirm Crop'}
-                                    </button>
-                                </div>
-                            )}
-
-                            {/* Upload Zone */}
-                            {showUploadZone && (
-                                <div
-                                    onClick={() =>
-                                        fileInputRef.current?.click()
-                                    }
+                                    onClick={() => fileInputRef.current?.click()}
                                     style={{
                                         position: 'absolute',
                                         top: '50%',
                                         left: '50%',
                                         transform: 'translate(-50%, -50%)',
-                                        width: '480px',
+                                        width: '400px',
                                         maxWidth: '90%',
-                                        padding: '60px 40px',
+                                        padding: '48px 32px',
                                         background: 'var(--color-card)',
                                         border: '2px dashed var(--color-border)',
                                         borderRadius: '12px',
                                         cursor: 'pointer',
-                                        transition: 'all 0.15s ease',
                                         textAlign: 'center',
                                     }}
                                 >
-                                    <div
-                                        style={{
-                                            fontSize: '48px',
-                                            marginBottom: '16px',
-                                            opacity: 0.8,
-                                        }}
-                                    >
-                                        📁
-                                    </div>
-                                    <div
-                                        style={{
-                                            fontSize: '18px',
-                                            fontWeight: 600,
-                                            color: 'var(--color-foreground)',
-                                            marginBottom: '8px',
-                                        }}
-                                    >
-                                        Upload an image
-                                    </div>
-                                    <div
-                                        style={{
-                                            fontSize: '14px',
-                                            color: 'var(--color-muted-foreground)',
-                                        }}
-                                    >
-                                        Click to browse or drag and drop
-                                    </div>
+                                    <div style={{ fontSize: '16px', fontWeight: 600, marginBottom: '8px' }}>Upload an image</div>
+                                    <div style={{ fontSize: '13px', color: 'var(--color-muted-foreground)' }}>Click or drag and drop</div>
                                 </div>
-                            )}
-                        </div>
-                    </div>
+                            }
+                        />
 
-                    {/* Hidden File Input */}
-                    <input
-                        ref={fileInputRef}
-                        type="file"
-                        accept="image/*"
-                        onChange={handleFileUpload}
-                        style={{ display: 'none' }}
-                    />
+                        {!showUploadZone && (
+                            <CanvasBottomBar
+                                currentTool={currentTool}
+                                onSelectTool={selectTool}
+                                pinCount={pinCount}
+                                onApply={() => void handleApplyAnnotations()}
+                                onUpscale={(factor) => void handleUpscaleImage(factor)}
+                                onResize={(ratio) => void handleResizeAspectRatio(ratio)}
+                                isGenerating={isGenerating}
+                                hasSelection={!!selectedObject}
+                            />
+                        )}
+
+                        {isGenerating && generatingType && ['edit', 'upscale', 'resize'].includes(generatingType) && (
+                            <div
+                                style={{
+                                    position: 'absolute',
+                                    bottom: '80px',
+                                    left: '50%',
+                                    transform: 'translateX(-50%)',
+                                    zIndex: 70,
+                                    background: 'var(--color-card)',
+                                    border: '1px solid var(--color-border)',
+                                    borderRadius: '8px',
+                                    padding: '10px 16px',
+                                    boxShadow: '0 4px 12px rgba(0,0,0,0.12)',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '10px',
+                                    fontSize: '13px',
+                                }}
+                            >
+                                <Skeleton className="h-4 w-4 rounded-full" />
+                                <span>{generatingLabel}</span>
+                                {genElapsedSecs > 0 && (
+                                    <span style={{ color: 'var(--color-muted-foreground)', fontSize: '12px' }}>{genElapsedSecs}s</span>
+                                )}
+                            </div>
+                        )}
+
+                        <input
+                            ref={fileInputRef}
+                            type="file"
+                            accept="image/*"
+                            onChange={handleFileUpload}
+                            style={{ display: 'none' }}
+                        />
+                    </div>
                 </div>
             </div>
 
             {/* Modals */}
-            <PromptModal
-                isOpen={promptModal.isOpen}
-                onClose={() => {
-                    if (promptModal.resolve) {
-                        promptModal.resolve(null as any);
-                    }
-                    debug.log('[Prompt] Close (cancel)');
-                    setPromptModal((prev) => ({
-                        ...prev,
-                        isOpen: false,
-                        resolve: null,
-                    }));
-                }}
-                onSubmit={(value) => {
-                    if (promptModal.resolve) {
-                        promptModal.resolve(value);
-                    }
-                    debug.log('[Prompt] Submit', value);
-                    setPromptModal((prev) => ({
-                        ...prev,
-                        isOpen: false,
-                        resolve: null,
-                    }));
-                }}
-                title={promptModal.title}
-                description={promptModal.description}
-                placeholder={promptModal.placeholder}
-                defaultValue={promptModal.defaultValue}
-            />
-
             <AlertModal
                 isOpen={alertModal.isOpen}
                 onClose={() =>
@@ -3793,262 +3464,7 @@ export default function CanvasEditor(props: CanvasEditorProps) {
                 isDanger={confirmModal.isDanger}
             />
 
-            <UpscaleModal
-                isOpen={upscaleModal.isOpen}
-                selectedFactor={upscaleModal.selectedFactor}
-                onClose={() => setUpscaleModal({ isOpen: false, selectedFactor: 2 })}
-                onSelectFactor={(factor) => setUpscaleModal({ isOpen: true, selectedFactor: factor })}
-                onConfirm={handleConfirmUpscaleModal}
-                isLoading={isGenerating && generatingType === 'upscale'}
-            />
-
-            {/* Toast notifications for action history */}
-            {actionHistory.length > 0 && (
-                <div
-                    style={{
-                        position: 'fixed',
-                        bottom: '24px',
-                        right: '24px',
-                        zIndex: 9999,
-                        display: 'flex',
-                        flexDirection: 'column',
-                        gap: '8px',
-                        pointerEvents: 'none',
-                    }}
-                >
-                    {actionHistory.map((item, idx) => (
-                        <div
-                            key={`${item.time}-${idx}`}
-                            style={{
-                                background: 'var(--color-card)',
-                                color: 'var(--color-foreground)',
-                                borderRadius: '8px',
-                                boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
-                                padding: '12px 16px',
-                                fontSize: '14px',
-                                opacity: 0.95,
-                                minWidth: '280px',
-                                maxWidth: '400px',
-                                border: '1px solid var(--color-border)',
-                                animation: 'slideInRight 0.3s ease-out',
-                            }}
-                        >
-                            <div style={{ fontWeight: 600, marginBottom: '4px', textTransform: 'capitalize' }}>
-                                {item.type.replace('-', ' ')}
-                            </div>
-                            <div style={{ fontSize: '13px', color: 'var(--color-muted-foreground)' }}>
-                                {item.message}
-                            </div>
-                        </div>
-                    ))}
-                </div>
-            )}
         </>
     );
 }
 
-// Component for tool buttons
-function ToolButton({
-    icon,
-    label,
-    active,
-    onClick,
-    collapsed,
-    disabled = false,
-    shortcut,
-    creditCost,
-}: {
-    icon: React.ReactNode;
-    label: string;
-    active: boolean;
-    onClick: () => void;
-    collapsed: boolean;
-    disabled?: boolean;
-    shortcut?: string;
-    creditCost?: number;
-}) {
-    return (
-        <button
-            onClick={disabled ? undefined : onClick}
-            disabled={disabled}
-            data-tool={label.toLowerCase()}
-            title={shortcut ? `${label} (${shortcut}) — ${creditCost ?? 0} credit` : label}
-            aria-label={shortcut ? `${label} (${shortcut})` : label}
-            style={{
-                padding: collapsed ? '10px' : '8px 12px',
-                border: 'none',
-                borderRadius: '4px',
-                background: active ? 'var(--color-muted)' : 'transparent',
-                cursor: disabled ? 'not-allowed' : 'pointer',
-                transition: 'all 0.15s ease',
-                textAlign: 'left',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: collapsed ? 'center' : 'space-between',
-                gap: '10px',
-                color: 'var(--color-foreground)',
-                opacity: disabled ? 0.5 : 1,
-            }}
-            className="tool-card"
-        >
-            <div
-                style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '10px',
-                    flex: 1,
-                }}
-            >
-                <div
-                    style={{
-                        fontSize: '18px',
-                        width: '20px',
-                        height: '20px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        flexShrink: 0,
-                        color: 'var(--color-muted-foreground)',
-                    }}
-                >
-                    {icon}
-                </div>
-                {!collapsed && (
-                    <span
-                        style={{
-                            fontSize: '14px',
-                            fontWeight: active ? 500 : 400,
-                            color: 'var(--color-foreground)',
-                        }}
-                    >
-                        {label}
-                    </span>
-                )}
-            </div>
-            {!collapsed && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
-                    {creditCost !== undefined && (
-                        <span
-                            style={{
-                                fontSize: '10px',
-                                fontWeight: 600,
-                                color: 'var(--color-primary)',
-                                opacity: 0.75,
-                                whiteSpace: 'nowrap',
-                            }}
-                        >
-                            ⚡{creditCost}
-                        </span>
-                    )}
-                    {shortcut && (
-                        <span
-                            style={{
-                                fontSize: '12px',
-                                fontWeight: 500,
-                                color: 'var(--color-muted-foreground)',
-                                opacity: 0.7,
-                                textTransform: 'uppercase',
-                                letterSpacing: '0.5px',
-                                minWidth: '16px',
-                                textAlign: 'right',
-                            }}
-                        >
-                            {shortcut}
-                        </span>
-                    )}
-                </div>
-            )}
-        </button>
-    );
-}
-
-// Styles
-const headerButtonStyle: React.CSSProperties = {
-    padding: '6px 12px',
-    border: '1px solid var(--color-border)',
-    borderRadius: '6px',
-    background: 'transparent',
-    cursor: 'pointer',
-    fontSize: '14px',
-    fontWeight: 500,
-    color: 'var(--color-muted-foreground)',
-    transition: 'all 0.15s ease',
-    display: 'flex',
-    alignItems: 'center',
-    gap: '6px',
-};
-
-const zoomButtonStyle: React.CSSProperties = {
-    width: '28px',
-    height: '28px',
-    border: 'none',
-    borderRadius: '4px',
-    background: 'transparent',
-    cursor: 'pointer',
-    fontSize: '16px',
-    fontWeight: 400,
-    color: 'var(--color-muted-foreground)',
-    transition: 'all 0.15s ease',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-};
-
-const sliderStyle: React.CSSProperties = {
-    width: '100%',
-    height: '2px',
-    borderRadius: '2px',
-    background: 'var(--color-border)',
-    outline: 'none',
-    WebkitAppearance: 'none',
-    appearance: 'none',
-    cursor: 'pointer',
-};
-
-const floatingButtonStyle: React.CSSProperties = {
-    padding: '10px 14px',
-    background: 'transparent',
-    color: 'var(--color-foreground)',
-    border: 'none',
-    borderRadius: '4px',
-    cursor: 'pointer',
-    fontWeight: 400,
-    fontSize: '14px',
-    transition: 'all 0.15s ease',
-    display: 'flex',
-    alignItems: 'center',
-    gap: '10px',
-    textAlign: 'left',
-};
-
-// Component for floating action buttons with hover/disabled styling
-function FloatingActionButton({
-    icon,
-    label,
-    onClick,
-    disabled = false,
-}: {
-    icon: React.ReactNode;
-    label: string;
-    onClick?: () => void;
-    disabled?: boolean;
-}) {
-    const [hover, setHover] = useState(false);
-    return (
-        <button
-            onClick={disabled ? undefined : onClick}
-            disabled={disabled}
-            onMouseEnter={() => setHover(true)}
-            onMouseLeave={() => setHover(false)}
-            style={{
-                ...floatingButtonStyle,
-                background: hover && !disabled ? 'var(--color-muted)' : 'transparent',
-                opacity: disabled ? 0.5 : 1,
-                cursor: disabled ? 'not-allowed' : 'pointer',
-            }}
-        >
-            {icon}
-            <span>{label}</span>
-        </button>
-    );
-}

@@ -17,6 +17,13 @@ class OpenRouterCsvImageGenerator
         protected JsonPromptCompiler $promptCompiler,
     ) {}
 
+    public function model(): string
+    {
+        return $this->modelRegistry->findBySlug(
+            config('ai.default_generator_slug', 'nano-banana-2'),
+        )->openrouter_model_id;
+    }
+
     /**
      * @param  array<string, mixed>  $promptJson
      * @param  Collection<int, ProjectClusterImage>  $clusterImages
@@ -27,7 +34,12 @@ class OpenRouterCsvImageGenerator
         string $aspectRatio,
         int $resolutionMultiplier = 1,
         ?string $caption = null,
+        ?string $imageRequestPrompt = null,
     ): string {
+        if ($imageRequestPrompt !== null && trim($imageRequestPrompt) !== '') {
+            return $this->generate($imageRequestPrompt, $clusterImages, $aspectRatio, $resolutionMultiplier);
+        }
+
         $caption = trim($caption ?? (string) data_get($promptJson, 'post.caption', ''));
         $promptText = $this->promptCompiler->buildImageRequestPrompt(
             $promptJson,

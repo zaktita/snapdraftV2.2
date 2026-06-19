@@ -11,8 +11,8 @@ INSTRUCTIONS:
 - Provide a "globalAnalysis" summarizing the overall brand identity found across all images.
 - Provide "globalRules": 4-6 actionable constraints that apply across every cluster (e.g. "Never place text directly over photographs", "Always use the brand footer lockup").
 - Group every image into a cluster. Each image MUST belong to exactly one cluster.
-- CLUSTER SIZE CONSTRAINT: Each cluster MUST contain exactly 2 or 3 images.
-- If an image is an outlier, pair it with its most similar counterpart.
+- CLUSTER SIZE CONSTRAINT: Each cluster MUST contain at least 3 images. Prefer exactly 3 when possible.
+- If an image is an outlier, group it with its two most similar counterparts (minimum 3 per cluster).
 - For each cluster:
   - "dominantColor" MUST be a hex code (e.g. "#EA6E2A"). If multiple dominant colors, pick the single most prominent.
   - "palette": array of 3-5 hex color strings found in this cluster's images (e.g. ["#EA6E2A", "#1A1A1A", "#FFFFFF"]).

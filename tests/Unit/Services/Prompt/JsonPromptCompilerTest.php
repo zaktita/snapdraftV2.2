@@ -3,6 +3,7 @@
 namespace Tests\Unit\Services\Prompt;
 
 use App\Services\Prompt\JsonPromptCompiler;
+use App\Services\Prompt\JsonSchemaValidator;
 use PHPUnit\Framework\TestCase;
 
 class JsonPromptCompilerTest extends TestCase
@@ -54,6 +55,33 @@ class JsonPromptCompilerTest extends TestCase
         $this->assertStringContainsString('ON-IMAGE TEXT', $prompt);
         $this->assertStringContainsString('Inscrivez-vous', $prompt);
         $this->assertStringContainsString('Full social caption here', $prompt);
-        $this->assertStringContainsString('```json', $prompt);
+        $this->assertStringContainsString('Visual constraints', $prompt);
+        $this->assertStringNotContainsString('Full post prompt JSON', $prompt);
+        $this->assertStringNotContainsString('"caption": "Full social caption here"', $prompt);
+    }
+
+    public function test_validate_post_prompt_requires_on_image_text(): void
+    {
+        $validator = new JsonSchemaValidator();
+
+        $invalid = $validator->validate([
+            'brand_locked' => [],
+            'post' => ['concept' => 'A concept'],
+            'quality' => ['include' => ['photorealistic']],
+        ], 'generate_post');
+
+        $this->assertFalse($invalid['valid']);
+        $this->assertContains('Missing or empty post.on_image_text', $invalid['errors']);
+
+        $valid = $validator->validate([
+            'brand_locked' => [],
+            'post' => [
+                'concept' => 'A concept',
+                'on_image_text' => ['headline' => 'Bonjour'],
+            ],
+            'quality' => ['include' => ['photorealistic']],
+        ], 'generate_post');
+
+        $this->assertTrue($valid['valid']);
     }
 }

@@ -56,18 +56,35 @@ class JsonPromptCompiler
             }
         }
 
-        $json = json_encode(
-            $promptJson,
-            JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES
-        );
-
-        if ($json === false) {
-            throw new \RuntimeException('Failed to encode post prompt JSON.');
+        $constraintsJson = $this->buildImageConstraintsJson($promptJson);
+        if ($constraintsJson !== []) {
+            $json = json_encode($constraintsJson, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+            if ($json !== false) {
+                $parts[] = "Visual constraints (subject, palette, quality — on-image copy is above, not in this block):\n\n```json\n{$json}\n```";
+            }
         }
 
-        $parts[] = "Full post prompt JSON (subject, palette, and quality constraints):\n\n```json\n{$json}\n```";
-
         return trim(implode("\n\n", $parts));
+    }
+
+    /**
+     * JSON for the image model excluding fields already expressed in natural-language blocks above.
+     *
+     * @param  array<string, mixed>  $promptJson
+     * @return array<string, mixed>
+     */
+    protected function buildImageConstraintsJson(array $promptJson): array
+    {
+        $constraints = $promptJson;
+        unset($constraints['cluster_context'], $constraints['reference_usage']);
+
+        if (isset($constraints['post']) && is_array($constraints['post'])) {
+            $post = $constraints['post'];
+            unset($post['caption'], $post['on_image_text']);
+            $constraints['post'] = $post;
+        }
+
+        return array_filter($constraints, fn ($value) => $value !== null && $value !== []);
     }
 
     /**
@@ -244,6 +261,14 @@ class JsonPromptCompiler
      */
     protected function formatOnImageTextEntry(mixed $item, ?string $role): ?string
     {
+        if (is_string($item) && trim($item) !== '') {
+            $line = is_string($role) && $role !== ''
+                ? '['.strtoupper($role).' zone] "'.trim($item).'"'
+                : '"'.trim($item).'"';
+
+            return $line;
+        }
+
         if (! is_array($item)) {
             return null;
         }

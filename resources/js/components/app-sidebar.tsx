@@ -32,6 +32,9 @@ import {
     LogOut,
 
     Shield,
+    FlaskConical,
+    Layers,
+    Boxes,
 } from 'lucide-react';
 import AppLogo from './app-logo';
 
@@ -145,6 +148,27 @@ export function AppSidebar() {
                     title: 'Usage',
                     href: '/admin/usage',
                     icon: LayoutGrid,
+                },
+            ],
+        });
+
+        dynamicProjectNavGroups.push({
+            title: 'Test Labs',
+            items: [
+                {
+                    title: 'PromptForge CSV Lab',
+                    href: '/test/prompt-forge',
+                    icon: FlaskConical,
+                },
+                {
+                    title: 'Clustering Lab',
+                    href: '/test/clustering',
+                    icon: Layers,
+                },
+                {
+                    title: 'Cluster Generation',
+                    href: '/test/cluster-generation',
+                    icon: Boxes,
                 },
             ],
         });

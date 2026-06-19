@@ -7,7 +7,7 @@ use App\Models\BrandReference;
 use App\Models\Image;
 use App\Models\Project;
 use App\Models\ProjectCluster;
-use App\Services\AI\GeminiCsvImageGenerator;
+use App\Services\AI\CsvImageGenerationService;
 use App\Services\Brand\ClusteringBrandAnalyzer;
 use App\Services\Brand\CsvPostPromptBuilder;
 use App\Services\Brand\ProjectClusterSelector;
@@ -35,7 +35,7 @@ class ClusteringTestController extends Controller
         protected CsvPostPromptBuilder $postPromptBuilder,
         protected SkillPromptBuilder $skillPromptBuilder,
         protected JsonPromptCompiler $promptCompiler,
-        protected GeminiCsvImageGenerator $imageGenerator,
+        protected CsvImageGenerationService $imageGenerator,
     ) {}
 
     public function index(Request $request): Response
@@ -64,7 +64,7 @@ class ClusteringTestController extends Controller
 
         $validated = $request->validate([
             'brand_name' => 'nullable|string|min:2|max:120',
-            'reference_images' => 'required|array|min:2|max:10',
+            'reference_images' => 'required|array|min:3|max:10',
             'reference_images.*' => 'required|image|mimes:jpeg,jpg,png,webp|max:10240',
         ]);
 

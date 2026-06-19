@@ -134,12 +134,14 @@ Route::middleware(['auth', 'verified'])->group(function () {
                 ->name('test.prompt-forge');
             Route::post('test/prompt-forge', [\App\Http\Controllers\Test\PromptForgeTestController::class, 'store'])
                 ->name('test.prompt-forge.store');
-            Route::post('test/prompt-forge/{session}/extract', [\App\Http\Controllers\Test\PromptForgeTestController::class, 'extract'])
-                ->name('test.prompt-forge.extract');
-            Route::post('test/prompt-forge/{session}/generate-post', [\App\Http\Controllers\Test\PromptForgeTestController::class, 'generatePost'])
-                ->name('test.prompt-forge.generate-post');
-            Route::post('test/prompt-forge/{session}/generate-image', [\App\Http\Controllers\Test\PromptForgeTestController::class, 'generateImage'])
-                ->name('test.prompt-forge.generate-image');
+            Route::get('test/prompt-forge/sessions/{session}', [\App\Http\Controllers\Test\PromptForgeTestController::class, 'show'])
+                ->name('test.prompt-forge.session');
+            Route::get('test/prompt-forge/sessions/{session}/status', [\App\Http\Controllers\Test\PromptForgeTestController::class, 'status'])
+                ->name('test.prompt-forge.status');
+            Route::get('test/prompt-forge/sessions/{session}/result', [\App\Http\Controllers\Test\PromptForgeTestController::class, 'result'])
+                ->name('test.prompt-forge.result');
+            Route::get('test/prompt-forge/sessions/{session}/rows/{rowIndex}/debug', [\App\Http\Controllers\Test\PromptForgeTestController::class, 'rowDebug'])
+                ->name('test.prompt-forge.row-debug');
         });
 
         // Quick Generate Routes

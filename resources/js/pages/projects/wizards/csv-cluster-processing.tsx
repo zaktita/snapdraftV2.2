@@ -76,6 +76,11 @@ interface PageProps {
         project: string;
         row_debug: string;
     };
+    lab?: {
+        title: string;
+        setup_href: string;
+        breadcrumb_label: string;
+    };
 }
 
 const PHASES = [
@@ -102,6 +107,7 @@ export default function CsvClusterProcessing({
     rows: initialRows,
     completed = false,
     urls,
+    lab,
 }: PageProps) {
     const [pipeline, setPipeline] = useState(initialPipeline);
     const [rows, setRows] = useState(initialRows);
@@ -162,19 +168,25 @@ export default function CsvClusterProcessing({
         [rows],
     );
 
+    const pageTitle = lab?.title ?? 'CSV Cluster Wizard';
+    const setupHref = lab?.setup_href ?? '/projects/create/csv-cluster';
+    const breadcrumbLabel = lab?.breadcrumb_label ?? 'CSV Cluster Wizard';
+
     return (
         <AppLayout
             breadcrumbs={[
                 { title: 'Dashboard', href: '/dashboard' },
-                { title: 'CSV Cluster Wizard', href: '/projects/create/csv-cluster' },
+                { title: breadcrumbLabel, href: setupHref },
                 { title: `Session #${session.id}`, href: '#' },
             ]}
         >
-            <Head title="CSV Cluster — Processing" />
+            <Head title={completed ? `${pageTitle} — Complete` : `${pageTitle} — Processing`} />
 
             <div className="mx-auto max-w-6xl space-y-6 p-6">
                 <div>
-                    <h1 className="text-2xl font-bold">Generating your batch</h1>
+                    <h1 className="text-2xl font-bold">
+                        {completed ? 'Batch complete' : 'Generating your batch'}
+                    </h1>
                     <p className="text-muted-foreground text-sm">
                         Session #{sessionData.id} · {sessionData.total_jobs} row{sessionData.total_jobs !== 1 ? 's' : ''}
                     </p>

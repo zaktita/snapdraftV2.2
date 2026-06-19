@@ -7,7 +7,7 @@ use App\Models\GenerationHistory;
 use App\Models\Image;
 use App\Models\Project;
 use App\Models\ProjectCluster;
-use App\Services\AI\GeminiCsvImageGenerator;
+use App\Services\AI\CsvImageGenerationService;
 use App\Services\Brand\ProjectClusterSelector;
 use App\Services\FormatPresetMapper;
 use App\Services\Prompt\JsonPromptCompiler;
@@ -40,7 +40,7 @@ class GenerateSingleImageJob implements ShouldQueue
 
     public function handle(
         JsonPromptCompiler $compiler,
-        GeminiCsvImageGenerator $imageGenerator,
+        CsvImageGenerationService $imageGenerator,
         ProjectClusterSelector $clusterSelector,
     ): void {
         if ($this->batch()?->cancelled()) {
@@ -65,6 +65,16 @@ class GenerateSingleImageJob implements ShouldQueue
         }
 
         try {
+            if ($history?->image_id || $history?->status === 'completed') {
+                Log::info('GenerateSingleImageJob: skipping already completed row', [
+                    'project_id' => $this->projectId,
+                    'row_index' => $rowIndex,
+                    'history_id' => $history->id,
+                ]);
+
+                return;
+            }
+
             $history?->update(['status' => 'processing']);
 
             $promptJson = $history?->prompt_json;
@@ -98,6 +108,13 @@ class GenerateSingleImageJob implements ShouldQueue
             if ($clusterImages->isEmpty()) {
                 throw new \RuntimeException(
                     "No reference images found for cluster \"{$clusterKey}\" on row {$rowIndex}."
+                );
+            }
+
+            $minClusterImages = (int) config('ai.cluster_selection.min_images_per_cluster', 3);
+            if ($clusterImages->count() < $minClusterImages) {
+                throw new \RuntimeException(
+                    "Cluster \"{$clusterKey}\" has {$clusterImages->count()} reference image(s) but {$minClusterImages} are required for generation."
                 );
             }
 
@@ -135,7 +152,7 @@ class GenerateSingleImageJob implements ShouldQueue
                 'resolution_multiplier' => $resolutionMultiplier,
             ]);
 
-            if ($user->hasActiveSubscription()) {
+            if ($user->hasActiveSubscription() && ($project->settings['wizard_type'] ?? null) !== 'prompt_forge_lab') {
                 $user->useCredit($resolutionMultiplier);
                 $creditDeducted = true;
             }
@@ -146,6 +163,7 @@ class GenerateSingleImageJob implements ShouldQueue
                 $aspectRatio,
                 $resolutionMultiplier,
                 $caption !== '' ? $caption : null,
+                $imageRequestPrompt,
             );
 
             $directory = "projects/{$this->projectId}/images";
@@ -225,8 +243,12 @@ class GenerateSingleImageJob implements ShouldQueue
             return 'Generation timed out. Please try again.';
         }
 
-        if (str_contains($msg, 'unauthorized') || str_contains($msg, '401') || str_contains($msg, 'api key')) {
-            return 'AI service authentication failed. Please contact support.';
+        if (str_contains($msg, 'leaked')) {
+            return 'Gemini API key was revoked. Set a new GEMINI_API_KEY or AI_IMAGE_DRIVER=openrouter in .env.';
+        }
+
+        if (str_contains($msg, 'unauthorized') || str_contains($msg, '401') || str_contains($msg, '403') || str_contains($msg, 'api key')) {
+            return 'AI service authentication failed. Check GEMINI_API_KEY / OPENROUTER_API_KEY in .env.';
         }
 
         if (str_contains($msg, 'content') || str_contains($msg, 'safety') || str_contains($msg, 'policy')) {

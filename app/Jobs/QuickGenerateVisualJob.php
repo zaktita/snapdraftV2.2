@@ -6,7 +6,7 @@ use App\Models\Image;
 use App\Models\Project;
 use App\Models\QuickGenerateSession;
 use App\Services\AI\OpenRouter\BrandDnaExtractor;
-use App\Services\AI\GeminiCsvImageGenerator;
+use App\Services\AI\CsvImageGenerationService;
 use App\Services\AI\OpenRouter\OpenRouterCsvPostGenerator;
 use App\Services\Brand\ProjectBrandPersister;
 use App\Services\Brand\ProjectClusterSelector;
@@ -40,7 +40,7 @@ class QuickGenerateVisualJob implements ShouldQueue
         ProjectBrandPersister $persister,
         OpenRouterCsvPostGenerator $postGenerator,
         JsonPromptCompiler $compiler,
-        GeminiCsvImageGenerator $imageGenerator,
+        CsvImageGenerationService $imageGenerator,
         ProjectClusterSelector $clusterSelector,
     ): void {
         $session = QuickGenerateSession::findOrFail($this->sessionId);

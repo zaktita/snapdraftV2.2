@@ -115,7 +115,13 @@ const stepContent = {
 };
 
 export default function CSVWizard() {
-    const page = usePage<{ error?: string; auth: { user: { credits_remaining?: number; credits_total?: number } } }>();
+    const page = usePage<{
+        error?: string;
+        wizardMode?: 'prompt_forge_lab';
+        auth: { user: { credits_remaining?: number; credits_total?: number } };
+    }>();
+    const isLab = page.props.wizardMode === 'prompt_forge_lab';
+    const submitUrl = isLab ? '/test/prompt-forge' : '/projects/wizards/csv';
     const [currentStep, setCurrentStep] = useState(1);
     const [csvData, setCsvData] = useState<CSVRow[]>([]);
     const [selectedRows, setSelectedRows] = useState<Set<number>>(new Set());
@@ -649,26 +655,28 @@ export default function CSVWizard() {
         }
 
         // ── Credit check — block before submission so the user doesn't wait ──
-        const creditsRemaining = page.props.auth?.user?.credits_remaining ?? 0;
-        if (creditsRemaining === 0) {
-            setLocalError('You have no credits remaining. Please subscribe or upgrade to generate images.');
-            setShowError(true);
-            debug('submitToBackend: blocked - no credits', { creditsRemaining });
-            return;
-        }
-        const requiredCredits = selectedData.length * resolutionMultiplier;
-        if (requiredCredits > creditsRemaining) {
-            setLocalError(
-                `Not enough credits. You selected ${selectedData.length} row(s) at ${resolutionMultiplier}x (${requiredCredits} credit(s) total), but only have ${creditsRemaining} credit(s) remaining.`
-            );
-            setShowError(true);
-            debug('submitToBackend: blocked - insufficient credits', {
-                selected: selectedData.length,
-                multiplier: resolutionMultiplier,
-                requiredCredits,
-                creditsRemaining,
-            });
-            return;
+        if (!isLab) {
+            const creditsRemaining = page.props.auth?.user?.credits_remaining ?? 0;
+            if (creditsRemaining === 0) {
+                setLocalError('You have no credits remaining. Please subscribe or upgrade to generate images.');
+                setShowError(true);
+                debug('submitToBackend: blocked - no credits', { creditsRemaining });
+                return;
+            }
+            const requiredCredits = selectedData.length * resolutionMultiplier;
+            if (requiredCredits > creditsRemaining) {
+                setLocalError(
+                    `Not enough credits. You selected ${selectedData.length} row(s) at ${resolutionMultiplier}x (${requiredCredits} credit(s) total), but only have ${creditsRemaining} credit(s) remaining.`
+                );
+                setShowError(true);
+                debug('submitToBackend: blocked - insufficient credits', {
+                    selected: selectedData.length,
+                    multiplier: resolutionMultiplier,
+                    requiredCredits,
+                    creditsRemaining,
+                });
+                return;
+            }
         }
 
         const csvHeaders = Object.keys(csvData[0]);
@@ -728,10 +736,10 @@ export default function CSVWizard() {
             names: styleImageFiles.slice(0, 10).map((f) => f.name),
         });
 
-        router.post('/projects/wizards/csv', fd, {
+        router.post(submitUrl, fd, {
             forceFormData: true,
             preserveScroll: false,
-            onStart: () => debug('inertia: onStart', { url: '/projects/wizards/csv' }),
+            onStart: () => debug('inertia: onStart', { url: submitUrl }),
             onProgress: (event) => debug('inertia: onProgress', { loaded: event?.loaded, total: event?.total, percentage: (event as any)?.percentage }),
             onSuccess: () => debug('inertia: onSuccess'),
             onError: (errs) => {
@@ -806,7 +814,7 @@ export default function CSVWizard() {
 
     return (
         <>
-            <Head title="Create Content Plan Project" />
+            <Head title={isLab ? 'PromptForge CSV Lab' : 'Create Content Plan Project'} />
 
             <div style={{
                 fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", "Oxygen", "Ubuntu", "Cantarell", sans-serif',
@@ -833,7 +841,7 @@ export default function CSVWizard() {
                     }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
                             <Link
-                                href="/projects"
+                                href={isLab ? '/test/prompt-forge' : '/projects'}
                                 style={{
                                     display: 'inline-flex',
                                     alignItems: 'center',
@@ -845,9 +853,24 @@ export default function CSVWizard() {
                                 }}
                             >
                                 <ArrowLeft size={14} />
-                                Back to Projects
+                                {isLab ? 'PromptForge Lab' : 'Back to Projects'}
                             </Link>
-                            {page.props.auth?.user?.credits_remaining !== undefined && (
+                            {isLab ? (
+                                <div style={{
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '6px',
+                                    fontSize: '12px',
+                                    fontWeight: 600,
+                                    padding: '4px 10px',
+                                    borderRadius: '20px',
+                                    background: 'hsl(var(--primary) / 0.1)',
+                                    color: 'var(--color-primary)',
+                                }}>
+                                    <Zap size={12} />
+                                    Admin test lab — no credits charged
+                                </div>
+                            ) : page.props.auth?.user?.credits_remaining !== undefined && (
                                 <div style={{
                                     display: 'inline-flex',
                                     alignItems: 'center',
@@ -944,12 +967,18 @@ export default function CSVWizard() {
                             {getSubtitle()}
                         </p>
                         <p style={{ margin: '10px 0 0', fontSize: '13px' }}>
-                            <a
-                                href="/projects/create/csv-cluster"
-                                style={{ color: 'var(--color-primary)', textDecoration: 'none', fontWeight: 500 }}
-                            >
-                                Try CSV Cluster Wizard (4-step pipeline) →
-                            </a>
+                            {isLab ? (
+                                <span style={{ color: 'var(--color-muted-foreground)' }}>
+                                    Cluster DNA → match captions → PromptForge post JSON → batch image generation
+                                </span>
+                            ) : (
+                                <a
+                                    href="/projects/create/csv-cluster"
+                                    style={{ color: 'var(--color-primary)', textDecoration: 'none', fontWeight: 500 }}
+                                >
+                                    Try CSV Cluster Wizard (4-step pipeline) →
+                                </a>
+                            )}
                         </p>
                     </div>
 
@@ -1813,12 +1842,20 @@ export default function CSVWizard() {
                                             </div>
                                             <div style={{ fontSize: '13px', color: 'var(--color-muted-foreground)', marginBottom: '4px' }}>Credit Cost</div>
                                             <div style={{ fontSize: '16px', fontWeight: 500, color: 'var(--color-foreground)' }}>
-                                                This will use {selectedRows.size * resolutionMultiplier} of your{' '}
-                                                {page.props.auth?.user?.credits_remaining ?? '—'} available credits
+                                                {isLab ? (
+                                                    <>Admin lab — pipeline runs automatically for {selectedRows.size} row{selectedRows.size !== 1 ? 's' : ''}</>
+                                                ) : (
+                                                    <>
+                                                        This will use {selectedRows.size * resolutionMultiplier} of your{' '}
+                                                        {page.props.auth?.user?.credits_remaining ?? '—'} available credits
+                                                    </>
+                                                )}
                                             </div>
+                                            {!isLab && (
                                             <div style={{ marginTop: '4px', fontSize: '12px', color: 'var(--color-muted-foreground)' }}>
                                                 {selectedRows.size} row{selectedRows.size !== 1 ? 's' : ''} x {resolutionMultiplier}x resolution multiplier
                                             </div>
+                                            )}
                                         </div>
                                     </div>
                                 </div>
@@ -1912,7 +1949,9 @@ export default function CSVWizard() {
                                 </>
                             ) : currentStep === 5 ? (
                                 <>
-                                    Generate ({selectedRows.size * resolutionMultiplier} credit{(selectedRows.size * resolutionMultiplier) !== 1 ? 's' : ''})
+                                    {isLab
+                                        ? `Start pipeline (${selectedRows.size} row${selectedRows.size !== 1 ? 's' : ''})`
+                                        : `Generate (${selectedRows.size * resolutionMultiplier} credit${(selectedRows.size * resolutionMultiplier) !== 1 ? 's' : ''})`}
                                     <Zap size={16} />
                                 </>
                             ) : (

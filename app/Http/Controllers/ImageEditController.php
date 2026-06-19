@@ -893,9 +893,10 @@ class ImageEditController extends Controller
     public function aiEditImage(Request $request)
     {
         $validated = $request->validate([
-            'image'    => 'required|string|max:14000000', // ~10 MB
-            'prompt'   => 'required|string|max:2000',
-            'image_id' => 'nullable|integer|exists:images,id',
+            'image'         => 'required|string|max:14000000', // ~10 MB
+            'prompt'        => 'required|string|max:2000',
+            'image_id'      => 'nullable|integer|exists:images,id',
+            'aspect_ratio'  => ['nullable', 'string', 'regex:/^\d+:\d+$/'],
         ]);
 
         if (!empty($validated['image_id'])) {
@@ -931,10 +932,14 @@ class ImageEditController extends Controller
                 $creditDeducted = true;
             }
 
-            $resultBase64 = $this->aiService->editBase64($imageBase64, $prompt, null);
+            $aspectRatio = $validated['aspect_ratio'] ?? null;
 
-            // Resize result back to original dimensions if they differ
-            $resultBase64 = self::resizeToOriginal($resultBase64, $originalW, $originalH);
+            $resultBase64 = $this->aiService->editBase64($imageBase64, $prompt, null, $aspectRatio);
+
+            // Resize result back to original dimensions unless aspect ratio recompose was requested
+            if ($aspectRatio === null) {
+                $resultBase64 = self::resizeToOriginal($resultBase64, $originalW, $originalH);
+            }
 
             Log::info('[ai-edit-image] Success');
 

@@ -156,8 +156,12 @@ class GoogleGeminiService
      *
      * @return string Base64-encoded result image
      */
-    public function editBase64(string $imageBase64, string $prompt, ?string $maskBase64 = null): string
-    {
+    public function editBase64(
+        string $imageBase64,
+        string $prompt,
+        ?string $maskBase64 = null,
+        ?string $aspectRatio = null,
+    ): string {
         $model = config('services.gemini.image_model', 'gemini-2.0-flash-preview-image-generation');
 
         $parts = [
@@ -172,7 +176,7 @@ class GoogleGeminiService
 
         $contents = [['parts' => $parts]];
 
-        return $this->client->generateImage($model, $contents);
+        return $this->client->generateImage($model, $contents, $aspectRatio ?? '1:1');
     }
 
     /**
