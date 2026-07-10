@@ -5,6 +5,7 @@ namespace App\Services\Wizards;
 use App\Models\GenerationHistory;
 use App\Models\Project;
 use App\Services\Brand\ProjectClusterSelector;
+use App\Services\Wizards\CreativityLevel;
 use Illuminate\Support\Facades\Storage;
 
 class ImageGenerationDebugPayload
@@ -35,6 +36,8 @@ class ImageGenerationDebugPayload
         $clusterSelector = app(ProjectClusterSelector::class);
 
         $imageGen = data_get($history->request_data, 'image_generation', []);
+        $postGen = data_get($history->request_data, 'post_generation', []);
+        $masterGen = data_get($history->request_data, 'master_prompt_generation', []);
         $preferredIds = $imageGen['cluster_image_ids']
             ?? data_get($history->request_data, 'cluster_image_ids')
             ?? (is_array($match) ? ($match['cluster_image_ids'] ?? null) : null);
@@ -54,9 +57,31 @@ class ImageGenerationDebugPayload
             $clusterMetadata ??= $clusterSelector->clusterMetadata($project, $cluster);
         }
 
+        $isMasterPrompt = data_get($history->prompt_json, 'pipeline') === 'master_prompt_lab'
+            || data_get($imageGen, 'pipeline') === 'master_prompt_lab'
+            || ($project->settings['wizard_type'] ?? null) === 'prompt_forge_lab';
+
+        $masterPrompt = null;
+        if ($isMasterPrompt) {
+            $masterPrompt = data_get($history->prompt_json, 'master_prompt')
+                ?? $history->compiled_prompt
+                ?? data_get($imageGen, 'image_request_prompt');
+        }
+
         return [
             'row_index' => $rowIndex,
             'available' => true,
+            'pipeline' => $isMasterPrompt ? 'master_prompt_lab' : 'post_json',
+            'creativity_level' => CreativityLevel::normalize(
+                data_get($postGen, 'creativity_level')
+                ?? data_get($imageGen, 'creativity_level')
+                ?? data_get($project->settings, 'creativity_level')
+                ?? data_get($history->prompt_json, 'meta.creativity_level'),
+            ),
+            'step2_cluster_images_attached' => (bool) data_get($postGen, 'cluster_images_attached', false),
+            'match_method' => is_array($match)
+                ? (($match['used_vision_fallback'] ?? false) ? 'vision' : (($match['used_model_fallback'] ?? false) ? 'text_model' : 'keywords'))
+                : null,
             'cluster' => $cluster ? [
                 'key' => $cluster->key,
                 'label' => $cluster->label,
@@ -64,6 +89,7 @@ class ImageGenerationDebugPayload
                 'keywords' => $cluster->keywords_json ?? [],
                 'metadata' => $clusterMetadata,
                 'images_sent_to_model' => $clusterImages
+                    ->take(3)
                     ->map(function ($img) {
                         $ref = $img->brandReference;
 
@@ -81,9 +107,18 @@ class ImageGenerationDebugPayload
                     ->values()
                     ->all(),
             ] : null,
-            'prompt_json' => $history->prompt_json,
-            'compiled_prompt' => $history->compiled_prompt,
-            'image_request_prompt' => $imageGen['image_request_prompt'] ?? null,
+            'master_prompt' => $masterPrompt,
+            'slots_detected' => data_get($history->prompt_json, 'slots_detected')
+                ?? data_get($masterGen, 'slots_detected'),
+            'copy' => data_get($history->prompt_json, 'copy')
+                ?? data_get($masterGen, 'copy'),
+            'visual_lock_summary' => data_get($history->prompt_json, 'visual_lock_summary')
+                ?? data_get($masterGen, 'visual_lock_summary'),
+            'prompt_json' => $isMasterPrompt ? null : $history->prompt_json,
+            'compiled_prompt' => $isMasterPrompt ? null : $history->compiled_prompt,
+            'image_request_prompt' => $isMasterPrompt
+                ? $masterPrompt
+                : ($imageGen['image_request_prompt'] ?? null),
             'image_generation' => $imageGen !== [] ? $imageGen : null,
             'match' => $match,
             'json_valid' => $history->json_valid,

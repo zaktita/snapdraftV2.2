@@ -75,28 +75,30 @@ class JsonSchemaValidator
             $errors[] = 'Missing quality.include (or quality.must_have) array';
         }
 
-        if (! $this->hasOnImageText($json['post']['on_image_text'] ?? null)) {
-            $errors[] = 'Missing or empty post.on_image_text';
+        if (isset($json['post']['on_image_text']) && ! $this->isValidOnImageText($json['post']['on_image_text'])) {
+            $errors[] = 'Invalid post.on_image_text structure';
         }
 
         return ['valid' => $errors === [], 'errors' => $errors];
     }
 
-    protected function hasOnImageText(mixed $onImageText): bool
+    protected function isValidOnImageText(mixed $onImageText): bool
     {
-        if ($onImageText === null) {
+        if ($onImageText === null || $onImageText === []) {
+            return true;
+        }
+
+        if (! is_array($onImageText)) {
             return false;
         }
 
-        if (is_array($onImageText)) {
-            foreach ($onImageText as $item) {
-                if ($this->onImageTextEntryHasContent($item)) {
-                    return true;
-                }
+        foreach ($onImageText as $item) {
+            if (! $this->onImageTextEntryHasContent($item)) {
+                return false;
             }
         }
 
-        return false;
+        return true;
     }
 
     protected function onImageTextEntryHasContent(mixed $item): bool

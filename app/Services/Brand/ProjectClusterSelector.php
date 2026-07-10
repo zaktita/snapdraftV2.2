@@ -7,7 +7,9 @@ use App\Models\ProjectCluster;
 use App\Models\ProjectClusterImage;
 use App\Services\AI\ModelRegistry;
 use App\Services\AI\OpenRouter\OpenRouterClient;
+use App\Services\Wizards\CreativityLevel;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
 class ProjectClusterSelector
@@ -22,6 +24,7 @@ class ProjectClusterSelector
      *     scores: array<string, float>,
      *     selected_key: ?string,
      *     used_model_fallback: bool,
+     *     used_vision_fallback: bool,
      *     top_score: float,
      *     second_score: float
      * }
@@ -35,6 +38,7 @@ class ProjectClusterSelector
                 'scores' => [],
                 'selected_key' => null,
                 'used_model_fallback' => false,
+                'used_vision_fallback' => false,
                 'top_score' => 0,
                 'second_score' => 0,
             ];
@@ -65,12 +69,23 @@ class ProjectClusterSelector
             : $project->clusters->first();
 
         $usedModelFallback = false;
+        $usedVisionFallback = false;
 
         if ($needsModelPick && $project->clusters->count() > 1) {
-            $picked = $this->modelPickCluster($project, $caption);
-            if ($picked !== null) {
-                $selectedCluster = $picked;
-                $usedModelFallback = true;
+            if (CreativityLevel::isPromptForgeLab($project)) {
+                $picked = $this->modelPickClusterWithVision($project, $caption);
+                if ($picked !== null) {
+                    $selectedCluster = $picked;
+                    $usedVisionFallback = true;
+                }
+            }
+
+            if (! $usedVisionFallback) {
+                $picked = $this->modelPickCluster($project, $caption);
+                if ($picked !== null) {
+                    $selectedCluster = $picked;
+                    $usedModelFallback = true;
+                }
             }
         }
 
@@ -83,6 +98,7 @@ class ProjectClusterSelector
             'scores' => $scoresByKey,
             'selected_key' => $selectedCluster?->key,
             'used_model_fallback' => $usedModelFallback,
+            'used_vision_fallback' => $usedVisionFallback,
             'top_score' => $topScore,
             'second_score' => $secondScore,
         ];
@@ -99,36 +115,9 @@ class ProjectClusterSelector
             throw new \RuntimeException('Project has no clusters.');
         }
 
-        $text = Str::lower(trim($caption));
-        $scores = [];
-
-        foreach ($project->clusters as $cluster) {
-            $scores[$cluster->id] = $this->keywordScore($text, $cluster);
-        }
-
-        arsort($scores);
-        $ids = array_keys($scores);
-        $topId = $ids[0] ?? null;
-        $secondId = $ids[1] ?? null;
-        $topScore = $topId ? $scores[$topId] : 0;
-        $secondScore = $secondId ? $scores[$secondId] : 0;
-
-        $threshold = (float) config('ai.cluster_selection.keyword_score_threshold', 0.15);
-        $ambiguousGap = (float) config('ai.cluster_selection.ambiguous_gap', 0.05);
-
-        $needsModelPick = $topScore < $threshold
-            || ($secondId !== null && ($topScore - $secondScore) < $ambiguousGap);
-
-        $cluster = $topId
-            ? $project->clusters->firstWhere('id', $topId)
-            : $project->clusters->first();
-
-        if ($needsModelPick && $project->clusters->count() > 1) {
-            $picked = $this->modelPickCluster($project, $caption);
-            if ($picked !== null) {
-                $cluster = $picked;
-            }
-        }
+        $scoring = $this->scoreClusters($project, $caption);
+        $cluster = $project->clusters->firstWhere('key', $scoring['selected_key'])
+            ?? $project->clusters->first();
 
         if (! $cluster) {
             throw new \RuntimeException('Project has no clusters.');
@@ -208,6 +197,75 @@ class ProjectClusterSelector
                 [
                     'role' => 'user',
                     'content' => "Caption: {$caption}\nClusters: ".json_encode($options),
+                ],
+            ],
+            'max_tokens' => 64,
+            'temperature' => 0,
+        ];
+
+        try {
+            $response = $this->client->chat($payload);
+            $key = trim((string) data_get($response, 'choices.0.message.content', ''));
+
+            return $project->clusters->firstWhere('key', $key);
+        } catch (\Throwable) {
+            return null;
+        }
+    }
+
+    protected function modelPickClusterWithVision(Project $project, string $caption): ?ProjectCluster
+    {
+        $model = $this->modelRegistry->resolveSlug(
+            config('ai.default_post_model_slug', 'gpt-4o'),
+        );
+
+        if (! $model) {
+            return null;
+        }
+
+        $project->loadMissing(['clusters.images.brandReference']);
+
+        $content = [
+            [
+                'type' => 'text',
+                'text' => 'Pick the single best cluster key for this new social post caption. '
+                    .'Each attached image is the anchor reference for one cluster — match caption topic AND the visual template style (layout type, photo vs graphic, text-heavy vs minimal). '
+                    ."Caption:\n{$caption}\n\n"
+                    .'Reply with ONLY the cluster key string, nothing else.',
+            ],
+        ];
+
+        foreach ($project->clusters as $cluster) {
+            $anchor = $this->orderedClusterImages($cluster)->first();
+            $ref = $anchor?->brandReference;
+
+            $content[] = [
+                'type' => 'text',
+                'text' => 'Cluster '.$cluster->key.': '.$cluster->label
+                    .' | keywords: '.json_encode($cluster->keywords_json ?? [])
+                    .($cluster->summary ? ' | '.$cluster->summary : ''),
+            ];
+
+            if ($ref && Storage::disk('public')->exists($ref->url)) {
+                $mime = Storage::disk('public')->mimeType($ref->url) ?? 'image/jpeg';
+                $base64 = base64_encode(Storage::disk('public')->get($ref->url));
+                $content[] = [
+                    'type' => 'image_url',
+                    'image_url' => ['url' => 'data:'.$mime.';base64,'.$base64],
+                ];
+            }
+        }
+
+        $payload = [
+            'model' => $model->openrouter_model_id,
+            'messages' => [
+                [
+                    'role' => 'system',
+                    'content' => 'You match social post captions to brand visual template clusters. Reply with ONLY the cluster key.',
+                ],
+                [
+                    'role' => 'user',
+                    'content' => $content,
                 ],
             ],
             'max_tokens' => 64,
@@ -319,6 +377,13 @@ class ProjectClusterSelector
             'composition_type' => $entry['compositionType'] ?? null,
             'background_treatment' => $entry['backgroundTreatment'] ?? null,
             'text_placement' => $entry['textPlacement'] ?? null,
+            'rendering_style' => $entry['renderingStyle'] ?? null,
+            'photo_treatment' => $entry['photoTreatment'] ?? null,
+            'graphic_devices' => $entry['graphicDevices'] ?? [],
+            'typography_details' => $entry['typographyDetails'] ?? null,
+            'layout_skeleton' => $entry['layoutSkeleton'] ?? null,
+            'logo_treatment' => $entry['logoTreatment'] ?? null,
+            'text_density' => $entry['textDensity'] ?? null,
             'global_rules' => $clusterResult['globalRules'] ?? [],
             'global_analysis' => $clusterResult['globalAnalysis'] ?? null,
         ];

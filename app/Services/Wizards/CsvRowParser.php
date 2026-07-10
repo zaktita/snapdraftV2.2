@@ -18,14 +18,20 @@ class CsvRowParser
         $content = file_get_contents($file->getRealPath());
         $content = ltrim($content, "\xEF\xBB\xBF");
 
-        $lines = array_filter(array_map('trim', explode("\n", $content)));
-        $lines = array_values($lines);
+        // Parse via a stream so quoted fields containing newlines (multi-line
+        // captions/briefs) are preserved as a single field per RFC 4180.
+        $handle = fopen('php://temp', 'r+');
+        fwrite($handle, $content);
+        rewind($handle);
 
-        if (count($lines) < 2) {
+        $headers = fgetcsv($handle);
+        if ($headers === false || $headers === null) {
+            fclose($handle);
+
             return [];
         }
 
-        $headers = str_getcsv(array_shift($lines));
+        $headers = array_map(fn ($h) => trim((string) $h), $headers);
 
         $titleCol = $this->findColumn($columnMappings, 'Product Title') ?? ($headers[0] ?? null);
         $captionCol = $this->findColumn($columnMappings, 'Image Prompt');
@@ -33,21 +39,21 @@ class CsvRowParser
 
         $rows = [];
 
-        foreach ($lines as $line) {
-            if (empty(trim($line))) {
+        while (($values = fgetcsv($handle)) !== false) {
+            // Skip blank lines (fgetcsv yields [null] for an empty row).
+            if ($values === null || $values === [null] || implode('', array_map('strval', $values)) === '') {
                 continue;
             }
 
-            $values = str_getcsv($line);
             $row = array_combine($headers, array_pad($values, count($headers), ''));
 
             if (! $row) {
                 continue;
             }
 
-            $title = trim($row[$titleCol] ?? '');
-            $caption = $captionCol ? trim($row[$captionCol] ?? '') : $title;
-            $format = $formatCol ? strtolower(trim($row[$formatCol] ?? 'square')) : 'square';
+            $title = trim((string) ($row[$titleCol] ?? ''));
+            $caption = $captionCol ? trim((string) ($row[$captionCol] ?? '')) : $title;
+            $format = $formatCol ? strtolower(trim((string) ($row[$formatCol] ?? 'square'))) : 'square';
 
             if ($title === '') {
                 continue;
@@ -55,10 +61,12 @@ class CsvRowParser
 
             $rows[] = [
                 'title' => $title,
-                'caption' => $caption ?: $title,
+                'caption' => $caption !== '' ? $caption : $title,
                 'format' => FormatPresetMapper::normalize($format),
             ];
         }
+
+        fclose($handle);
 
         return $rows;
     }

@@ -13,6 +13,7 @@ export type GenerationDebugData = {
     row_index?: number;
     available: boolean;
     message?: string;
+    pipeline?: string | null;
     cluster?: {
         key: string;
         label: string;
@@ -28,6 +29,10 @@ export type GenerationDebugData = {
             is_anchor: boolean;
         }>;
     } | null;
+    master_prompt?: string | null;
+    slots_detected?: string[] | null;
+    copy?: Record<string, string> | null;
+    visual_lock_summary?: string | null;
     prompt_json?: Record<string, unknown> | null;
     compiled_prompt?: string | null;
     image_request_prompt?: string | null;
@@ -128,6 +133,15 @@ export function GenerationDebugDialog({
 
                         {data.available && (
                             <>
+                                {data.pipeline && (
+                                    <div className="flex flex-wrap gap-2">
+                                        <Badge variant="outline">{data.pipeline}</Badge>
+                                        {data.history_status && (
+                                            <Badge variant="secondary">{data.history_status}</Badge>
+                                        )}
+                                    </div>
+                                )}
+
                                 <DebugSection title="Cluster" defaultOpen>
                                     {data.cluster ? (
                                         <div className="space-y-3">
@@ -176,17 +190,48 @@ export function GenerationDebugDialog({
                                     )}
                                 </DebugSection>
 
-                                <DebugSection title="Prompt JSON" defaultOpen>
-                                    <JsonBlock data={data.prompt_json ?? null} />
-                                </DebugSection>
+                                {data.pipeline === 'master_prompt_lab' ? (
+                                    <>
+                                        <DebugSection title="Master prompt" defaultOpen>
+                                            <PreBlock content={data.master_prompt} />
+                                        </DebugSection>
+                                        {(data.slots_detected?.length || data.copy || data.visual_lock_summary) && (
+                                            <DebugSection title="Detected slots & copy">
+                                                <div className="space-y-2">
+                                                    {data.slots_detected && data.slots_detected.length > 0 && (
+                                                        <div className="flex flex-wrap gap-1.5">
+                                                            {data.slots_detected.map((slot) => (
+                                                                <Badge key={slot} variant="secondary">
+                                                                    {slot}
+                                                                </Badge>
+                                                            ))}
+                                                        </div>
+                                                    )}
+                                                    {data.visual_lock_summary && (
+                                                        <p className="text-muted-foreground text-sm">
+                                                            {data.visual_lock_summary}
+                                                        </p>
+                                                    )}
+                                                    {data.copy && <JsonBlock data={data.copy} />}
+                                                </div>
+                                            </DebugSection>
+                                        )}
+                                    </>
+                                ) : (
+                                    <>
+                                        <DebugSection title="Prompt JSON" defaultOpen>
+                                            <JsonBlock data={data.prompt_json ?? null} />
+                                        </DebugSection>
 
-                                <DebugSection title="Compiled prompt">
-                                    <PreBlock content={data.compiled_prompt} />
-                                </DebugSection>
+                                        <DebugSection title="Compiled prompt">
+                                            <PreBlock content={data.compiled_prompt} />
+                                        </DebugSection>
 
-                                <DebugSection title="Image request prompt">
-                                    <PreBlock content={data.image_request_prompt} />
-                                </DebugSection>
+                                        <DebugSection title="Image request prompt">
+                                            <PreBlock content={data.image_request_prompt} />
+                                        </DebugSection>
+                                    </>
+                                )}
                             </>
                         )}
                     </div>

@@ -10,6 +10,7 @@ use App\Services\AI\ModelRegistry;
 use App\Services\Brand\ProjectClusterSelector;
 use App\Services\Prompt\AnalysisResponseParser;
 use App\Services\Prompt\SkillPromptBuilder;
+use App\Services\Wizards\CreativityLevel;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
@@ -28,6 +29,7 @@ class OpenRouterCsvPostGenerator
         Project $project,
         string $caption,
         string $aspectRatio,
+        ?string $creativityLevel = null,
     ): PostGenerationResult {
         $project->loadMissing(['clusters.images.brandReference']);
 
@@ -40,7 +42,7 @@ class OpenRouterCsvPostGenerator
         /** @var Collection<int, ProjectClusterImage> $images */
         $images = $selection['images'];
 
-        return $this->generateForCluster($project, $caption, $aspectRatio, $cluster, $images);
+        return $this->generateForCluster($project, $caption, $aspectRatio, $cluster, $images, $creativityLevel);
     }
 
     /**
@@ -51,6 +53,7 @@ class OpenRouterCsvPostGenerator
         string $caption,
         string $aspectRatio,
         ProjectCluster $cluster,
+        ?string $creativityLevel = null,
     ): PostGenerationResult {
         $project->loadMissing(['clusters.images.brandReference']);
 
@@ -60,7 +63,7 @@ class OpenRouterCsvPostGenerator
 
         $images = $this->clusterSelector->imagesForCluster($cluster);
 
-        return $this->generateForCluster($project, $caption, $aspectRatio, $cluster, $images);
+        return $this->generateForCluster($project, $caption, $aspectRatio, $cluster, $images, $creativityLevel);
     }
 
     /**
@@ -72,6 +75,7 @@ class OpenRouterCsvPostGenerator
         string $aspectRatio,
         ProjectCluster $cluster,
         Collection $images,
+        ?string $creativityLevel = null,
     ): PostGenerationResult {
         $model = $this->modelRegistry->findBySlug(
             config('ai.default_post_model_slug', 'gpt-4o'),
@@ -79,13 +83,23 @@ class OpenRouterCsvPostGenerator
 
         $started = microtime(true);
         $systemPrompt = $this->promptBuilder->systemPrompt('generate_post');
-        $instruction = $this->buildInstruction($project, $cluster, $caption, $aspectRatio, $images);
+        $creativityLevel = CreativityLevel::normalize(
+            $creativityLevel ?? CreativityLevel::fromProject($project),
+        );
+        $instruction = $this->buildInstruction(
+            $project,
+            $cluster,
+            $caption,
+            $aspectRatio,
+            $images,
+            $creativityLevel,
+        );
 
         $content = [
             ['type' => 'text', 'text' => $instruction],
         ];
 
-        if ($this->shouldAttachClusterImages()) {
+        if ($this->shouldAttachClusterImages($project)) {
             foreach ($images as $image) {
                 $reference = $image->brandReference;
                 if (! $reference || ! Storage::disk('public')->exists($reference->url)) {
@@ -213,8 +227,12 @@ class OpenRouterCsvPostGenerator
         ];
     }
 
-    protected function shouldAttachClusterImages(): bool
+    protected function shouldAttachClusterImages(Project $project): bool
     {
+        if (CreativityLevel::isPromptForgeLab($project)) {
+            return true;
+        }
+
         return (bool) config('ai.post_generation.attach_cluster_images', false);
     }
 
@@ -224,6 +242,7 @@ class OpenRouterCsvPostGenerator
         string $caption,
         string $aspectRatio,
         Collection $clusterImages,
+        string $creativityLevel,
     ): string {
         $imageCount = $clusterImages->count();
         $clusterMeta = $this->clusterSelector->clusterMetadata($project, $cluster);
@@ -235,18 +254,24 @@ class OpenRouterCsvPostGenerator
             'Cluster keywords: '.json_encode($cluster->keywords_json ?? []),
         ];
 
-        if ($this->shouldAttachClusterImages()) {
+        if ($this->shouldAttachClusterImages($project)) {
             $parts[] = 'Attached reference images: '.$imageCount.' (complete cluster set — use ALL attached images together)';
+            $parts[] = 'Reference task: Study every attached image. Identify the visual form (rendering style, graphic devices, layout skeleton, structural elements, photo treatment). Your JSON must describe a post that fits this exact template family.';
         } else {
-            $parts[] = 'Reference images: not attached — use the cluster metadata below for layout, palette, typography, and text zones.';
+            $parts[] = 'Reference images: not attached — use the cluster metadata below for layout, palette, typography, rendering style, and structural elements.';
         }
 
         $parts = array_merge($parts, [
-            'Raw caption/topic (rewrite and shorten — keep all relevant facts):',
+            CreativityLevel::step2Instruction($creativityLevel),
+            'Visual form task: Before writing JSON, infer the visual form from the caption + cluster metadata + references. State it in post.visual_form and the On-brand check.',
+            'Raw caption/topic (rewrite and shorten — keep all relevant facts, add nothing):',
             $caption,
-            'Caption task: Tighten the raw caption. Remove hashtags, URLs, filler, and repetition. Keep offer, dates, times, location, audience, names, numbers, and CTA. Do not drop important details.',
-            'Language (mandatory): Write post.caption, every on_image_text zone, and any rendered text in post.concept in the SAME language as the raw caption above. Never translate — e.g. French caption → French copy only, even if references or DNA notes are in another language.',
-            'On-image text: Match the reference layout zones. Shorten each zone vs the full caption but keep key facts (e.g. date, event name, offer). Do not paste the full caption on the visual.',
+            'Caption task: Tighten the raw caption. Remove hashtags, URLs, filler, and repetition. Keep offer, dates, times, location, audience, names, numbers, and CTA. Do not drop important details, and do not ADD anything the caption does not contain — no invented dates, venues, offers, CTAs, or filler statements.',
+            CreativityLevel::step2FactRetentionBlock(),
+            CreativityLevel::step2OnImageTextBlock(),
+            CreativityLevel::step2SubjectBlock(),
+            'Language (mandatory): Write post.caption, every on_image_text zone (if any), and any rendered text in post.concept in the SAME language as the raw caption above. Never translate — e.g. French caption → French copy only, even if references or DNA notes are in another language.',
+            'On-image text: Only when the visual carries text (check cluster text_density). If text-free, set on_image_text to []. Otherwise reproduce the zones THIS cluster\'s references actually use — but only those the caption can fill. Omit zones without matching facts. Keep zones scannable.',
             'Aspect ratio: '.$aspectRatio,
         ]);
 

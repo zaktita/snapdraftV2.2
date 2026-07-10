@@ -75,6 +75,7 @@ class MatchCaptionsToClustersJob implements ShouldQueue
                     'cluster_label' => $cluster->label,
                     'scores' => $scores['scores'],
                     'used_model_fallback' => $scores['used_model_fallback'],
+                    'used_vision_fallback' => $scores['used_vision_fallback'] ?? false,
                     'top_score' => $scores['top_score'],
                     'second_score' => $scores['second_score'],
                     'cluster_image_ids' => $selection['images']->pluck('id')->values()->all(),

@@ -49,6 +49,24 @@
                 "is_anchor": { "type": "boolean" }
               }
             }
+          },
+          "visual": {
+            "type": "object",
+            "properties": {
+              "rendering_style": { "type": "string" },
+              "photo_treatment": { "type": "string" },
+              "graphic_devices": { "type": "array", "items": { "type": "string" } },
+              "typography_details": { "type": "string" },
+              "layout_skeleton": { "type": "string" },
+              "logo_treatment": { "type": "string" },
+              "text_density": { "type": "string" },
+              "dominant_color": { "type": "string" },
+              "palette": { "type": "array", "items": { "type": "string" } },
+              "typography_style": { "type": "string" },
+              "composition_type": { "type": "string" },
+              "background_treatment": { "type": "string" },
+              "text_placement": { "type": "string" }
+            }
           }
         }
       }

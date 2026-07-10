@@ -40,6 +40,13 @@ class ClusteringDnaMapper
                     'composition_type' => $cluster['compositionType'] ?? null,
                     'background_treatment' => $cluster['backgroundTreatment'] ?? null,
                     'text_placement' => $cluster['textPlacement'] ?? null,
+                    'rendering_style' => $cluster['renderingStyle'] ?? null,
+                    'photo_treatment' => $cluster['photoTreatment'] ?? null,
+                    'graphic_devices' => $cluster['graphicDevices'] ?? [],
+                    'typography_details' => $cluster['typographyDetails'] ?? null,
+                    'layout_skeleton' => $cluster['layoutSkeleton'] ?? null,
+                    'logo_treatment' => $cluster['logoTreatment'] ?? null,
+                    'text_density' => $cluster['textDensity'] ?? null,
                 ],
             ];
         }

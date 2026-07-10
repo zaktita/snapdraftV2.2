@@ -1,5 +1,5 @@
 import { Head, Link, router, usePage } from '@inertiajs/react';
-import { ArrowLeft, ArrowRight, FileText, Grid, Image as ImageIcon, Upload, X, Clock, AlertCircle, Zap, Plus, Trash2, Edit3, ChevronDown, ChevronUp } from 'lucide-react';
+import { ArrowLeft, ArrowRight, FileText, Grid, Image as ImageIcon, Upload, X, Clock, AlertCircle, Zap, Plus, Trash2, Edit3, ChevronDown, ChevronUp, Sparkles } from 'lucide-react';
 import { useState, useRef, DragEvent, ChangeEvent, useEffect } from 'react';
 
 function BrandReferenceTip() {
@@ -89,6 +89,26 @@ interface ColumnMapping {
 
 type UploadMode = 'upload' | 'create';
 
+type CreativityLevel = 'strict' | 'balanced' | 'creative';
+
+const creativityLevelOptions: Array<{ value: CreativityLevel; label: string; description: string }> = [
+    {
+        value: 'strict',
+        label: 'Strict',
+        description: 'Replicate the reference layout exactly — swap only subject and copy.',
+    },
+    {
+        value: 'balanced',
+        label: 'Balanced',
+        description: 'Follow the reference template closely with minor variation.',
+    },
+    {
+        value: 'creative',
+        label: 'Creative',
+        description: 'Stay on-brand but reinterpret layout and composition.',
+    },
+];
+
 const stepContent = {
     1: {
         title: 'Name Your Project',
@@ -142,6 +162,7 @@ export default function CSVWizard() {
     const [imageDragOver, setImageDragOver] = useState(false);
     const [showSkipNotice, setShowSkipNotice] = useState(false);
     const [resolutionMultiplier, setResolutionMultiplier] = useState<1 | 2 | 4>(1);
+    const [creativityLevel, setCreativityLevel] = useState<CreativityLevel>('balanced');
 
     const csvInputRef = useRef<HTMLInputElement>(null);
     const imageInputRef = useRef<HTMLInputElement>(null);
@@ -726,6 +747,9 @@ export default function CSVWizard() {
         fd.append('csv_file', fileToSubmit);
         fd.append('column_mappings', JSON.stringify(columnMappings));
         fd.append('resolution_multiplier', String(resolutionMultiplier));
+        if (isLab) {
+            fd.append('creativity_level', creativityLevel);
+        }
 
         // Add reference images (required: 3-10)
         styleImageFiles.slice(0, 10).forEach((f) => fd.append('reference_images[]', f));
@@ -1812,6 +1836,46 @@ export default function CSVWizard() {
                                             </div>
                                         </div>
                                     </div>
+                                    {isLab && (
+                                        <div style={{ display: 'flex', alignItems: 'flex-start', gap: '16px', padding: '20px 0', borderBottom: '1px solid var(--color-border)' }}>
+                                            <Sparkles size={24} color="var(--color-muted-foreground)" />
+                                            <div style={{ flex: 1 }}>
+                                                <div style={{ fontSize: '13px', color: 'var(--color-muted-foreground)', marginBottom: '10px' }}>Creativity Level</div>
+                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                                    {creativityLevelOptions.map((option) => {
+                                                        const isActive = creativityLevel === option.value;
+                                                        return (
+                                                            <button
+                                                                key={option.value}
+                                                                type="button"
+                                                                onClick={() => setCreativityLevel(option.value)}
+                                                                style={{
+                                                                    textAlign: 'left',
+                                                                    padding: '12px 14px',
+                                                                    borderRadius: '8px',
+                                                                    border: `1px solid ${isActive ? 'var(--color-primary)' : 'var(--color-border)'}`,
+                                                                    background: isActive ? 'hsl(var(--primary) / 0.12)' : 'var(--color-card)',
+                                                                    cursor: 'pointer',
+                                                                }}
+                                                            >
+                                                                <div style={{
+                                                                    fontSize: '14px',
+                                                                    fontWeight: 600,
+                                                                    color: isActive ? 'var(--color-primary)' : 'var(--color-foreground)',
+                                                                    marginBottom: '4px',
+                                                                }}>
+                                                                    {option.label}
+                                                                </div>
+                                                                <div style={{ fontSize: '12px', color: 'var(--color-muted-foreground)', lineHeight: 1.5 }}>
+                                                                    {option.description}
+                                                                </div>
+                                                            </button>
+                                                        );
+                                                    })}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
                                     <div style={{ display: 'flex', alignItems: 'flex-start', gap: '16px', padding: '20px 0' }}>
                                         <AlertCircle size={24} color="var(--color-muted-foreground)" />
                                         <div style={{ flex: 1 }}>

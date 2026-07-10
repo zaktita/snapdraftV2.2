@@ -4,8 +4,10 @@ namespace App\Jobs;
 
 use App\Models\CsvWizardSession;
 use App\Models\Project;
+use App\Services\Brand\CsvMasterPromptBuilder;
 use App\Services\Brand\CsvPostPromptBuilder;
 use App\Services\Wizards\ClusterCsvPipeline;
+use App\Services\Wizards\CreativityLevel;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -26,8 +28,10 @@ class GeneratePostPromptsJob implements ShouldQueue
         public readonly int $sessionId,
     ) {}
 
-    public function handle(CsvPostPromptBuilder $builder): void
-    {
+    public function handle(
+        CsvPostPromptBuilder $builder,
+        CsvMasterPromptBuilder $masterPromptBuilder,
+    ): void {
         $project = Project::findOrFail($this->projectId);
         $session = CsvWizardSession::findOrFail($this->sessionId);
 
@@ -44,12 +48,17 @@ class GeneratePostPromptsJob implements ShouldQueue
                 throw new \RuntimeException('csv_data missing from project settings.');
             }
 
-            Log::info('GeneratePostPromptsJob: building post JSON prompts', [
+            $useMasterPrompt = CreativityLevel::isPromptForgeLab($project);
+
+            Log::info('GeneratePostPromptsJob: building prompts', [
                 'project_id' => $this->projectId,
                 'row_count' => count($csvData),
+                'pipeline' => $useMasterPrompt ? 'master_prompt_lab' : 'post_json',
             ]);
 
-            $promptBatch = $builder->buildBatchFromMatches($project);
+            $promptBatch = $useMasterPrompt
+                ? $masterPromptBuilder->buildBatchFromMatches($project)
+                : $builder->buildBatchFromMatches($project);
 
             $project->update([
                 'settings' => array_merge($project->settings ?? [], [
@@ -59,6 +68,7 @@ class GeneratePostPromptsJob implements ShouldQueue
                         [
                             'phase' => 'prompts_done',
                             'prompt_batch' => $promptBatch,
+                            'prompt_pipeline' => $useMasterPrompt ? 'master_prompt_lab' : 'post_json',
                         ],
                     ),
                 ]),
@@ -67,6 +77,7 @@ class GeneratePostPromptsJob implements ShouldQueue
             Log::info('GeneratePostPromptsJob: completed', [
                 'project_id' => $this->projectId,
                 'batch_size' => count($promptBatch),
+                'pipeline' => $useMasterPrompt ? 'master_prompt_lab' : 'post_json',
             ]);
         } catch (\Throwable $e) {
             Log::error('GeneratePostPromptsJob: failed', [

@@ -22,6 +22,7 @@
       "required": ["concept", "content_pillar"],
       "properties": {
         "concept": { "type": "string", "minLength": 1 },
+        "visual_form": { "type": "string" },
         "subject": { "type": "string" },
         "content_pillar": { "type": "string" },
         "on_image_text": { "type": "array" },

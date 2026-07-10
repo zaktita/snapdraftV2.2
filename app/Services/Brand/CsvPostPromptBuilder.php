@@ -9,6 +9,7 @@ use App\Services\AI\DTO\PostGenerationResult;
 use App\Services\AI\OpenRouter\OpenRouterCsvPostGenerator;
 use App\Services\FormatPresetMapper;
 use App\Services\Prompt\SkillPromptBuilder;
+use App\Services\Wizards\CreativityLevel;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Log;
 use RuntimeException;
@@ -91,6 +92,7 @@ class CsvPostPromptBuilder
 
         $project->loadMissing(['clusters.images.brandReference']);
         $promptBatch = [];
+        $creativityLevel = CreativityLevel::fromProject($project);
 
         foreach ($csvData as $i => $row) {
             $history = $this->resolveHistory($historyIds, $i);
@@ -124,6 +126,7 @@ class CsvPostPromptBuilder
                     $caption,
                     $aspectRatio,
                     $cluster,
+                    $creativityLevel,
                 );
 
                 $preferredIds = $match['cluster_image_ids'] ?? null;
@@ -143,6 +146,7 @@ class CsvPostPromptBuilder
                     $resolutionMultiplier,
                     $cluster,
                     $selectedClusterImages,
+                    $creativityLevel,
                 );
             } catch (\Throwable $e) {
                 $this->failRow($project->id, $i, $history, $e);
@@ -333,6 +337,7 @@ class CsvPostPromptBuilder
         int $resolutionMultiplier,
         ?ProjectCluster $cluster = null,
         ?Collection $selectedClusterImages = null,
+        ?string $creativityLevel = null,
     ): array {
         $this->assertRowResultValid($result, $rowIndex);
 
@@ -349,12 +354,17 @@ class CsvPostPromptBuilder
                 : collect();
         }
 
+        $creativityLevel = CreativityLevel::normalize(
+            $creativityLevel ?? CreativityLevel::fromProject($project),
+        );
+
         $promptJson = $this->enrichPromptJson(
             $result->promptJson,
             $project,
             $cluster,
             $selectedClusterImages,
             $aspectRatio,
+            $creativityLevel,
         );
 
         $history->update([
@@ -370,6 +380,8 @@ class CsvPostPromptBuilder
                     'tokens_in' => $result->tokensIn,
                     'tokens_out' => $result->tokensOut,
                     'latency_ms' => $result->latencyMs,
+                    'creativity_level' => $creativityLevel,
+                    'cluster_images_attached' => CreativityLevel::isPromptForgeLab($project),
                 ],
                 'cluster_image_ids' => $selectedClusterImages->pluck('id')->values()->all(),
             ],
@@ -447,6 +459,7 @@ class CsvPostPromptBuilder
         ?ProjectCluster $cluster,
         Collection $selectedClusterImages,
         string $aspectRatio,
+        ?string $creativityLevel = null,
     ): array {
         $promptJson ??= [];
 
@@ -462,9 +475,18 @@ class CsvPostPromptBuilder
         }
 
         $count = $selectedClusterImages->count();
+        $creativityLevel = CreativityLevel::normalize(
+            $creativityLevel ?? CreativityLevel::fromProject($project),
+        );
         $promptJson['cluster_context'] = $this->clusterSelector->clusterMetadata($project, $cluster);
-        $promptJson['reference_usage'] = 'Use all '.$count.' attached reference images as the complete cluster template set for "'.$cluster->label.'". '
-            .'Match layout, palette, typography, background treatment, composition, and text placement from this cluster family.';
+        $promptJson['reference_usage'] = CreativityLevel::referenceUsageForCluster(
+            $creativityLevel,
+            $cluster->label,
+            $count,
+        );
+        $promptJson['meta'] = array_merge($promptJson['meta'] ?? [], [
+            'creativity_level' => $creativityLevel,
+        ]);
 
         return $promptJson;
     }

@@ -1,0 +1,31 @@
+{
+  "type": "object",
+  "properties": {
+    "slots_detected": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": ["headline", "subhead", "body", "cta", "eyebrow", "label"]
+      }
+    },
+    "copy": {
+      "type": "object",
+      "properties": {
+        "headline": { "type": "string" },
+        "subhead": { "type": "string" },
+        "body": { "type": "string" },
+        "cta": { "type": "string" },
+        "eyebrow": { "type": "string" },
+        "label": { "type": "string" }
+      },
+      "required": ["headline", "subhead", "body", "cta", "eyebrow", "label"]
+    },
+    "visual_lock_summary": {
+      "type": "string"
+    },
+    "master_prompt": {
+      "type": "string"
+    }
+  },
+  "required": ["slots_detected", "copy", "visual_lock_summary", "master_prompt"]
+}

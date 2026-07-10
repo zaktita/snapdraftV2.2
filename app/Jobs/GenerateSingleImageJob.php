@@ -11,6 +11,8 @@ use App\Services\AI\CsvImageGenerationService;
 use App\Services\Brand\ProjectClusterSelector;
 use App\Services\FormatPresetMapper;
 use App\Services\Prompt\JsonPromptCompiler;
+use App\Services\Test\MasterPromptLabService;
+use App\Services\Wizards\CreativityLevel;
 use Illuminate\Bus\Batchable;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -42,6 +44,7 @@ class GenerateSingleImageJob implements ShouldQueue
         JsonPromptCompiler $compiler,
         CsvImageGenerationService $imageGenerator,
         ProjectClusterSelector $clusterSelector,
+        MasterPromptLabService $masterPromptLab,
     ): void {
         if ($this->batch()?->cancelled()) {
             return;
@@ -78,15 +81,11 @@ class GenerateSingleImageJob implements ShouldQueue
             $history?->update(['status' => 'processing']);
 
             $promptJson = $history?->prompt_json;
-            if (! is_array($promptJson) || trim((string) ($promptJson['post']['concept'] ?? '')) === '') {
-                throw new \RuntimeException("Missing post JSON for row {$rowIndex}.");
-            }
+            $useMasterPrompt = CreativityLevel::isPromptForgeLab($project)
+                || data_get($promptJson, 'pipeline') === 'master_prompt_lab';
 
             $format = FormatPresetMapper::normalize((string) ($this->promptItem['format'] ?? 'square'));
             $aspectRatio = FormatPresetMapper::aspectRatio($format);
-
-            $compiled = $compiler->compile($promptJson);
-            $history?->update(['compiled_prompt' => $compiled]);
 
             $clusterKey = $this->promptItem['clusterKey'] ?? $history?->cluster_key;
             if (! is_string($clusterKey) || $clusterKey === '') {
@@ -99,11 +98,10 @@ class GenerateSingleImageJob implements ShouldQueue
             }
 
             $preferredImageIds = data_get($history?->request_data, 'cluster_image_ids');
-            $clusterImages = $clusterSelector->imagesForCluster($cluster);
-
-            if ($clusterImages->count() < 1 && is_array($preferredImageIds) && $preferredImageIds !== []) {
-                $clusterImages = $clusterSelector->imagesForCluster($cluster, $preferredImageIds);
-            }
+            $clusterImages = $clusterSelector->imagesForCluster(
+                $cluster,
+                is_array($preferredImageIds) && $preferredImageIds !== [] ? $preferredImageIds : null,
+            );
 
             if ($clusterImages->isEmpty()) {
                 throw new \RuntimeException(
@@ -118,53 +116,36 @@ class GenerateSingleImageJob implements ShouldQueue
                 );
             }
 
-            $caption = trim((string) (
-                $this->promptItem['title']
-                ?? data_get($history?->parameters, 'caption')
-                ?? data_get($promptJson, 'post.caption')
-                ?? ''
-            ));
-
-            $imageRequestPrompt = $compiler->buildImageRequestPrompt(
-                $promptJson,
-                $clusterImages->count(),
-                $caption !== '' ? $caption : null,
-            );
-
-            $history?->update([
-                'request_data' => array_merge($history->request_data ?? [], [
-                    'image_generation' => [
-                        'cluster_key' => $clusterKey,
-                        'cluster_image_ids' => $clusterImages->pluck('id')->values()->all(),
-                        'reference_count' => $clusterImages->count(),
-                        'sent_to_model' => 'gemini/buildImageRequestPrompt',
-                        'model' => $imageGenerator->model(),
-                        'image_request_prompt' => $imageRequestPrompt,
-                    ],
-                ]),
-            ]);
-
-            Log::info('GenerateSingleImageJob: generating image', [
-                'project_id' => $this->projectId,
-                'row_index' => $rowIndex,
-                'cluster_key' => $clusterKey,
-                'reference_count' => $clusterImages->count(),
-                'resolution_multiplier' => $resolutionMultiplier,
-            ]);
-
             if ($user->hasActiveSubscription() && ($project->settings['wizard_type'] ?? null) !== 'prompt_forge_lab') {
                 $user->useCredit($resolutionMultiplier);
                 $creditDeducted = true;
             }
 
-            $binary = $imageGenerator->generateFromPromptJson(
-                $promptJson,
-                $clusterImages,
-                $aspectRatio,
-                $resolutionMultiplier,
-                $caption !== '' ? $caption : null,
-                $imageRequestPrompt,
-            );
+            if ($useMasterPrompt) {
+                $binary = $this->generateWithMasterPrompt(
+                    $history,
+                    $promptJson,
+                    $clusterImages,
+                    $clusterKey,
+                    $aspectRatio,
+                    $resolutionMultiplier,
+                    $rowIndex,
+                    $masterPromptLab,
+                );
+            } else {
+                $binary = $this->generateWithPostJson(
+                    $history,
+                    $promptJson,
+                    $clusterImages,
+                    $clusterKey,
+                    $aspectRatio,
+                    $resolutionMultiplier,
+                    $rowIndex,
+                    CreativityLevel::fromProject($project),
+                    $compiler,
+                    $imageGenerator,
+                );
+            }
 
             $directory = "projects/{$this->projectId}/images";
             $uuid = Str::uuid()->toString();
@@ -182,7 +163,9 @@ class GenerateSingleImageJob implements ShouldQueue
                 'project_id' => $this->projectId,
                 'url' => $imagePath,
                 'thumbnail_url' => $thumbPath,
-                'prompt' => json_encode($promptJson, JSON_UNESCAPED_UNICODE),
+                'prompt' => is_array($promptJson)
+                    ? json_encode($promptJson, JSON_UNESCAPED_UNICODE)
+                    : (string) ($history?->compiled_prompt ?? ''),
                 'format' => $format,
                 'width' => $width,
                 'height' => $height,
@@ -190,8 +173,9 @@ class GenerateSingleImageJob implements ShouldQueue
                     'csv_row_index' => $rowIndex,
                     'title' => $this->promptItem['title'] ?? '',
                     'cluster_key' => $clusterKey,
-                    'wizard_type' => 'csv',
+                    'wizard_type' => $project->settings['wizard_type'] ?? 'csv',
                     'resolution_multiplier' => $resolutionMultiplier,
+                    'pipeline' => $useMasterPrompt ? 'master_prompt_lab' : 'post_json',
                 ],
             ]);
 
@@ -203,6 +187,7 @@ class GenerateSingleImageJob implements ShouldQueue
                 'project_id' => $this->projectId,
                 'row_index' => $rowIndex,
                 'image_id' => $image->id,
+                'pipeline' => $useMasterPrompt ? 'master_prompt_lab' : 'post_json',
             ]);
         } catch (\Throwable $e) {
             Log::error('GenerateSingleImageJob: failed', [
@@ -225,6 +210,146 @@ class GenerateSingleImageJob implements ShouldQueue
             $history?->markAsFailed($this->friendlyErrorMessage($e));
             throw $e;
         }
+    }
+
+    /**
+     * @param  \Illuminate\Support\Collection<int, \App\Models\ProjectClusterImage>  $clusterImages
+     * @param  array<string, mixed>|null  $promptJson
+     */
+    private function generateWithMasterPrompt(
+        ?GenerationHistory $history,
+        ?array $promptJson,
+        $clusterImages,
+        string $clusterKey,
+        string $aspectRatio,
+        int $resolutionMultiplier,
+        int $rowIndex,
+        MasterPromptLabService $masterPromptLab,
+    ): string {
+        $masterPrompt = trim((string) (
+            data_get($promptJson, 'master_prompt')
+            ?? $history?->compiled_prompt
+            ?? ''
+        ));
+
+        if ($masterPrompt === '') {
+            throw new \RuntimeException("Missing master prompt for row {$rowIndex}.");
+        }
+
+        $referencePaths = [];
+        foreach ($clusterImages->take(3) as $image) {
+            $ref = $image->brandReference;
+            if ($ref && is_string($ref->url) && $ref->url !== '' && Storage::disk('public')->exists($ref->url)) {
+                $referencePaths[] = $ref->url;
+            }
+        }
+
+        if (count($referencePaths) < 3) {
+            throw new \RuntimeException(
+                "Cluster \"{$clusterKey}\" needs 3 usable reference images for master-prompt generation on row {$rowIndex}."
+            );
+        }
+
+        $history?->update([
+            'compiled_prompt' => $masterPrompt,
+            'request_data' => array_merge($history->request_data ?? [], [
+                'image_generation' => [
+                    'pipeline' => 'master_prompt_lab',
+                    'cluster_key' => $clusterKey,
+                    'cluster_image_ids' => $clusterImages->take(3)->pluck('id')->values()->all(),
+                    'reference_count' => 3,
+                    'reference_paths' => $referencePaths,
+                    'sent_to_model' => 'gemini/master_prompt',
+                    'model' => config('services.gemini.image_model', 'gemini-3.1-flash-image-preview'),
+                    'image_request_prompt' => $masterPrompt,
+                ],
+            ]),
+        ]);
+
+        Log::info('GenerateSingleImageJob: generating image (master prompt)', [
+            'project_id' => $this->projectId,
+            'row_index' => $rowIndex,
+            'cluster_key' => $clusterKey,
+            'reference_count' => 3,
+            'resolution_multiplier' => $resolutionMultiplier,
+        ]);
+
+        return $masterPromptLab->generateBinary(
+            $referencePaths,
+            $masterPrompt,
+            $aspectRatio,
+            $resolutionMultiplier,
+        );
+    }
+
+    /**
+     * @param  \Illuminate\Support\Collection<int, \App\Models\ProjectClusterImage>  $clusterImages
+     * @param  array<string, mixed>|null  $promptJson
+     */
+    private function generateWithPostJson(
+        ?GenerationHistory $history,
+        ?array $promptJson,
+        $clusterImages,
+        string $clusterKey,
+        string $aspectRatio,
+        int $resolutionMultiplier,
+        int $rowIndex,
+        string $creativityLevel,
+        JsonPromptCompiler $compiler,
+        CsvImageGenerationService $imageGenerator,
+    ): string {
+        if (! is_array($promptJson) || trim((string) ($promptJson['post']['concept'] ?? '')) === '') {
+            throw new \RuntimeException("Missing post JSON for row {$rowIndex}.");
+        }
+
+        $compiled = $compiler->compile($promptJson);
+        $history?->update(['compiled_prompt' => $compiled]);
+
+        $caption = trim((string) (
+            $this->promptItem['title']
+            ?? data_get($history?->parameters, 'caption')
+            ?? data_get($promptJson, 'post.caption')
+            ?? ''
+        ));
+
+        $imageRequestPrompt = $compiler->buildImageRequestPrompt(
+            $promptJson,
+            $clusterImages->count(),
+            $caption !== '' ? $caption : null,
+            $creativityLevel,
+        );
+
+        $history?->update([
+            'request_data' => array_merge($history->request_data ?? [], [
+                'image_generation' => [
+                    'pipeline' => 'post_json',
+                    'cluster_key' => $clusterKey,
+                    'cluster_image_ids' => $clusterImages->pluck('id')->values()->all(),
+                    'reference_count' => $clusterImages->count(),
+                    'creativity_level' => $creativityLevel,
+                    'sent_to_model' => 'gemini/buildImageRequestPrompt',
+                    'model' => $imageGenerator->model(),
+                    'image_request_prompt' => $imageRequestPrompt,
+                ],
+            ]),
+        ]);
+
+        Log::info('GenerateSingleImageJob: generating image', [
+            'project_id' => $this->projectId,
+            'row_index' => $rowIndex,
+            'cluster_key' => $clusterKey,
+            'reference_count' => $clusterImages->count(),
+            'resolution_multiplier' => $resolutionMultiplier,
+        ]);
+
+        return $imageGenerator->generateFromPromptJson(
+            $promptJson,
+            $clusterImages,
+            $aspectRatio,
+            $resolutionMultiplier,
+            $caption !== '' ? $caption : null,
+            $imageRequestPrompt,
+        );
     }
 
     private function friendlyErrorMessage(\Throwable $e): string

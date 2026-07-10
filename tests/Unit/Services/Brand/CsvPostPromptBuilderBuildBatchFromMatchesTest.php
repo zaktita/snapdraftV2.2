@@ -91,6 +91,7 @@ class CsvPostPromptBuilderBuildBatchFromMatchesTest extends TestCase
                 'Big launch',
                 '1:1',
                 Mockery::on(fn ($c) => $c->id === $cluster->id),
+                'balanced',
             )
             ->andReturn($postResult);
 

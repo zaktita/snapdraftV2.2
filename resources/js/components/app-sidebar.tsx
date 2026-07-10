@@ -35,6 +35,7 @@ import {
     FlaskConical,
     Layers,
     Boxes,
+    ImagePlus,
 } from 'lucide-react';
 import AppLogo from './app-logo';
 
@@ -169,6 +170,11 @@ export function AppSidebar() {
                     title: 'Cluster Generation',
                     href: '/test/cluster-generation',
                     icon: Boxes,
+                },
+                {
+                    title: 'Master Prompt Lab',
+                    href: '/test/master-prompt',
+                    icon: ImagePlus,
                 },
             ],
         });

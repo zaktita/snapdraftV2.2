@@ -142,6 +142,13 @@ Route::middleware(['auth', 'verified'])->group(function () {
                 ->name('test.prompt-forge.result');
             Route::get('test/prompt-forge/sessions/{session}/rows/{rowIndex}/debug', [\App\Http\Controllers\Test\PromptForgeTestController::class, 'rowDebug'])
                 ->name('test.prompt-forge.row-debug');
+
+            Route::get('test/master-prompt', [\App\Http\Controllers\Test\MasterPromptLabController::class, 'index'])
+                ->name('test.master-prompt');
+            Route::post('test/master-prompt/build', [\App\Http\Controllers\Test\MasterPromptLabController::class, 'build'])
+                ->name('test.master-prompt.build');
+            Route::post('test/master-prompt/generate', [\App\Http\Controllers\Test\MasterPromptLabController::class, 'generate'])
+                ->name('test.master-prompt.generate');
         });
 
         // Quick Generate Routes

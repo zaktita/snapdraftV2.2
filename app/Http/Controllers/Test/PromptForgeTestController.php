@@ -14,6 +14,7 @@ use App\Models\GenerationHistory;
 use App\Models\Project;
 use App\Services\FileUploadService;
 use App\Services\Wizards\ClusterCsvPipeline;
+use App\Services\Wizards\CreativityLevel;
 use App\Services\Wizards\CsvRowParser;
 use App\Services\Wizards\ImageGenerationDebugPayload;
 use Illuminate\Http\JsonResponse;
@@ -55,10 +56,12 @@ class PromptForgeTestController extends Controller
             'reference_images' => ['required', 'array', 'min:3', 'max:10'],
             'reference_images.*' => ['required', 'file', 'image', 'max:10240'],
             'resolution_multiplier' => ['nullable', 'integer', 'in:1,2,4'],
+            'creativity_level' => ['nullable', 'string', 'in:strict,balanced,creative'],
         ]);
 
         $columnMappings = json_decode($request->input('column_mappings'), true) ?? [];
         $resolutionMultiplier = (int) $request->input('resolution_multiplier', 1);
+        $creativityLevel = CreativityLevel::normalize($request->input('creativity_level'));
         $csvRows = $this->csvRowParser->parse($request->file('csv_file'), $columnMappings);
 
         if ($csvRows === []) {
@@ -76,6 +79,7 @@ class PromptForgeTestController extends Controller
                     'wizard_type' => 'prompt_forge_lab',
                     'csv_data' => $csvRows,
                     'resolution_multiplier' => $resolutionMultiplier,
+                    'creativity_level' => $creativityLevel,
                     'cluster_csv_pipeline' => [
                         'phase' => 'pending',
                     ],
