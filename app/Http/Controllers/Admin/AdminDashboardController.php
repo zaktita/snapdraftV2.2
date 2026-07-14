@@ -238,17 +238,27 @@ class AdminDashboardController extends Controller
             'is_admin' => 'sometimes|boolean',
         ]);
 
-        $user->update($data);
+        // Privilege flags must be set explicitly (not via mass assignment fillable).
+        if (array_key_exists('is_admin', $data)) {
+            $user->forceFill(['is_admin' => (bool) $data['is_admin']]);
+            unset($data['is_admin']);
+        }
+
+        if ($data !== []) {
+            $user->update($data);
+        } else {
+            $user->save();
+        }
 
         return back()->with('success', 'User updated.');
     }
 
     public function suspendUser(Request $request, User $user)
     {
-        $user->update([
+        $user->forceFill([
             'is_suspended'      => true,
             'suspension_reason' => $request->input('reason', 'Suspended by admin'),
-        ]);
+        ])->save();
         Log::info('[admin] User suspended', [
             'admin_id'   => Auth::id(),
             'target_id'  => $user->id,
@@ -260,7 +270,7 @@ class AdminDashboardController extends Controller
 
     public function reactivateUser(User $user)
     {
-        $user->update(['is_suspended' => false, 'suspension_reason' => null]);
+        $user->forceFill(['is_suspended' => false, 'suspension_reason' => null])->save();
         Log::info('[admin] User reactivated', [
             'admin_id'     => Auth::id(),
             'target_id'    => $user->id,
@@ -288,6 +298,10 @@ class AdminDashboardController extends Controller
 
     public function impersonateUser(User $user)
     {
+        if ($user->isAdmin()) {
+            return back()->with('error', 'Cannot impersonate another admin.');
+        }
+
         Log::warning('[admin] Impersonation started', [
             'admin_id'     => Auth::id(),
             'target_id'    => $user->id,
@@ -295,6 +309,8 @@ class AdminDashboardController extends Controller
         ]);
         session(['impersonating_user_id' => Auth::id()]);
         Auth::login($user);
+        session()->regenerate();
+
         return redirect('/dashboard')->with('success', 'Impersonating ' . $user->name);
     }
 

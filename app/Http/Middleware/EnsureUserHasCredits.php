@@ -17,16 +17,16 @@ class EnsureUserHasCredits
     {
         $user = $request->user();
 
-        // No active subscription — send to dashboard
+        // No active subscription — send to plans
         if (!$user || !$user->hasActiveSubscription()) {
-            return redirect()->route('dashboard')
-                ->with('error', 'You need a beta invite to access this feature. Check your email for your invite code.');
+            return redirect()->route('subscription.plans')
+                ->with('error', 'Choose a plan or redeem a beta invite to continue.');
         }
 
         // Credits exhausted
         if (!$user->hasCredits()) {
-            return redirect()->route('dashboard')
-                ->with('error', "You've used all your credits. Share your feedback and we'll top you up.");
+            return redirect()->route('subscription.plans')
+                ->with('error', "You've used all your credits. Upgrade your plan or wait for your next billing cycle.");
         }
 
         return $next($request);

@@ -53,8 +53,8 @@ export function CreditsCard() {
                     size="sm"
                     className="w-full bg-sidebar-primary text-sidebar-primary-foreground hover:bg-neutral-900 hover:text-sidebar-primary-foreground/90 transition-colors duration-150"
                 >
-                    <Link href="/feedback" prefetch>
-                        Share Feedback
+                    <Link href="/subscription/plans" prefetch>
+                        View plans
                     </Link>
                 </Button>
             </div>

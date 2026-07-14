@@ -328,7 +328,11 @@ export default function CSVWizard() {
             const lower = header.toLowerCase();
             if (lower.includes('title') || lower.includes('name')) {
                 mappings[header] = 'Product Title';
-            } else if (lower.includes('description') || lower.includes('prompt')) {
+            } else if (
+                lower.includes('caption') ||
+                lower.includes('description') ||
+                lower.includes('prompt')
+            ) {
                 mappings[header] = 'Image Prompt';
             } else if (lower.includes('format')) {
                 mappings[header] = 'Format';
@@ -537,7 +541,11 @@ export default function CSVWizard() {
             const lower = header.toLowerCase();
             if (lower.includes('title') || lower.includes('name')) {
                 mappings[header] = 'Product Title';
-            } else if (lower.includes('description') || lower.includes('prompt')) {
+            } else if (
+                lower.includes('caption') ||
+                lower.includes('description') ||
+                lower.includes('prompt')
+            ) {
                 mappings[header] = 'Image Prompt';
             } else if (lower.includes('format')) {
                 mappings[header] = 'Format';

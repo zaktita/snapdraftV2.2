@@ -91,24 +91,30 @@ class ClusteringService
     }
 
     /**
-     * Mirrors test.ts validateClusters(): each image assigned to exactly one cluster,
-     * each cluster has at least min_images_per_cluster images.
+     * Each image assigned to exactly one cluster.
+     * Coherent style clusters and optional "unfit" outliers may be any size ≥1.
      */
     private function validateClusters(array $result, int $imageCount): void
     {
-        $min = (int) config('ai.cluster_selection.min_images_per_cluster', 3);
         $seen = [];
+        $clusters = $result['clusters'] ?? [];
 
-        foreach ($result['clusters'] as $i => $cluster) {
-            $count = count($cluster['imageIndices']);
+        if ($clusters === []) {
+            throw new RuntimeException('Clustering returned no clusters.');
+        }
 
-            if ($count < $min) {
+        foreach ($clusters as $i => $cluster) {
+            $indices = $cluster['imageIndices'] ?? [];
+            $count = count($indices);
+            $name = (string) ($cluster['name'] ?? '');
+
+            if ($count < 1) {
                 throw new RuntimeException(
-                    "Cluster {$i} (\"{$cluster['name']}\") has {$count} images — must be at least {$min}."
+                    "Cluster {$i} (\"{$name}\") has no images."
                 );
             }
 
-            foreach ($cluster['imageIndices'] as $idx) {
+            foreach ($indices as $idx) {
                 if ($idx < 0 || $idx >= $imageCount) {
                     throw new RuntimeException(
                         "Cluster {$i} references out-of-bounds image index {$idx}."
@@ -126,7 +132,7 @@ class ClusteringService
         }
 
         for ($i = 0; $i < $imageCount; $i++) {
-            if (!in_array($i, $seen, true)) {
+            if (! in_array($i, $seen, true)) {
                 throw new RuntimeException("Image index {$i} was not assigned to any cluster.");
             }
         }

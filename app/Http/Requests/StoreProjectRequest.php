@@ -25,19 +25,45 @@ class StoreProjectRequest extends FormRequest
             'name' => 'required|string|max:255',
             'description' => 'nullable|string|max:2000',
             'settings' => 'nullable|array',
-            
+            'settings.creativity_level' => 'sometimes|string|max:50',
+            'settings.aspect_ratio' => 'sometimes|string|max:20',
+
             // For wizard-based creation
             'brand_references' => 'nullable|array|max:10',
             'brand_references.*' => 'image|mimes:jpeg,jpg,png,webp|max:10240', // 10MB max
-            
+
             // For CSV wizard
             'csv_file' => 'nullable|file|mimes:csv,txt|max:5120', // 5MB max
             'csv_data' => 'nullable|array',
-            
+
             // For text wizard
             'prompt' => 'nullable|string|max:5000',
             'format' => 'nullable|string|in:square,portrait,landscape',
         ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function validated($key = null, $default = null)
+    {
+        $data = parent::validated($key, $default);
+
+        if ($key !== null) {
+            return $data;
+        }
+
+        if (isset($data['settings']) && is_array($data['settings'])) {
+            unset(
+                $data['settings']['wizard_type'],
+                $data['settings']['skip_credits'],
+                $data['settings']['history_ids'],
+                $data['settings']['prompt_batch'],
+                $data['settings']['cluster_csv_pipeline'],
+            );
+        }
+
+        return $data;
     }
 
     /**

@@ -29,6 +29,8 @@ if (config('queue.worker_via_schedule')) {
     }
 }
 
+// Dev-only test commands (not registered in production)
+if (app()->environment('local')) {
 // One-off test image generation command
 Artisan::command('ai:test-generate {prompt : The prompt to generate an image}', function (string $prompt) {
     /** @var AIServiceManager $ai */
@@ -105,6 +107,7 @@ Artisan::command('test:csv-wizard', function () {
     $this->info("View results: http://localhost/projects/{$project->id}");
 
 })->purpose('Test the CSV wizard generation flow');
+} // end local-only test commands
 
 // Generate homepage images using OpenRouter seedream-4.5
 Artisan::command('home:generate-images {projectId? : Project ID for brand references} {--force : Overwrite existing images}', function () {

@@ -26,8 +26,35 @@ class UpdateProjectRequest extends FormRequest
             'name' => 'sometimes|required|string|max:255',
             'description' => 'nullable|string|max:2000',
             'settings' => 'nullable|array',
+            'settings.creativity_level' => 'sometimes|string|max:50',
+            'settings.aspect_ratio' => 'sometimes|string|max:20',
             'is_favorite' => 'sometimes|boolean',
         ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function validated($key = null, $default = null)
+    {
+        $data = parent::validated($key, $default);
+
+        if ($key !== null) {
+            return $data;
+        }
+
+        // Clients must never set privileged pipeline flags.
+        if (isset($data['settings']) && is_array($data['settings'])) {
+            unset(
+                $data['settings']['wizard_type'],
+                $data['settings']['skip_credits'],
+                $data['settings']['history_ids'],
+                $data['settings']['prompt_batch'],
+                $data['settings']['cluster_csv_pipeline'],
+            );
+        }
+
+        return $data;
     }
 
     /**

@@ -31,10 +31,16 @@ Route::get('/', function () {
     return Inertia::render('website/home');
 })->name('home');
 
-// Startup landing page
-Route::get('/startup', function () {
-    return Inertia::render('website/startup');
-})->name('startup');
+Route::get('/privacy', fn () => Inertia::render('website/privacy'))->name('privacy');
+Route::get('/terms', fn () => Inertia::render('website/terms'))->name('terms');
+Route::get('/refund', fn () => Inertia::render('website/refund'))->name('refund');
+
+// Startup landing page — local/dev only (placeholder template)
+if (app()->environment('local')) {
+    Route::get('/startup', function () {
+        return Inertia::render('website/startup');
+    })->name('startup');
+}
 
 // Guest-accessible beta invite validation + waitlist signup
 Route::get('invite/validate', [\App\Http\Controllers\BetaInviteController::class, 'validateCode'])
@@ -52,7 +58,7 @@ Route::post('beta/apply', [BetaApplicationController::class, 'store'])
     ->middleware('throttle:5,1')
     ->name('beta.apply');
 
-Route::middleware(['auth', 'verified'])->group(function () {
+Route::middleware(['auth', 'verified', 'not.suspended'])->group(function () {
     Route::get('dashboard', [DashboardController::class, 'index'])->name('dashboard');
 
     // Beta invite code redemption — needs auth but no subscription
@@ -66,9 +72,11 @@ Route::middleware(['auth', 'verified'])->group(function () {
     // the wizard UX and blocks wasted time generating with zero credits.
     Route::middleware('has.credits')->group(function () {
 
-        // Simple Wizard (Direct Generation)
-        Route::get('simple-wizard', [SimpleTextWizardController::class, 'index'])->name('simple-wizard.index');
-        Route::post('simple-wizard/generate', [SimpleTextWizardController::class, 'generate'])->name('simple-wizard.generate');
+        // Simple Wizard + quick-generate — local labs only (not in production product)
+        if (app()->environment('local')) {
+            Route::get('simple-wizard', [SimpleTextWizardController::class, 'index'])->name('simple-wizard.index');
+            Route::post('simple-wizard/generate', [SimpleTextWizardController::class, 'generate'])->name('simple-wizard.generate');
+        }
 
         // Project Creation - Wizard Selection Page (must be before resource routes)
         Route::get('projects/create', function () {
@@ -96,76 +104,89 @@ Route::middleware(['auth', 'verified'])->group(function () {
             ->name('projects.wizards.csv-cluster.session');
         Route::get('projects/wizards/csv-cluster/sessions/{session}/status', [\App\Http\Controllers\Wizards\ClusterCsvWizardController::class, 'status'])
             ->name('projects.wizards.csv-cluster.status');
-        Route::get('projects/wizards/csv-cluster/sessions/{session}/rows/{rowIndex}/debug', [\App\Http\Controllers\Wizards\ClusterCsvWizardController::class, 'rowDebug'])
-            ->whereNumber('rowIndex')
-            ->name('projects.wizards.csv-cluster.row-debug');
         Route::get('projects/wizards/csv-cluster/sessions/{session}/result', [\App\Http\Controllers\Wizards\ClusterCsvWizardController::class, 'result'])
             ->name('projects.wizards.csv-cluster.result');
 
-        Route::get('projects/create/images', function () {
-            return Inertia::render('projects/wizards/images');
-        })->name('projects.wizards.images');
+        // Stub wizards, test labs, quick-generate, row-debug — local only
+        if (app()->environment('local')) {
+            Route::get('projects/wizards/csv-cluster/sessions/{session}/rows/{rowIndex}/debug', [\App\Http\Controllers\Wizards\ClusterCsvWizardController::class, 'rowDebug'])
+                ->whereNumber('rowIndex')
+                ->name('projects.wizards.csv-cluster.row-debug');
 
-        Route::get('projects/create/text', function () {
-            return Inertia::render('projects/wizards/text');
-        })->name('projects.wizards.text');
+            Route::get('projects/create/images', function () {
+                return Inertia::render('projects/wizards/images');
+            })->name('projects.wizards.images');
 
-        // Cluster Generation Test Lab — admin-only
-        Route::middleware('admin')->group(function () {
-            Route::get('test/clustering', [\App\Http\Controllers\Test\ClusteringTestController::class, 'index'])
-                ->name('test.clustering');
-            Route::post('test/clustering/analyze', [\App\Http\Controllers\Test\ClusteringTestController::class, 'analyze'])
-                ->name('test.clustering.analyze');
-            Route::post('test/clustering/{project}/match', [\App\Http\Controllers\Test\ClusteringTestController::class, 'matchCaption'])
-                ->name('test.clustering.match');
-            Route::post('test/clustering/{project}/generate-prompt', [\App\Http\Controllers\Test\ClusteringTestController::class, 'generatePrompt'])
-                ->name('test.clustering.generate-prompt');
-            Route::post('test/clustering/{project}/generate-image', [\App\Http\Controllers\Test\ClusteringTestController::class, 'generateImage'])
-                ->name('test.clustering.generate-image');
+            Route::get('projects/create/text', function () {
+                return Inertia::render('projects/wizards/text');
+            })->name('projects.wizards.text');
 
-            Route::get('test/cluster-generation', [\App\Http\Controllers\Test\ClusterTestController::class, 'index'])
-                ->name('test.cluster-generation');
-            Route::post('test/cluster-generation/analyze', [\App\Http\Controllers\Test\ClusterTestController::class, 'analyze'])
-                ->name('test.cluster-generation.analyze');
-            Route::post('test/cluster-generation/generate', [\App\Http\Controllers\Test\ClusterTestController::class, 'generate'])
-                ->name('test.cluster-generation.generate');
+            Route::middleware('admin')->group(function () {
+                Route::get('test/clustering', [\App\Http\Controllers\Test\ClusteringTestController::class, 'index'])
+                    ->name('test.clustering');
+                Route::post('test/clustering/analyze', [\App\Http\Controllers\Test\ClusteringTestController::class, 'analyze'])
+                    ->name('test.clustering.analyze');
+                Route::post('test/clustering/{project}/match', [\App\Http\Controllers\Test\ClusteringTestController::class, 'matchCaption'])
+                    ->name('test.clustering.match');
+                Route::post('test/clustering/{project}/generate-prompt', [\App\Http\Controllers\Test\ClusteringTestController::class, 'generatePrompt'])
+                    ->name('test.clustering.generate-prompt');
+                Route::post('test/clustering/{project}/generate-image', [\App\Http\Controllers\Test\ClusteringTestController::class, 'generateImage'])
+                    ->name('test.clustering.generate-image');
 
-            Route::get('test/prompt-forge', [\App\Http\Controllers\Test\PromptForgeTestController::class, 'index'])
-                ->name('test.prompt-forge');
-            Route::post('test/prompt-forge', [\App\Http\Controllers\Test\PromptForgeTestController::class, 'store'])
-                ->name('test.prompt-forge.store');
-            Route::get('test/prompt-forge/sessions/{session}', [\App\Http\Controllers\Test\PromptForgeTestController::class, 'show'])
-                ->name('test.prompt-forge.session');
-            Route::get('test/prompt-forge/sessions/{session}/status', [\App\Http\Controllers\Test\PromptForgeTestController::class, 'status'])
-                ->name('test.prompt-forge.status');
-            Route::get('test/prompt-forge/sessions/{session}/result', [\App\Http\Controllers\Test\PromptForgeTestController::class, 'result'])
-                ->name('test.prompt-forge.result');
-            Route::get('test/prompt-forge/sessions/{session}/rows/{rowIndex}/debug', [\App\Http\Controllers\Test\PromptForgeTestController::class, 'rowDebug'])
-                ->name('test.prompt-forge.row-debug');
+                Route::get('test/cluster-generation', [\App\Http\Controllers\Test\ClusterTestController::class, 'index'])
+                    ->name('test.cluster-generation');
+                Route::post('test/cluster-generation/analyze', [\App\Http\Controllers\Test\ClusterTestController::class, 'analyze'])
+                    ->name('test.cluster-generation.analyze');
+                Route::post('test/cluster-generation/generate', [\App\Http\Controllers\Test\ClusterTestController::class, 'generate'])
+                    ->name('test.cluster-generation.generate');
 
-            Route::get('test/master-prompt', [\App\Http\Controllers\Test\MasterPromptLabController::class, 'index'])
-                ->name('test.master-prompt');
-            Route::post('test/master-prompt/build', [\App\Http\Controllers\Test\MasterPromptLabController::class, 'build'])
-                ->name('test.master-prompt.build');
-            Route::post('test/master-prompt/generate', [\App\Http\Controllers\Test\MasterPromptLabController::class, 'generate'])
-                ->name('test.master-prompt.generate');
-        });
+                Route::get('test/prompt-forge', [\App\Http\Controllers\Test\PromptForgeTestController::class, 'index'])
+                    ->name('test.prompt-forge');
+                Route::post('test/prompt-forge', [\App\Http\Controllers\Test\PromptForgeTestController::class, 'store'])
+                    ->name('test.prompt-forge.store');
+                Route::get('test/prompt-forge/sessions/{session}', [\App\Http\Controllers\Test\PromptForgeTestController::class, 'show'])
+                    ->name('test.prompt-forge.session');
+                Route::get('test/prompt-forge/sessions/{session}/status', [\App\Http\Controllers\Test\PromptForgeTestController::class, 'status'])
+                    ->name('test.prompt-forge.status');
+                Route::get('test/prompt-forge/sessions/{session}/result', [\App\Http\Controllers\Test\PromptForgeTestController::class, 'result'])
+                    ->name('test.prompt-forge.result');
+                Route::get('test/prompt-forge/sessions/{session}/rows/{rowIndex}/debug', [\App\Http\Controllers\Test\PromptForgeTestController::class, 'rowDebug'])
+                    ->name('test.prompt-forge.row-debug');
 
-        // Quick Generate Routes
-        Route::get('quick-generate', [QuickGenerateController::class, 'index'])
-            ->name('quick-generate.index');
+                Route::get('test/master-prompt', [\App\Http\Controllers\Test\MasterPromptLabController::class, 'index'])
+                    ->name('test.master-prompt');
+                Route::post('test/master-prompt/build', [\App\Http\Controllers\Test\MasterPromptLabController::class, 'build'])
+                    ->name('test.master-prompt.build');
+                Route::post('test/master-prompt/generate', [\App\Http\Controllers\Test\MasterPromptLabController::class, 'generate'])
+                    ->name('test.master-prompt.generate');
 
-        Route::post('quick-generate', [QuickGenerateController::class, 'store'])
-            ->name('quick-generate.store');
+                Route::get('test/clustered-master-prompt', [\App\Http\Controllers\Test\ClusteredMasterPromptLabController::class, 'index'])
+                    ->name('test.clustered-master-prompt');
+                Route::post('test/clustered-master-prompt/cluster', [\App\Http\Controllers\Test\ClusteredMasterPromptLabController::class, 'cluster'])
+                    ->name('test.clustered-master-prompt.cluster');
+                Route::post('test/clustered-master-prompt/match', [\App\Http\Controllers\Test\ClusteredMasterPromptLabController::class, 'match'])
+                    ->name('test.clustered-master-prompt.match');
+                Route::post('test/clustered-master-prompt/match-batch', [\App\Http\Controllers\Test\ClusteredMasterPromptLabController::class, 'matchBatch'])
+                    ->name('test.clustered-master-prompt.match-batch');
+                Route::post('test/clustered-master-prompt/run-row', [\App\Http\Controllers\Test\ClusteredMasterPromptLabController::class, 'runRow'])
+                    ->name('test.clustered-master-prompt.run-row');
+                Route::post('test/clustered-master-prompt/build', [\App\Http\Controllers\Test\ClusteredMasterPromptLabController::class, 'build'])
+                    ->name('test.clustered-master-prompt.build');
+                Route::post('test/clustered-master-prompt/generate', [\App\Http\Controllers\Test\ClusteredMasterPromptLabController::class, 'generate'])
+                    ->name('test.clustered-master-prompt.generate');
+            });
 
-        Route::get('quick-generate/{session}', [QuickGenerateController::class, 'show'])
-            ->name('quick-generate.show');
-
-        Route::get('quick-generate/{session}/result', [QuickGenerateController::class, 'result'])
-            ->name('quick-generate.result');
-
-        Route::get('quick-generate/{session}/status', [QuickGenerateController::class, 'status'])
-            ->name('quick-generate.status');
+            Route::get('quick-generate', [QuickGenerateController::class, 'index'])
+                ->name('quick-generate.index');
+            Route::post('quick-generate', [QuickGenerateController::class, 'store'])
+                ->name('quick-generate.store');
+            Route::get('quick-generate/{session}', [QuickGenerateController::class, 'show'])
+                ->name('quick-generate.show');
+            Route::get('quick-generate/{session}/result', [QuickGenerateController::class, 'result'])
+                ->name('quick-generate.result');
+            Route::get('quick-generate/{session}/status', [QuickGenerateController::class, 'status'])
+                ->name('quick-generate.status');
+        }
 
         // Projects Resource Routes (except create/store/destroy which need throttle)
         Route::resource('projects', ProjectController::class)->except(['create', 'store', 'destroy']);
@@ -185,8 +206,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
         Route::get('projects/{id}/generation-progress', [ProjectController::class, 'generationProgress'])
             ->name('projects.generation-progress');
-        Route::get('projects/{id}/images/{imageId}/generation-debug', [ProjectController::class, 'imageGenerationDebug'])
-            ->name('projects.images.generation-debug');
+        if (app()->environment('local')) {
+            Route::get('projects/{id}/images/{imageId}/generation-debug', [ProjectController::class, 'imageGenerationDebug'])
+                ->name('projects.images.generation-debug');
+        }
 
         // Image Management Routes
         Route::prefix('projects/{projectId}/images')->group(function () {
@@ -206,11 +229,13 @@ Route::middleware(['auth', 'verified'])->group(function () {
             $projectId = request()->query('projectId');
             $imageUrl = request()->query('image');
             $projectTitle = request()->query('title', 'Untitled');
+            $imageId = request()->query('imageId');
 
             return Inertia::render('canvas-editor', [
-                'projectId' => $projectId,
+                'projectId' => $projectId ? (int) $projectId : null,
                 'imageUrl' => $imageUrl,
                 'projectTitle' => $projectTitle,
+                'imageId' => $imageId ? (int) $imageId : null,
             ]);
         })->name('canvas.editor');
 
@@ -233,16 +258,21 @@ Route::middleware(['auth', 'verified'])->group(function () {
             ->middleware('throttle.user:20,1')
             ->name('api.erase-image');
 
-        // Advanced canvas operations (deferred from beta — hidden from UI)
+        // Advanced canvas operations
         Route::post('/api/expand-image', [ImageEditController::class, 'expandImage'])
+            ->middleware('throttle.user:10,1')
             ->name('api.expand-image');
         Route::post('/api/upscale-image', [ImageEditController::class, 'upscaleImage'])
+            ->middleware('throttle.user:10,1')
             ->name('api.upscale-image');
         Route::post('/api/remove-background', [ImageEditController::class, 'removeBackground'])
+            ->middleware('throttle.user:10,1')
             ->name('api.remove-background');
         Route::post('/api/resize-canvas', [ImageEditController::class, 'resizeCanvas'])
+            ->middleware('throttle.user:20,1')
             ->name('api.resize-canvas');
         Route::post('/api/generate-from-prompt', [ImageEditController::class, 'generateFromPrompt'])
+            ->middleware('throttle.user:10,1')
             ->name('api.generate-from-prompt');
 
         // FAL.ai AI upscale — proxied server-side so the API key stays off the client
@@ -268,13 +298,19 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('/feedback', [FeedbackController::class, 'submit'])->name('feedback.submit');
     Route::get('/feedback/thank-you', [FeedbackController::class, 'thankYou'])->name('feedback.thank-you');
 
-    // Subscription & Billing — redirected to feedback during beta
+    // Subscription & Billing
     Route::prefix('subscription')->name('subscription.')->group(function () {
-        Route::get('/plans', fn () => redirect()->route('feedback'))->name('plans');
-        Route::get('/portal', fn () => redirect()->route('feedback'))->name('portal');
-        Route::post('/upgrade', fn () => redirect()->route('feedback'))->name('upgrade');
-        Route::post('/downgrade', fn () => redirect()->route('feedback'))->name('downgrade');
-        Route::post('/purchase-credits', fn () => redirect()->route('feedback'))->name('purchase-credits');
+        Route::get('/plans', [\App\Http\Controllers\SubscriptionController::class, 'index'])->name('plans');
+        Route::get('/portal', [\App\Http\Controllers\SubscriptionController::class, 'portal'])->name('portal');
+        Route::post('/upgrade', [\App\Http\Controllers\SubscriptionController::class, 'upgrade'])
+            ->middleware('throttle:10,1')
+            ->name('upgrade');
+        Route::post('/downgrade', [\App\Http\Controllers\SubscriptionController::class, 'downgrade'])
+            ->middleware('throttle:10,1')
+            ->name('downgrade');
+        Route::post('/purchase-credits', [\App\Http\Controllers\SubscriptionController::class, 'purchaseCredits'])
+            ->middleware('throttle:10,1')
+            ->name('purchase-credits');
     });
 
     // Invoices

@@ -22,9 +22,19 @@ class SubscriptionController extends Controller
         try {
             $user = Auth::user();
             
-            // Get active plans from database
-            $dbPlans = Plan::active()->ordered()->get();
-            
+            // Get active public plans (exclude invite-only beta)
+            $dbPlans = Plan::active()
+                ->ordered()
+                ->get()
+                ->filter(function (Plan $plan) {
+                    $features = $plan->capabilities['features'] ?? [];
+                    if (($features['is_public'] ?? true) === false) {
+                        return false;
+                    }
+
+                    return $plan->slug !== 'beta';
+                });
+
             // Transform plans for frontend
             $plans = $dbPlans->groupBy('slug')->map(function ($planGroup) {
                 $plan = $planGroup->first();
@@ -33,16 +43,17 @@ class SubscriptionController extends Controller
                 if (is_string($capabilities)) {
                     $capabilities = json_decode($capabilities, true) ?? [];
                 }
-                
+
                 // Get pricing for both periods
                 $pricing = SubscriptionService::getTierPricing($plan->slug);
-                
+
                 return [
                     'id' => $plan->slug,
                     'name' => $plan->name,
                     'subtitle' => $this->getSubtitle($plan->slug),
                     'price' => (float) $plan->price,
                     'yearly_price' => (float) $pricing['yearly_price'],
+                    'yearly_total' => (float) ($pricing['yearly_total'] ?? ($plan->price * 10)),
                     'currency' => $plan->currency,
                     'credits' => (int) ($capabilities['credits_per_month'] ?? 0),
                     'max_projects' => (int) ($capabilities['max_projects'] ?? 0),
@@ -74,7 +85,7 @@ class SubscriptionController extends Controller
             ]);
             
             // Return minimal data on error
-            return Inertia:: render('subscription/plans', [
+            return Inertia::render('subscription/plans', [
                 'plans' => [],
                 'current_tier' => null,
                 'credits_remaining' => 0,
@@ -90,10 +101,10 @@ class SubscriptionController extends Controller
     private function getSubtitle(string $slug): string
     {
         return match($slug) {
-            'beta'                   => 'Beta access — full feature set',
-            'launch', 'launch-plan' => 'Entry / Freelancer / Testing',
-            'growth', 'growth-plan' => 'Most Popular',
-            'scale', 'scale-plan'   => 'For Agencies & Teams',
+            'starter'  => 'Brand-consistent posts from CSV',
+            'pro'      => 'Scale campaigns without waiting',
+            'business' => 'High-volume brands & agencies',
+            'beta'     => 'Invite-only beta access',
             default => '',
         };
     }
@@ -171,10 +182,10 @@ class SubscriptionController extends Controller
     private function getBestFor(string $slug): array
     {
         return match($slug) {
-            'beta'                   => ['Solo founders', 'Freelancers', 'Early adopters'],
-            'launch', 'launch-plan' => ['Freelancers', 'Solo founders', 'Testing campaigns'],
-            'growth', 'growth-plan' => ['Marketing teams', 'E-commerce brands', 'Weekly campaign production'],
-            'scale', 'scale-plan'   => ['Agencies', 'Multi-market brands', 'Content ops teams'],
+            'starter'  => ['Solo founders', 'Freelancers', 'Getting started'],
+            'pro'      => ['Growing brands', 'Weekly campaigns', 'Marketing teams'],
+            'business' => ['Agencies', 'High-volume brands', 'Content ops'],
+            'beta'     => ['Early adopters'],
             default => [],
         };
     }
@@ -245,7 +256,7 @@ class SubscriptionController extends Controller
         ]);
 
         $request->validate([
-            'tier' => ['required', 'string', 'exists:plans,slug'],
+            'tier' => ['required', 'string', 'in:starter,pro,business'],
             'billing_period' => 'required|in:monthly,yearly',
         ]);
 

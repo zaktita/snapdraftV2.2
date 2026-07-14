@@ -222,9 +222,17 @@ interface AlertModalProps {
     title: string;
     message: string;
     type?: 'info' | 'warning' | 'error';
+    confirmText?: string;
 }
 
-export function AlertModal({ isOpen, onClose, title, message, type = 'info' }: AlertModalProps) {
+export function AlertModal({
+    isOpen,
+    onClose,
+    title,
+    message,
+    type = 'info',
+    confirmText = 'OK',
+}: AlertModalProps) {
     useEffect(() => {
         if (isOpen) {
             const handleEsc = (e: KeyboardEvent) => {
@@ -256,7 +264,7 @@ export function AlertModal({ isOpen, onClose, title, message, type = 'info' }: A
                 justifyContent: 'center',
                 zIndex: 10000,
                 opacity: 0,
-                animation: 'fadeIn 0.2s ease forwards'
+                animation: 'canvasModalFadeIn 0.2s ease forwards'
             }}
             onClick={(e) => e.target === e.currentTarget && onClose()}
         >
@@ -268,7 +276,7 @@ export function AlertModal({ isOpen, onClose, title, message, type = 'info' }: A
                 width: '90%',
                 maxWidth: '400px',
                 boxShadow: '0 8px 24px rgba(0, 0, 0, 0.1)',
-                animation: 'modalSlideIn 0.3s ease forwards'
+                animation: 'canvasModalSlideIn 0.3s ease forwards'
             }}>
                 <div style={{ marginBottom: '20px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
@@ -325,10 +333,25 @@ export function AlertModal({ isOpen, onClose, title, message, type = 'info' }: A
                             e.currentTarget.style.borderColor = 'var(--color-primary)';
                         }}
                     >
-                        OK
+                        {confirmText}
                     </button>
                 </div>
             </div>
+            <style>{`
+                @keyframes canvasModalFadeIn {
+                    to { opacity: 1; }
+                }
+                @keyframes canvasModalSlideIn {
+                    from {
+                        opacity: 0;
+                        transform: scale(0.95) translateY(10px);
+                    }
+                    to {
+                        opacity: 1;
+                        transform: scale(1) translateY(0);
+                    }
+                }
+            `}</style>
         </div>
     );
 }
@@ -377,7 +400,7 @@ export function ConfirmModal({
                 justifyContent: 'center',
                 zIndex: 10000,
                 opacity: 0,
-                animation: 'fadeIn 0.2s ease forwards'
+                animation: 'canvasModalFadeIn 0.2s ease forwards'
             }}
             onClick={(e) => e.target === e.currentTarget && onClose()}
         >
@@ -389,7 +412,7 @@ export function ConfirmModal({
                 width: '90%',
                 maxWidth: '400px',
                 boxShadow: '0 8px 24px rgba(0, 0, 0, 0.1)',
-                animation: 'modalSlideIn 0.3s ease forwards'
+                animation: 'canvasModalSlideIn 0.3s ease forwards'
             }}>
                 <div style={{ marginBottom: '20px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
@@ -481,6 +504,21 @@ export function ConfirmModal({
                     </button>
                 </div>
             </div>
+            <style>{`
+                @keyframes canvasModalFadeIn {
+                    to { opacity: 1; }
+                }
+                @keyframes canvasModalSlideIn {
+                    from {
+                        opacity: 0;
+                        transform: scale(0.95) translateY(10px);
+                    }
+                    to {
+                        opacity: 1;
+                        transform: scale(1) translateY(0);
+                    }
+                }
+            `}</style>
         </div>
     );
 }

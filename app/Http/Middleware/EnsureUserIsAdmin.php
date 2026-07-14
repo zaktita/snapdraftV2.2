@@ -15,8 +15,17 @@ class EnsureUserIsAdmin
      */
     public function handle(Request $request, Closure $next): Response
     {
-        if (!$request->user() || !$request->user()->isAdmin()) {
+        $user = $request->user();
+
+        if (! $user || ! $user->isAdmin()) {
             abort(403, 'Unauthorized. Admin access required.');
+        }
+
+        // Admins must have confirmed 2FA in non-local environments.
+        if (! app()->environment('local') && $user->two_factor_confirmed_at === null) {
+            return redirect()
+                ->route('two-factor.show')
+                ->with('error', 'Enable two-factor authentication before accessing the admin panel.');
         }
 
         return $next($request);

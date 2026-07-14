@@ -48,7 +48,7 @@ class GeneratePostPromptsJob implements ShouldQueue
                 throw new \RuntimeException('csv_data missing from project settings.');
             }
 
-            $useMasterPrompt = CreativityLevel::isPromptForgeLab($project);
+            $useMasterPrompt = CreativityLevel::usesMasterPromptPipeline($project);
 
             Log::info('GeneratePostPromptsJob: building prompts', [
                 'project_id' => $this->projectId,

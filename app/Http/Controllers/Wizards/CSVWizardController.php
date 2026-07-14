@@ -5,7 +5,8 @@ namespace App\Http\Controllers\Wizards;
 use App\Http\Controllers\Controller;
 use App\Jobs\AnalyzeBrandJob;
 use App\Jobs\DispatchGenerationBatchJob;
-use App\Jobs\MatchCaptionsJob;
+use App\Jobs\GeneratePostPromptsJob;
+use App\Jobs\MatchCaptionsToClustersJob;
 use App\Models\BrandReference;
 use App\Models\CsvWizardSession;
 use App\Models\GenerationHistory;
@@ -147,7 +148,8 @@ class CSVWizardController extends Controller
         try {
             Bus::chain([
                 new AnalyzeBrandJob($project->id, $session->id),
-                new MatchCaptionsJob($project->id, $session->id),
+                new MatchCaptionsToClustersJob($project->id, $session->id),
+                new GeneratePostPromptsJob($project->id, $session->id),
                 new DispatchGenerationBatchJob($project->id, $session->id),
             ])->dispatch();
         } catch (\Throwable $e) {

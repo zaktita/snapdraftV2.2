@@ -15,6 +15,12 @@ export default defineConfig({
             babel: {
                 plugins: ['babel-plugin-react-compiler'],
             },
+            // Wayfinder-generated TS must not go through Babel/React Compiler —
+            // it can drop the runtime `queryParams` import and break route helpers.
+            exclude: [
+                /node_modules/,
+                /resources[\\/]js[\\/](routes|wayfinder|actions)[\\/]/,
+            ],
         }),
         tailwindcss(),
         wayfinder({

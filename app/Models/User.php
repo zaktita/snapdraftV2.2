@@ -28,6 +28,8 @@ class User extends Authenticatable
         'avatar',
         'last_generation_at',
         'total_generations',
+        // Privilege flags: only set from trusted server code (seeders, admin, CreateNewUser).
+        // Never pass $request->all() into User::create/update.
         'is_admin',
         'is_suspended',
         'suspension_reason',
@@ -216,6 +218,10 @@ class User extends Authenticatable
         if ($this->cachedSubscription === false) {
             $this->cachedSubscription = $this->subscriptions()
                 ->where('status', 'active')
+                ->where(function ($query) {
+                    $query->whereNull('ends_at')
+                        ->orWhere('ends_at', '>', now());
+                })
                 ->latest()
                 ->first();
         }

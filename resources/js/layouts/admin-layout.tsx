@@ -44,12 +44,12 @@ export default function AdminLayout({ children, title }: AdminLayoutProps) {
         auth: { user: { name: string; email: string; is_admin: boolean } };
         impersonating?: { id: number; name: string; email: string };
         flash: { success?: string; error?: string };
+        appVersion?: string;
     }>();
 
     const currentPath = url.split('?')[0];
     const user = props.auth?.user;
-    const impersonating = props.impersonating;
-    const flash = props.flash;
+    const { impersonating, flash, appVersion } = props;
 
     return (
         <div className="flex h-screen overflow-hidden bg-gray-50">
@@ -160,6 +160,10 @@ export default function AdminLayout({ children, title }: AdminLayoutProps) {
 
                 {/* Scrollable content */}
                 <main className="flex-1 overflow-y-auto p-6">{children}</main>
+
+                <footer className="border-t border-gray-200 px-6 py-3 text-xs text-gray-500">
+                    SnapDraft v{appVersion ?? '1.0.0'}
+                </footer>
             </div>
         </div>
     );

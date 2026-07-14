@@ -27,4 +27,12 @@ export interface PendingComment {
     defaultValue?: string;
 }
 
+/** World-space rect for the on-canvas “image coming” skeleton while generating. */
+export interface GenerationSlot {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+}
+
 export type CanvasTool = 'select' | 'edit';

@@ -2,19 +2,11 @@ import {
     BETA_ROLE_OPTIONS,
     BETA_VOLUME_OPTIONS,
 } from '@/constants/beta-application-form';
+import { csrfHeaders } from '@/lib/csrf';
 import { Head, Link } from '@inertiajs/react';
 import { login } from '@/routes';
 import { ArrowRight, CheckCircle2 } from 'lucide-react';
 import { type FormEvent, useEffect, useRef, useState } from 'react';
-
-function csrfToken(): string {
-    if (typeof document === 'undefined') return '';
-    return (
-        document
-            .querySelector('meta[name="csrf-token"]')
-            ?.getAttribute('content') ?? ''
-    );
-}
 
 export default function BetaApplyPage() {
     const [email, setEmail] = useState('');
@@ -43,11 +35,10 @@ export default function BetaApplyPage() {
         try {
             const res = await fetch('/beta/apply', {
                 method: 'POST',
-                headers: {
+                headers: csrfHeaders({
                     'Content-Type': 'application/json',
                     Accept: 'application/json',
-                    'X-CSRF-TOKEN': csrfToken(),
-                },
+                }),
                 body: JSON.stringify({
                     email: em,
                     role,

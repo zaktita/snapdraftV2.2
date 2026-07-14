@@ -81,7 +81,7 @@ class GenerateSingleImageJob implements ShouldQueue
             $history?->update(['status' => 'processing']);
 
             $promptJson = $history?->prompt_json;
-            $useMasterPrompt = CreativityLevel::isPromptForgeLab($project)
+            $useMasterPrompt = CreativityLevel::usesMasterPromptPipeline($project)
                 || data_get($promptJson, 'pipeline') === 'master_prompt_lab';
 
             $format = FormatPresetMapper::normalize((string) ($this->promptItem['format'] ?? 'square'));
@@ -116,7 +116,12 @@ class GenerateSingleImageJob implements ShouldQueue
                 );
             }
 
-            if ($user->hasActiveSubscription() && ($project->settings['wizard_type'] ?? null) !== 'prompt_forge_lab') {
+            // Lab credit skips are local-only and require an explicit server-set flag
+            // (never trust client-writable wizard_type alone).
+            $skipCredits = app()->environment('local')
+                && (($project->settings['skip_credits'] ?? false) === true);
+
+            if ($user->hasActiveSubscription() && ! $skipCredits) {
                 $user->useCredit($resolutionMultiplier);
                 $creditDeducted = true;
             }

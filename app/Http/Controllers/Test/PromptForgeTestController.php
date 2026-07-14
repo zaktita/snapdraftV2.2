@@ -77,6 +77,7 @@ class PromptForgeTestController extends Controller
                 'settings' => [
                     'type' => 'prompt_forge_lab',
                     'wizard_type' => 'prompt_forge_lab',
+                    'skip_credits' => true,
                     'csv_data' => $csvRows,
                     'resolution_multiplier' => $resolutionMultiplier,
                     'creativity_level' => $creativityLevel,
@@ -122,6 +123,7 @@ class PromptForgeTestController extends Controller
                         'caption' => $caption,
                         'format' => $row['format'] ?? 'square',
                         'wizard_type' => 'prompt_forge_lab',
+                    'skip_credits' => true,
                         'resolution_multiplier' => $resolutionMultiplier,
                     ],
                 ]);

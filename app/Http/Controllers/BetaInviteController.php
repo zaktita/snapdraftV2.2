@@ -54,13 +54,17 @@ class BetaInviteController extends Controller
             return back()->withErrors(['code' => 'Invalid or expired invite code.']);
         }
 
-        $invite->redeem($user);
+        try {
+            $invite->redeem($user);
+        } catch (\RuntimeException $e) {
+            return back()->withErrors(['code' => $e->getMessage()]);
+        }
 
         app(PostHogService::class)->capture((string) $user->id, 'beta_invite_redeemed', [
             'credits_granted' => $invite->credits,
         ]);
 
         return redirect()->route('dashboard')
-            ->with('success', 'Beta access activated! You have ' . $invite->credits . ' credits — enjoy SnapDraft 🎉');
+            ->with('success', 'Beta access activated! You have ' . $invite->credits . ' credits for up to 30 days.');
     }
 }

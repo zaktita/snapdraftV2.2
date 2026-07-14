@@ -3,20 +3,25 @@ import {
     ConfirmModal,
 } from '@/components/canvas-modals';
 import { CanvasBottomBar } from '@/components/canvas-bottom-bar';
+import { CanvasGenerationSkeleton } from '@/components/canvas-generation-skeleton';
 import { CanvasLeftPanel } from '@/components/canvas-left-panel';
+import { CanvasNotification } from '@/components/canvas-notification';
 import { CanvasTopBar } from '@/components/canvas-top-bar';
 import { CanvasViewport } from '@/components/canvas-viewport';
 import { Skeleton } from '@/components/ui/skeleton';
-import { debug } from '@/lib/debug';
 import { CANVAS_COLORS, MAGIC_WAND_CURSOR } from '@/lib/canvas-editor-tokens';
+import { csrfHeaders } from '@/lib/csrf';
+import { debug } from '@/lib/debug';
 import type {
     AnnotationPoint,
     CanvasTool,
     EditHistoryEntry,
+    GenerationSlot,
     PendingComment,
 } from '@/lib/canvas-editor-types';
 import { Head, router } from '@inertiajs/react';
 import { useEffect, useRef, useState } from 'react';
+import { toast } from 'sonner';
 
 // Utility to parse query params
 function getQueryParams() {
@@ -28,6 +33,9 @@ function getQueryParams() {
             : undefined,
         imageUrl: params.get('image') || undefined,
         projectTitle: params.get('title') || undefined,
+        imageId: params.get('imageId')
+            ? Number(params.get('imageId'))
+            : undefined,
     };
 }
 
@@ -35,6 +43,7 @@ interface CanvasEditorProps {
     projectId?: number;
     imageUrl?: string;
     projectTitle?: string;
+    imageId?: number;
 }
 
 interface CanvasObject {
@@ -157,6 +166,7 @@ export default function CanvasEditor(props: CanvasEditorProps) {
     const projectId = props.projectId ?? query.projectId;
     const imageUrl = props.imageUrl ?? query.imageUrl;
     const projectTitle = props.projectTitle ?? query.projectTitle ?? 'Untitled';
+    const imageId = props.imageId ?? query.imageId;
     // Canvas refs
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const viewportRef = useRef<HTMLDivElement>(null);
@@ -190,6 +200,7 @@ export default function CanvasEditor(props: CanvasEditorProps) {
     const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
     const [showUploadZone, setShowUploadZone] = useState(true);
     const [generatingType, setGeneratingType] = useState<string | null>(null);
+    const [generationSlot, setGenerationSlot] = useState<GenerationSlot | null>(null);
     const [cursorPosition, setCursorPosition] = useState({ x: 0, y: 0 });
     const internalClipboardRef = useRef<HTMLImageElement | null>(null);
     const annotationDragMovedRef = useRef(false);
@@ -241,12 +252,18 @@ export default function CanvasEditor(props: CanvasEditorProps) {
         title: string;
         message: string;
         type: 'info' | 'warning' | 'error';
+        confirmText: string;
+        onConfirm: (() => void) | null;
     }>({
         isOpen: false,
         title: '',
         message: '',
         type: 'info',
+        confirmText: 'OK',
+        onConfirm: null,
     });
+    const [isSaving, setIsSaving] = useState(false);
+    const [notification, setNotification] = useState<string | null>(null);
 
     const [confirmModal, setConfirmModal] = useState<{
         isOpen: boolean;
@@ -538,16 +555,16 @@ export default function CanvasEditor(props: CanvasEditorProps) {
         };
     }, [canvas, scale, panX, panY, cursorPosition, canvasObjects]);
 
-    // Auto-dismiss alert modal for info type
+    // Auto-dismiss info alerts only when there's no action button (e.g. Return to project)
     useEffect(() => {
-        if (alertModal.isOpen && alertModal.type === 'info') {
+        if (alertModal.isOpen && alertModal.type === 'info' && !alertModal.onConfirm) {
             const timer = setTimeout(() => {
                 setAlertModal((prev) => ({ ...prev, isOpen: false }));
             }, CANVAS_DEFAULTS.TOAST_DISMISS_MS);
 
             return () => clearTimeout(timer);
         }
-    }, [alertModal.isOpen, alertModal.type]);
+    }, [alertModal.isOpen, alertModal.type, alertModal.onConfirm]);
 
     // Sync draggedObject and selectedObject when canvasObjects change during drag
     useEffect(() => {
@@ -792,6 +809,38 @@ export default function CanvasEditor(props: CanvasEditorProps) {
     };
     const stopGenTimer = () => {
         if (genTimerRef.current) { clearInterval(genTimerRef.current); genTimerRef.current = null; }
+    };
+
+    const estimateAspectSlotSize = (srcW: number, srcH: number, aspectRatio: string) => {
+        const [aw, ah] = aspectRatio.split(':').map(Number);
+        if (!aw || !ah) return { width: srcW, height: srcH };
+        const height = Math.sqrt((srcW * srcH * ah) / aw);
+        const width = (height * aw) / ah;
+        return { width: Math.round(width), height: Math.round(height) };
+    };
+
+    const startGeneration = (
+        type: string,
+        source: CanvasObject,
+        size?: { width: number; height: number },
+        gap: number = CANVAS_DEFAULTS.ERASE_GAP,
+    ) => {
+        setIsGenerating(true);
+        setGeneratingType(type);
+        setGenerationSlot({
+            x: source.x + source.image.width + gap,
+            y: source.y,
+            width: size?.width ?? source.image.width,
+            height: size?.height ?? source.image.height,
+        });
+        startGenTimer();
+    };
+
+    const finishGeneration = () => {
+        setIsGenerating(false);
+        setGeneratingType(null);
+        setGenerationSlot(null);
+        stopGenTimer();
     };
 
     const drawCanvasObject = (obj: CanvasObject) => {
@@ -1728,12 +1777,16 @@ export default function CanvasEditor(props: CanvasEditorProps) {
         message: string,
         type: 'info' | 'warning' | 'error' = 'info',
         actionType?: string,
+        options?: { confirmText?: string; onConfirm?: () => void },
     ) => {
+        void actionType;
         setAlertModal({
             isOpen: true,
             title,
             message,
             type,
+            confirmText: options?.confirmText ?? 'OK',
+            onConfirm: options?.onConfirm ?? null,
         });
     };
 
@@ -2012,9 +2065,7 @@ export default function CanvasEditor(props: CanvasEditorProps) {
             return;
         }
 
-        setIsGenerating(true);
-        setGeneratingType('edit');
-        startGenTimer();
+        startGeneration('edit', selectedObject);
 
         try {
             const compositeCanvas = createAnnotatedComposite(selectedObject);
@@ -2039,13 +2090,9 @@ export default function CanvasEditor(props: CanvasEditorProps) {
 
             const response = await fetch('/api/ai-edit-image', {
                 method: 'POST',
-                headers: {
+                headers: csrfHeaders({
                     'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN':
-                        document
-                            .querySelector('meta[name="csrf-token"]')
-                            ?.getAttribute('content') || '',
-                },
+                }),
                 body: JSON.stringify({
                     image: imageToSend,
                     prompt,
@@ -2099,9 +2146,7 @@ export default function CanvasEditor(props: CanvasEditorProps) {
                 'error',
             );
         } finally {
-            setIsGenerating(false);
-            setGeneratingType(null);
-            stopGenTimer();
+            finishGeneration();
             debug.log('[Annotate] Finished');
         }
     };
@@ -2112,9 +2157,15 @@ export default function CanvasEditor(props: CanvasEditorProps) {
             return;
         }
 
-        setIsGenerating(true);
-        setGeneratingType('resize');
-        startGenTimer();
+        startGeneration(
+            'resize',
+            selectedObject,
+            estimateAspectSlotSize(
+                selectedObject.image.width,
+                selectedObject.image.height,
+                aspectRatio,
+            ),
+        );
 
         try {
             let imageToSend = '';
@@ -2134,13 +2185,9 @@ export default function CanvasEditor(props: CanvasEditorProps) {
 
             const response = await fetch('/api/ai-edit-image', {
                 method: 'POST',
-                headers: {
+                headers: csrfHeaders({
                     'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN':
-                        document
-                            .querySelector('meta[name="csrf-token"]')
-                            ?.getAttribute('content') || '',
-                },
+                }),
                 body: JSON.stringify({
                     image: imageToSend,
                     prompt,
@@ -2194,9 +2241,7 @@ export default function CanvasEditor(props: CanvasEditorProps) {
                 'error',
             );
         } finally {
-            setIsGenerating(false);
-            setGeneratingType(null);
-            stopGenTimer();
+            finishGeneration();
         }
     };
 
@@ -2239,9 +2284,7 @@ export default function CanvasEditor(props: CanvasEditorProps) {
         }
 
         // Start erasing immediately without confirmation
-        setIsGenerating(true);
-        setGeneratingType('erase');
-        startGenTimer();
+        startGeneration('erase', selectedObject);
         debug.log('[Erase] Starting erase with strokes', {
             strokeCount: relevant.length,
             points: relevant.reduce((a, l) => a + l.points.length / 2, 0),
@@ -2266,7 +2309,7 @@ export default function CanvasEditor(props: CanvasEditorProps) {
                     'Cannot read the image due to browser security (CORS). Try uploading a local image or ensure the image URL allows cross-origin access.',
                     'error',
                 );
-                setIsGenerating(false);
+                finishGeneration();
                 return;
             }
 
@@ -2277,13 +2320,9 @@ export default function CanvasEditor(props: CanvasEditorProps) {
             // Make API call with only the composite image
             const response = await fetch('/api/erase-image', {
                 method: 'POST',
-                headers: {
+                headers: csrfHeaders({
                     'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN':
-                        document
-                            .querySelector('meta[name="csrf-token"]')
-                            ?.getAttribute('content') || '',
-                },
+                }),
                 body: JSON.stringify({
                     image: compositeImage,
                 }),
@@ -2343,9 +2382,7 @@ export default function CanvasEditor(props: CanvasEditorProps) {
                 'error',
             );
         } finally {
-            setIsGenerating(false);
-            setGeneratingType(null);
-            stopGenTimer();
+            finishGeneration();
             debug.log('[Erase] Finished');
         }
     };
@@ -2369,9 +2406,7 @@ export default function CanvasEditor(props: CanvasEditorProps) {
             return;
         }
 
-        setIsGenerating(true);
-        setGeneratingType('ai-edit');
-        startGenTimer();
+        startGeneration('ai-edit', selectedObject);
         debug.log('[AI Edit] Starting', { prompt: userPrompt });
 
         try {
@@ -2416,13 +2451,9 @@ export default function CanvasEditor(props: CanvasEditorProps) {
 
             const response = await fetch('/api/ai-edit-image', {
                 method: 'POST',
-                headers: {
+                headers: csrfHeaders({
                     'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN':
-                        document
-                            .querySelector('meta[name="csrf-token"]')
-                            ?.getAttribute('content') || '',
-                },
+                }),
                 body: JSON.stringify({
                     image: imageToSend,
                     prompt,
@@ -2487,9 +2518,7 @@ export default function CanvasEditor(props: CanvasEditorProps) {
                 'error',
             );
         } finally {
-            setIsGenerating(false);
-            setGeneratingType(null);
-            stopGenTimer();
+            finishGeneration();
             debug.log('[AI Edit] Finished');
         }
     };
@@ -2531,9 +2560,7 @@ export default function CanvasEditor(props: CanvasEditorProps) {
             debug.log('[ReplaceText] Prompt value', textToReplace);
 
             // Start generation immediately without confirmation
-            setIsGenerating(true);
-            setGeneratingType('replace-text');
-            startGenTimer();
+            startGeneration('replace-text', selectedObject);
             debug.log('[ReplaceText] Starting with strokes', {
                 strokeCount: relevant.length,
             });
@@ -2552,7 +2579,7 @@ export default function CanvasEditor(props: CanvasEditorProps) {
                     'Cannot read the image due to browser security (CORS). Try uploading a local image.',
                     'error',
                 );
-                setIsGenerating(false);
+                finishGeneration();
                 return;
             }
 
@@ -2564,13 +2591,9 @@ export default function CanvasEditor(props: CanvasEditorProps) {
             try {
                 response = await fetch('/api/generate-with-mask', {
                     method: 'POST',
-                    headers: {
+                    headers: csrfHeaders({
                         'Content-Type': 'application/json',
-                        'X-CSRF-TOKEN':
-                            document
-                                .querySelector('meta[name="csrf-token"]')
-                                ?.getAttribute('content') || '',
-                    },
+                    }),
                     body: JSON.stringify({
                         image: compositeImage,
                         prompt,
@@ -2675,22 +2698,18 @@ export default function CanvasEditor(props: CanvasEditorProps) {
                 'error',
             );
         } finally {
-            setIsGenerating(false);
-            setGeneratingType(null);
-            stopGenTimer();
+            finishGeneration();
             debug.log('[ReplaceText] Finished');
         }
     };
 
     // Centralized API call utility
     const callApi = async (url: string, body: ApiBody) => {
-        const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
         const response = await fetch(url, {
             method: 'POST',
-            headers: {
+            headers: csrfHeaders({
                 'Content-Type': 'application/json',
-                'X-CSRF-TOKEN': csrf,
-            },
+            }),
             body: JSON.stringify(body),
         });
 
@@ -2746,9 +2765,12 @@ export default function CanvasEditor(props: CanvasEditorProps) {
 
         setCropMode(false);
         setCropRect(null);
-        setGeneratingType('crop');
-        setIsGenerating(true);
-        startGenTimer();
+        startGeneration(
+            'crop',
+            target,
+            { width: newW, height: newH },
+            CANVAS_DEFAULTS.OBJECT_SPACING,
+        );
 
         try {
             const imageDataUrl = imageToDataUrl(target.image);
@@ -2775,23 +2797,17 @@ export default function CanvasEditor(props: CanvasEditorProps) {
                     setCanvasObjects((prev) => [...prev, newObject]);
                     setSelectedObject(newObject);
                     showAlert('Success', result.mode === 'crop' ? 'Image cropped.' : 'Canvas expanded with AI.', 'info', 'crop');
-                    setIsGenerating(false);
-                    setGeneratingType(null);
-                    stopGenTimer();
+                    finishGeneration();
                 };
                 outImg.onerror = () => {
                     showAlert('Error', 'Failed to load processed image', 'error', 'crop');
-                    setIsGenerating(false);
-                    setGeneratingType(null);
-                    stopGenTimer();
+                    finishGeneration();
                 };
                 outImg.src = result.resultImage;
             }
         } catch (error) {
             showAlert('Error', error instanceof Error ? error.message : 'Failed to crop/resize', 'error', 'crop');
-            setIsGenerating(false);
-            setGeneratingType(null);
-            stopGenTimer();
+            finishGeneration();
         }
     };
 
@@ -2810,9 +2826,7 @@ export default function CanvasEditor(props: CanvasEditorProps) {
 
         setCropMode(false);
         setCropRect(null);
-        setGeneratingType('expand');
-        setIsGenerating(true);
-        startGenTimer();
+        startGeneration('expand', target, { width: newW, height: newH });
 
         try {
             // Build a black-filled expanded canvas image
@@ -2845,13 +2859,9 @@ export default function CanvasEditor(props: CanvasEditorProps) {
 
             const response = await fetch('/api/ai-edit-image', {
                 method: 'POST',
-                headers: {
+                headers: csrfHeaders({
                     'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN':
-                        document
-                            .querySelector('meta[name="csrf-token"]')
-                            ?.getAttribute('content') || '',
-                },
+                }),
                 body: JSON.stringify({
                     image: expandedDataUrl,
                     prompt,
@@ -2910,9 +2920,7 @@ export default function CanvasEditor(props: CanvasEditorProps) {
                 'expand',
             );
         } finally {
-            setIsGenerating(false);
-            setGeneratingType(null);
-            stopGenTimer();
+            finishGeneration();
         }
     };
 
@@ -2963,9 +2971,10 @@ export default function CanvasEditor(props: CanvasEditorProps) {
 
         const creditCost = factor;
 
-        setGeneratingType('upscale');
-        setIsGenerating(true);
-        startGenTimer();
+        startGeneration('upscale', selectedObject, {
+            width: selectedObject.image.width * factor,
+            height: selectedObject.image.height * factor,
+        });
         debug.log('[Upscale] Starting FAL AI upscale', { factor, creditCost });
 
         try {
@@ -2975,20 +2984,16 @@ export default function CanvasEditor(props: CanvasEditorProps) {
             } catch (e) {
                 debug.error('[Upscale] toDataURL failed', e);
                 showAlert('Image Security Error', 'Cannot read image (CORS issue). Try uploading a local image.', 'error', 'upscale');
-                setIsGenerating(false);
-                setGeneratingType(null);
+                finishGeneration();
                 return;
             }
-
-            const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
 
             // Submit upscale job via server-side proxy (FAL API key stays on the server)
             const submitRes = await fetch('/api/fal/upscale/submit', {
                 method: 'POST',
-                headers: {
+                headers: csrfHeaders({
                     'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': csrf,
-                },
+                }),
                 body: JSON.stringify({ image_url: originalImage, upscale_factor: factor }),
             });
 
@@ -3008,7 +3013,7 @@ export default function CanvasEditor(props: CanvasEditorProps) {
             let attempts = 0;
             while (attempts < 120) {
                 const statusRes = await fetch(`/api/fal/upscale/status/${encodeURIComponent(request_id)}`, {
-                    headers: { 'X-CSRF-TOKEN': csrf },
+                    headers: csrfHeaders(),
                 });
                 const statusData = await statusRes.json();
                 debug.log('[Upscale] Status check', { attempts, statusObj: statusData });
@@ -3076,27 +3081,21 @@ export default function CanvasEditor(props: CanvasEditorProps) {
                 );
                 void upscaledObj;
 
-                setIsGenerating(false);
-                setGeneratingType(null);
-                stopGenTimer();
+                finishGeneration();
             };
 
             newImage.onerror = () => {
                 clearTimeout(imageLoadTimeout);
                 debug.log('[Upscale] Image load error');
                 showAlert('Error', 'Failed to load upscaled image', 'error', 'upscale');
-                setIsGenerating(false);
-                setGeneratingType(null);
-                stopGenTimer();
+                finishGeneration();
             };
 
             // Set timeout for image loading (10 seconds)
             imageLoadTimeout = setTimeout(() => {
                 debug.log('[Upscale] Image load timeout');
                 showAlert('Error', 'Image loading timed out', 'error', 'upscale');
-                setIsGenerating(false);
-                setGeneratingType(null);
-                stopGenTimer();
+                finishGeneration();
             }, 10000);
 
             debug.log('[Upscale] Setting image source', { imageUrl: imageUrl.substring(0, 50) + '...' });
@@ -3105,36 +3104,25 @@ export default function CanvasEditor(props: CanvasEditorProps) {
             const errorMessage = error instanceof Error ? error.message : 'Upscale failed';
             debug.log('[Upscale] Error:', errorMessage);
             showAlert('Error', errorMessage, 'error', 'upscale');
-            setIsGenerating(false);
-            setGeneratingType(null);
-            stopGenTimer();
+            finishGeneration();
         }
     };
 
     const applyChanges = async () => {
         const target = selectedObject || canvasObjects.find(o => o.isMainImage);
         if (!target) {
-            showAlert('No Image', 'No image to apply. Please select an image first.', 'warning');
+            toast.warning('Select an image on the canvas to save.');
             return;
         }
         if (!projectId) {
-            showAlert('No Project', 'This editor was opened without a project. Use Download instead.', 'warning');
+            toast.warning('This editor was opened without a project. Use Download instead.');
             return;
         }
-        // Find the imageId from the URL param (passed as prop / query param)
-        const imageId = new URLSearchParams(window.location.search).get('imageId');
         if (!imageId) {
-            showAlert('No Image ID', 'Cannot save — no image ID found in the URL. Use Download instead.', 'warning');
+            toast.warning('Cannot save — open the editor from a project image.');
             return;
         }
-
-        const confirmed = await showConfirm(
-            'Replace Original Image?',
-            'This will permanently replace the original image in your project with the currently selected version. This action cannot be undone.',
-            'Replace Image',
-            true,
-        );
-        if (!confirmed) return;
+        if (isSaving || isGenerating) return;
 
         let canvasData: string;
         try {
@@ -3146,21 +3134,34 @@ export default function CanvasEditor(props: CanvasEditorProps) {
             offCtx.drawImage(target.image, 0, 0);
             canvasData = offscreen.toDataURL('image/png');
         } catch {
-            showAlert('Error', 'Could not read the image (CORS). Try downloading instead.', 'error');
+            toast.error('Could not read the image (CORS). Try downloading instead.');
             return;
         }
-        const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+
+        setIsSaving(true);
         try {
             const res = await fetch(`/projects/${projectId}/images/${imageId}/save-edit`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrf },
+                headers: csrfHeaders({
+                    'Content-Type': 'application/json',
+                    Accept: 'application/json',
+                }),
                 body: JSON.stringify({ canvas_data: canvasData, create_new: false }),
             });
-            if (!res.ok) throw new Error(`Server error ${res.status}`);
-            showAlert('Saved', 'Image replaced successfully! Returning to project…', 'info');
-            setTimeout(() => { if (projectId) router.visit(`/projects/${projectId}`); }, 1500);
+
+            const payload = await res.json().catch(() => ({}));
+            if (!res.ok) {
+                throw new Error(
+                    (payload as { message?: string }).message ||
+                        `Server error ${res.status}`,
+                );
+            }
+
+            setNotification('Image saved');
         } catch (err) {
-            showAlert('Error', err instanceof Error ? err.message : 'Failed to save', 'error');
+            toast.error(err instanceof Error ? err.message : 'Failed to save');
+        } finally {
+            setIsSaving(false);
         }
     };
 
@@ -3242,12 +3243,22 @@ export default function CanvasEditor(props: CanvasEditorProps) {
 
     const generatingLabel =
         generatingType === 'edit'
-            ? 'Applying edits...'
+            ? 'Applying edits…'
             : generatingType === 'upscale'
-              ? 'Upscaling...'
+              ? 'Upscaling…'
               : generatingType === 'resize'
-                ? 'Resizing...'
-                : 'Processing...';
+                ? 'Resizing…'
+                : generatingType === 'erase'
+                  ? 'Erasing…'
+                  : generatingType === 'ai-edit'
+                    ? 'AI editing…'
+                    : generatingType === 'replace-text'
+                      ? 'Replacing text…'
+                      : generatingType === 'crop'
+                        ? 'Cropping…'
+                        : generatingType === 'expand'
+                          ? 'Expanding…'
+                          : 'Generating…';
 
     return (
         <>
@@ -3300,6 +3311,7 @@ export default function CanvasEditor(props: CanvasEditorProps) {
                     onSave={applyChanges}
                     onDownload={downloadImage}
                     isGenerating={isGenerating}
+                    isSaving={isSaving}
                 />
 
                 <div style={{ flex: 1, display: 'flex', overflow: 'hidden', minHeight: 0 }}>
@@ -3370,7 +3382,22 @@ export default function CanvasEditor(props: CanvasEditorProps) {
                                     <div style={{ fontSize: '13px', color: 'var(--color-muted-foreground)' }}>Click or drag and drop</div>
                                 </div>
                             }
-                        />
+                        >
+                            {generationSlot && (
+                                <CanvasGenerationSkeleton
+                                    left={panX + generationSlot.x * scale}
+                                    top={panY + generationSlot.y * scale}
+                                    width={generationSlot.width * scale}
+                                    height={generationSlot.height * scale}
+                                    label={generatingLabel}
+                                />
+                            )}
+                            <CanvasNotification
+                                message={notification ?? ''}
+                                visible={!!notification}
+                                onDismiss={() => setNotification(null)}
+                            />
+                        </CanvasViewport>
 
                         {!showUploadZone && (
                             <CanvasBottomBar
@@ -3385,7 +3412,7 @@ export default function CanvasEditor(props: CanvasEditorProps) {
                             />
                         )}
 
-                        {isGenerating && generatingType && ['edit', 'upscale', 'resize'].includes(generatingType) && (
+                        {isGenerating && generatingType && (
                             <div
                                 style={{
                                     position: 'absolute',
@@ -3426,12 +3453,20 @@ export default function CanvasEditor(props: CanvasEditorProps) {
             {/* Modals */}
             <AlertModal
                 isOpen={alertModal.isOpen}
-                onClose={() =>
-                    setAlertModal((prev) => ({ ...prev, isOpen: false }))
-                }
+                onClose={() => {
+                    const action = alertModal.onConfirm;
+                    setAlertModal((prev) => ({
+                        ...prev,
+                        isOpen: false,
+                        onConfirm: null,
+                        confirmText: 'OK',
+                    }));
+                    action?.();
+                }}
                 title={alertModal.title}
                 message={alertModal.message}
                 type={alertModal.type}
+                confirmText={alertModal.confirmText}
             />
 
             <ConfirmModal

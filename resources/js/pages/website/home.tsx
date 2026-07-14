@@ -454,7 +454,11 @@ export default function HomePage() {
                         © {new Date().getFullYear()} SnapDraft. All rights
                         reserved.
                     </span>
-                    <span>Privacy · Terms</span>
+                    <span className="flex gap-3">
+                        <Link href="/privacy">Privacy</Link>
+                        <Link href="/terms">Terms</Link>
+                        <Link href="/refund">Refunds</Link>
+                    </span>
                 </div>
             </footer>
         </div>

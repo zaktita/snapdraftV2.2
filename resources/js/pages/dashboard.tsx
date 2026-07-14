@@ -174,8 +174,8 @@ export default function Dashboard({ stats, recent_projects }: DashboardProps) {
                                     </p>
                                 </div>
                                 <Button asChild variant="outline" size="sm" className="shrink-0">
-                                    <Link href="/feedback">
-                                        Share Feedback
+                                    <Link href="/subscription/plans">
+                                        View plans
                                     </Link>
                                 </Button>
                             </div>
@@ -335,8 +335,8 @@ export default function Dashboard({ stats, recent_projects }: DashboardProps) {
                                 )}
 
                                 <Button asChild className="w-full" size="sm">
-                                    <Link href="/feedback">
-                                        Share Feedback
+                                    <Link href="/subscription/plans">
+                                        View plans
                                     </Link>
                                 </Button>
 

@@ -37,6 +37,18 @@ class CreativityLevel
         return ($project->settings['wizard_type'] ?? null) === 'prompt_forge_lab';
     }
 
+    /**
+     * CSV / Cluster CSV / PromptForge all use master-prompt generation.
+     */
+    public static function usesMasterPromptPipeline(Project $project): bool
+    {
+        return in_array(
+            $project->settings['wizard_type'] ?? null,
+            ['csv', 'csv_cluster', 'prompt_forge_lab'],
+            true,
+        );
+    }
+
     public static function step2Instruction(string $level): string
     {
         return match (self::normalize($level)) {

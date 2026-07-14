@@ -13,7 +13,7 @@ use Illuminate\Support\Facades\Storage;
 use RuntimeException;
 
 /**
- * PromptForge-only: build per-row master prompts from matched cluster refs + caption.
+ * Build per-row master prompts from matched cluster refs + caption (production CSV pipelines).
  */
 class CsvMasterPromptBuilder
 {

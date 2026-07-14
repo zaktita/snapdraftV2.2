@@ -13,6 +13,7 @@ interface CanvasTopBarProps {
     onSave: () => void;
     onDownload: () => void;
     isGenerating: boolean;
+    isSaving?: boolean;
 }
 
 export function CanvasTopBar({
@@ -27,6 +28,7 @@ export function CanvasTopBar({
     onSave,
     onDownload,
     isGenerating,
+    isSaving = false,
 }: CanvasTopBarProps) {
     const iconBtn: React.CSSProperties = {
         display: 'flex',
@@ -134,7 +136,7 @@ export function CanvasTopBar({
                 <button
                     type="button"
                     style={ghostBtn}
-                    disabled={isGenerating}
+                    disabled={isGenerating || isSaving}
                     onClick={onDownload}
                 >
                     <Download size={14} />
@@ -147,12 +149,14 @@ export function CanvasTopBar({
                         background: 'var(--color-primary)',
                         color: 'var(--color-primary-foreground)',
                         borderColor: 'var(--color-primary)',
+                        opacity: isGenerating || isSaving ? 0.6 : 1,
+                        cursor: isGenerating || isSaving ? 'not-allowed' : 'pointer',
                     }}
-                    disabled={isGenerating}
+                    disabled={isGenerating || isSaving}
                     onClick={onSave}
                 >
                     <Save size={14} />
-                    <span>Save</span>
+                    <span>{isSaving ? 'Saving…' : 'Save'}</span>
                 </button>
             </div>
         </header>

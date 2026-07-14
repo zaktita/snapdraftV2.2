@@ -105,9 +105,15 @@ return [
         'test_mode' => env('LEMON_SQUEEZY_TEST_MODE', false),
         'verify_ssl' => env('LEMON_SQUEEZY_VERIFY_SSL', true), // Set to false in .env for local XAMPP dev only
         'variants' => [
-            // Beta plan (single plan for beta launch)
-            'beta_monthly' => env('LEMON_SQUEEZY_BETA_MONTHLY_VARIANT_ID'),
-            'beta_yearly'  => env('LEMON_SQUEEZY_BETA_YEARLY_VARIANT_ID'),
+            'starter_monthly'  => env('LEMON_SQUEEZY_STARTER_MONTHLY_VARIANT_ID'),
+            'starter_yearly'   => env('LEMON_SQUEEZY_STARTER_YEARLY_VARIANT_ID'),
+            'pro_monthly'      => env('LEMON_SQUEEZY_PRO_MONTHLY_VARIANT_ID'),
+            'pro_yearly'       => env('LEMON_SQUEEZY_PRO_YEARLY_VARIANT_ID'),
+            'business_monthly' => env('LEMON_SQUEEZY_BUSINESS_MONTHLY_VARIANT_ID'),
+            'business_yearly'  => env('LEMON_SQUEEZY_BUSINESS_YEARLY_VARIANT_ID'),
+            // Invite-only grandfather (optional LS product)
+            'beta_monthly'     => env('LEMON_SQUEEZY_BETA_MONTHLY_VARIANT_ID'),
+            'beta_yearly'      => env('LEMON_SQUEEZY_BETA_YEARLY_VARIANT_ID'),
         ],
     ],
 

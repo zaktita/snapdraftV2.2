@@ -6,7 +6,8 @@ use App\Http\Requests\StoreProjectRequest;
 use App\Http\Requests\UpdateProjectRequest;
 use App\Jobs\AnalyzeBrandJob;
 use App\Jobs\DispatchGenerationBatchJob;
-use App\Jobs\MatchCaptionsJob;
+use App\Jobs\GeneratePostPromptsJob;
+use App\Jobs\MatchCaptionsToClustersJob;
 use App\Models\CsvWizardSession;
 use App\Models\GenerationHistory;
 use App\Models\Project;
@@ -481,13 +482,15 @@ class ProjectController extends Controller
 
         if ($hasCluster) {
             Bus::chain([
-                new MatchCaptionsJob($project->id, $session->id),
+                new MatchCaptionsToClustersJob($project->id, $session->id),
+                new GeneratePostPromptsJob($project->id, $session->id),
                 new DispatchGenerationBatchJob($project->id, $session->id),
             ])->dispatch();
         } else {
             Bus::chain([
                 new AnalyzeBrandJob($project->id, $session->id),
-                new MatchCaptionsJob($project->id, $session->id),
+                new MatchCaptionsToClustersJob($project->id, $session->id),
+                new GeneratePostPromptsJob($project->id, $session->id),
                 new DispatchGenerationBatchJob($project->id, $session->id),
             ])->dispatch();
         }

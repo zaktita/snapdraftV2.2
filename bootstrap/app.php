@@ -25,9 +25,8 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->encryptCookies(except: ['appearance', 'sidebar_state']);
 
-        // Exclude API routes and webhooks from CSRF verification
+        // Webhooks only — authenticated canvas /api/* routes use session cookies and must stay CSRF-protected
         $middleware->validateCsrfTokens(except: [
-            'api/*',
             'webhook/*',
             'webhooks/*',
         ]);
@@ -44,6 +43,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'throttle.user' => \App\Http\Middleware\ThrottlePerUser::class,
             'admin' => \App\Http\Middleware\EnsureUserIsAdmin::class,
             'has.credits' => \App\Http\Middleware\EnsureUserHasCredits::class,
+            'not.suspended' => \App\Http\Middleware\EnsureUserNotSuspended::class,
             'check.project.limit' => \App\Http\Middleware\CheckProjectLimit::class,
             'check.csv.limit' => \App\Http\Middleware\CheckCsvRowLimit::class,
         ]);

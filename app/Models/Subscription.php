@@ -207,23 +207,29 @@ class Subscription extends Model
     }
 
     /**
-     * Use credits from subscription.
+     * Use credits from subscription (atomic).
      */
     public function useCredits(int $amount = 1): void
     {
-        if (!$this->hasCredits($amount)) {
-            throw new \RuntimeException('Insufficient credits');
-        }
+        \Illuminate\Support\Facades\DB::transaction(function () use ($amount) {
+            /** @var self $locked */
+            $locked = static::query()->whereKey($this->id)->lockForUpdate()->firstOrFail();
 
-        $capabilities = $this->capabilities ?? [];
-        $capabilities['credits_used'] = ($capabilities['credits_used'] ?? 0) + $amount;
-        $capabilities['credits_remaining'] = ($capabilities['credits_remaining'] ?? 0) - $amount;
-        
-        $this->update(['capabilities' => $capabilities]);
-        
-        // Also update user's total_generations
-        $this->user->increment('total_generations');
-        $this->user->update(['last_generation_at' => now()]);
+            $remaining = (int) ($locked->capabilities['credits_remaining'] ?? 0);
+            if ($remaining < $amount) {
+                throw new \RuntimeException('Insufficient credits');
+            }
+
+            $capabilities = $locked->capabilities ?? [];
+            $capabilities['credits_used'] = ($capabilities['credits_used'] ?? 0) + $amount;
+            $capabilities['credits_remaining'] = $remaining - $amount;
+
+            $locked->update(['capabilities' => $capabilities]);
+            $this->capabilities = $capabilities;
+
+            $locked->user->increment('total_generations');
+            $locked->user->update(['last_generation_at' => now()]);
+        });
     }
 
     /**

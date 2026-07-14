@@ -8,6 +8,7 @@ import { Head, Link, router, usePage } from '@inertiajs/react';
 import { toast } from 'sonner';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { GenerationDebugDialog, type GenerationDebugData } from '@/components/generation-debug-dialog';
+import { csrfHeaders } from '@/lib/csrf';
 import { ArrowLeft, Star, Download, MoreHorizontal, BoxSelect, Square, SquareCheck, Edit, Maximize, RotateCw, Share, Trash2, Check, Plus, CheckCircle, X, ChevronLeft, ChevronRight, Upload, Edit3, FileText, Grid, Clock, AlertCircle, Image as ImageIcon, Zap, Sparkles, Bug } from 'lucide-react';
 import { useState, useRef, useEffect } from 'react';
 
@@ -186,7 +187,11 @@ export default function ProjectShow({ project, justCreated = false, expectedImag
             const lower = header.toLowerCase();
             if (lower.includes('title') || lower.includes('name')) {
                 mappings[header] = 'Product Title';
-            } else if (lower.includes('description') || lower.includes('prompt')) {
+            } else if (
+                lower.includes('caption') ||
+                lower.includes('description') ||
+                lower.includes('prompt')
+            ) {
                 mappings[header] = 'Image Prompt';
             } else if (lower.includes('id')) {
                 mappings[header] = 'Product ID';
@@ -315,7 +320,11 @@ export default function ProjectShow({ project, justCreated = false, expectedImag
             const lower = header.toLowerCase();
             if (lower.includes('title') || lower.includes('name')) {
                 mappings[header] = 'Product Title';
-            } else if (lower.includes('description') || lower.includes('prompt')) {
+            } else if (
+                lower.includes('caption') ||
+                lower.includes('description') ||
+                lower.includes('prompt')
+            ) {
                 mappings[header] = 'Image Prompt';
             } else if (lower.includes('format')) {
                 mappings[header] = 'Product ID';
@@ -485,13 +494,9 @@ export default function ProjectShow({ project, justCreated = false, expectedImag
 
             const response = await fetch('/api/upscale-image', {
                 method: 'POST',
-                headers: {
+                headers: csrfHeaders({
                     'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN':
-                        document
-                            .querySelector('meta[name="csrf-token"]')
-                            ?.getAttribute('content') || '',
-                },
+                }),
                 body: JSON.stringify({
                     image: imageDataUrl,
                     scale: upscaleFactor,

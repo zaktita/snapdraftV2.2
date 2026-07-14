@@ -169,7 +169,10 @@ return [
     |
     */
 
-    'secure' => env('SESSION_SECURE_COOKIE', true),
+    // Null (unset) lets cookies follow the request scheme. Forcing true breaks
+    // local HTTP (APP_URL=http://...) — browsers omit Secure cookies → 419 CSRF.
+    'secure' => env('SESSION_SECURE_COOKIE'),
+
 
     /*
     |--------------------------------------------------------------------------

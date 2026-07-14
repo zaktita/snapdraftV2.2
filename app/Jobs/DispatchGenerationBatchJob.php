@@ -40,7 +40,7 @@ class DispatchGenerationBatchJob implements ShouldQueue
                     $project,
                     'Pipeline aborted: no generation prompts were produced (empty prompt batch).'
                 );
-                $message = 'prompt_batch missing from project settings — MatchCaptionsJob may not have completed.';
+                $message = 'prompt_batch missing from project settings — GeneratePostPromptsJob may not have completed.';
                 $session->markAsFailed($message);
                 throw new \RuntimeException($message);
             }

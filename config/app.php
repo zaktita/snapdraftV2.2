@@ -15,6 +15,10 @@ return [
 
     'name' => env('APP_NAME', 'Laravel'),
 
+    'version' => env('APP_VERSION', '1.0.0'),
+
+    'generation_pipeline_version' => (int) env('GENERATION_PIPELINE_VERSION', 1),
+
     'feedback_email' => env('FEEDBACK_EMAIL', 'contact@snapdraft.com'),
 
     /*

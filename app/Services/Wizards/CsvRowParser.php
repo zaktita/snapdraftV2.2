@@ -33,9 +33,13 @@ class CsvRowParser
 
         $headers = array_map(fn ($h) => trim((string) $h), $headers);
 
-        $titleCol = $this->findColumn($columnMappings, 'Product Title') ?? ($headers[0] ?? null);
-        $captionCol = $this->findColumn($columnMappings, 'Image Prompt');
-        $formatCol = $this->findColumn($columnMappings, 'Format');
+        $titleCol = $this->findColumn($columnMappings, 'Product Title')
+            ?? $this->findHeader($headers, ['title', 'product title', 'name', 'product name'])
+            ?? ($headers[0] ?? null);
+        $captionCol = $this->findColumn($columnMappings, 'Image Prompt')
+            ?? $this->findHeader($headers, ['caption', 'image prompt', 'prompt', 'description', 'brief']);
+        $formatCol = $this->findColumn($columnMappings, 'Format')
+            ?? $this->findHeader($headers, ['format', 'aspect', 'aspect ratio']);
 
         $rows = [];
 
@@ -79,6 +83,22 @@ class CsvRowParser
         foreach ($columnMappings as $csvColumn => $mapped) {
             if ($mapped === $semanticName) {
                 return $csvColumn;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param  list<string>  $headers
+     * @param  list<string>  $candidates  lowercase exact header names
+     */
+    protected function findHeader(array $headers, array $candidates): ?string
+    {
+        foreach ($headers as $header) {
+            $lower = strtolower(trim($header));
+            if (in_array($lower, $candidates, true)) {
+                return $header;
             }
         }
 

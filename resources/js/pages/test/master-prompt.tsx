@@ -17,6 +17,7 @@ import {
     Upload,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { csrfHeaders } from '@/lib/csrf';
 
 type PageProps = {
     aspect_ratios: string[];
@@ -53,26 +54,9 @@ type PreviewSlot = {
     previewUrl: string | null;
 };
 
-function csrfToken(): string {
-    return document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
-}
-
-/** Laravel encrypts this cookie; VerifyCsrfToken accepts X-XSRF-TOKEN. */
-function xsrfToken(): string {
-    const match = document.cookie.match(/(?:^|; )XSRF-TOKEN=([^;]*)/);
-    return match ? decodeURIComponent(match[1]) : '';
-}
-
+/** Prefer XSRF cookie — meta csrf-token goes stale after Inertia login/session regen. */
 function labHeaders(): HeadersInit {
-    const headers: Record<string, string> = {
-        Accept: 'application/json',
-        'X-Requested-With': 'XMLHttpRequest',
-    };
-    const csrf = csrfToken();
-    const xsrf = xsrfToken();
-    if (csrf) headers['X-CSRF-TOKEN'] = csrf;
-    if (xsrf) headers['X-XSRF-TOKEN'] = xsrf;
-    return headers;
+    return csrfHeaders({ Accept: 'application/json' });
 }
 
 export default function MasterPromptLab() {
@@ -131,7 +115,6 @@ export default function MasterPromptLab() {
         setGenerated(null);
 
         const form = new FormData();
-        form.append('_token', csrfToken());
         form.append('caption', caption.trim());
         form.append('aspect_ratio', aspectRatio);
         slots.forEach((s) => {
@@ -167,7 +150,6 @@ export default function MasterPromptLab() {
         setError(null);
 
         const form = new FormData();
-        form.append('_token', csrfToken());
         form.append('master_prompt', masterPrompt.trim());
         form.append('aspect_ratio', aspectRatio);
         buildMeta.reference_paths.forEach((path) => {

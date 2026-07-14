@@ -140,12 +140,38 @@ class LemonSqueezyController extends Controller
             return;
         }
 
-        // Find plan by tier slug or variant ID
-        $tier = $customData['tier'] ?? 'beta';
-        $plan = Plan::where('slug', $tier)->first();
-        
-        if (!$plan) {
-            Log::error('❌ Plan not found', ['tier' => $tier]);
+        // Resolve plan by Lemon variant ID first (source of truth), then custom tier slug
+        $variantId = (string) ($attributes['variant_id'] ?? '');
+        $tier = $customData['tier'] ?? null;
+
+        $plan = null;
+        if ($variantId !== '') {
+            $plan = Plan::query()
+                ->where(function ($query) use ($variantId) {
+                    $query->where('provider_variant_monthly', $variantId)
+                        ->orWhere('provider_variant_yearly', $variantId);
+                })
+                ->first();
+        }
+        if (! $plan && $tier) {
+            $plan = Plan::where('slug', $tier)->first();
+        }
+
+        if (! $plan) {
+            Log::error('❌ Plan not found for subscription webhook', [
+                'variant_id' => $variantId,
+                'tier' => $tier,
+            ]);
+            return;
+        }
+
+        // Idempotent: ignore duplicate delivery of the same Lemon subscription id
+        $existing = Subscription::where('lemonsqueezy_id', $data['id'])->first();
+        if ($existing) {
+            Log::info('Subscription already exists for Lemon id — skipping create', [
+                'lemonsqueezy_id' => $data['id'],
+                'subscription_id' => $existing->id,
+            ]);
             return;
         }
 
@@ -153,6 +179,7 @@ class LemonSqueezyController extends Controller
             'user_id' => $userId,
             'subscription_id' => $data['id'],
             'plan_id' => $plan->id,
+            'plan_slug' => $plan->slug,
         ]);
 
         $billingPeriod = $customData['billing_period'] ?? 'monthly';
@@ -181,7 +208,7 @@ class LemonSqueezyController extends Controller
         ]);
 
         app(PostHogService::class)->capture((string) $userId, 'subscription_created', [
-            'plan'           => $tier,
+            'plan'           => $plan->slug,
             'billing_period' => $billingPeriod,
             'price'          => $price,
             'currency'       => $currency,

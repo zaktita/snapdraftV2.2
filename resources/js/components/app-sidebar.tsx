@@ -36,6 +36,7 @@ import {
     Layers,
     Boxes,
     ImagePlus,
+    Combine,
 } from 'lucide-react';
 import AppLogo from './app-logo';
 
@@ -89,7 +90,7 @@ const footerNavItems: NavItem[] = [
 ];
 
 export function AppSidebar() {
-    const { auth } = usePage<SharedData>().props;
+    const { auth, labsEnabled } = usePage<SharedData & { labsEnabled?: boolean }>().props;
     const user = auth.user as typeof auth.user & {
         is_admin?: boolean;
         subscription_tier?: string;
@@ -137,7 +138,7 @@ export function AppSidebar() {
             items: [
                 {
                     title: 'Dashboard',
-                    href: '/admin/dashboard',
+                    href: '/admin',
                     icon: Shield,
                 },
                 {
@@ -153,31 +154,39 @@ export function AppSidebar() {
             ],
         });
 
-        dynamicProjectNavGroups.push({
-            title: 'Test Labs',
-            items: [
-                {
-                    title: 'PromptForge CSV Lab',
-                    href: '/test/prompt-forge',
-                    icon: FlaskConical,
-                },
-                {
-                    title: 'Clustering Lab',
-                    href: '/test/clustering',
-                    icon: Layers,
-                },
-                {
-                    title: 'Cluster Generation',
-                    href: '/test/cluster-generation',
-                    icon: Boxes,
-                },
-                {
-                    title: 'Master Prompt Lab',
-                    href: '/test/master-prompt',
-                    icon: ImagePlus,
-                },
-            ],
-        });
+        // Test labs — local environment only
+        if (labsEnabled) {
+            dynamicProjectNavGroups.push({
+                title: 'Test Labs',
+                items: [
+                    {
+                        title: 'PromptForge CSV Lab',
+                        href: '/test/prompt-forge',
+                        icon: FlaskConical,
+                    },
+                    {
+                        title: 'Clustering Lab',
+                        href: '/test/clustering',
+                        icon: Layers,
+                    },
+                    {
+                        title: 'Cluster Generation',
+                        href: '/test/cluster-generation',
+                        icon: Boxes,
+                    },
+                    {
+                        title: 'Master Prompt Lab',
+                        href: '/test/master-prompt',
+                        icon: ImagePlus,
+                    },
+                    {
+                        title: 'Clustered Master Prompt',
+                        href: '/test/clustered-master-prompt',
+                        icon: Combine,
+                    },
+                ],
+            });
+        }
     }
 
     return (

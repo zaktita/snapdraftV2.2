@@ -18,8 +18,8 @@ export function UpgradeAlert({ title, message, currentTier, feature }: UpgradeAl
             <AlertDescription className="mt-2">
                 <p className="mb-3">{message}</p>
                 <Button asChild size="sm" className="gap-2">
-                    <Link href="/feedback">
-                        Share Feedback
+                    <Link href="/subscription/plans">
+                        View plans
                     </Link>
                 </Button>
             </AlertDescription>

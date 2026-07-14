@@ -3,9 +3,10 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import AppLayout from '@/layouts/app-layout';
 import { Head, Link, router } from '@inertiajs/react';
+import { PlaceholderPattern } from '@/components/ui/placeholder-pattern';
+import { csrfHeaders } from '@/lib/csrf';
 import { Search as SearchIcon, FolderOpen, Image, Clock, Loader, Star, MoreVertical } from 'lucide-react';
 import { useState, FormEvent } from 'react';
-import { PlaceholderPattern } from '@/components/ui/placeholder-pattern';
 
 interface SearchResult {
     projects: Array<{
@@ -46,10 +47,9 @@ export default function Search() {
         try {
             const response = await fetch('/search', {
                 method: 'POST',
-                headers: {
+                headers: csrfHeaders({
                     'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
-                },
+                }),
                 body: JSON.stringify({ q: query }),
             });
 
