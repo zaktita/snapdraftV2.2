@@ -30,6 +30,7 @@ import AppLayout from '@/layouts/app-layout';
 import { dashboard } from '@/routes';
 import { create as create_project } from '@/routes/projects';
 import { type BreadcrumbItem, type SharedData } from '@/types';
+import { mediaUrl } from '@/lib/media-url';
 import { Head, Link, router, usePage } from '@inertiajs/react';
 import {
     AlertTriangle,
@@ -285,13 +286,12 @@ export default function ProjectsIndex({ projects: projectsData = [] }: ProjectsP
         <AppLayout breadcrumbs={breadcrumbs}>
             <Head title="All Projects" />
 
-            {/* Clean, spacious layout with white background */}
-            <div className="min-h-screen bg-white">
-                <div className="mx-auto px-8 py-16">
+            {/* Design-system page shell */}
+            <div className="mx-auto w-full max-w-[1600px] p-6 md:p-8">
                     {/* Success Message */}
                     {showSuccess && flashSuccess && (
-                        <Alert className="relative mb-12 border-green-600/20 bg-green-50 dark:bg-green-950/20">
-                            <CheckCircle className="size-4 text-green-600" />
+                        <Alert className="relative mb-8 border-success/30 bg-success/10 text-foreground">
+                            <CheckCircle className="size-4 text-success" />
                             <AlertTitle>Success</AlertTitle>
                             <AlertDescription>{flashSuccess}</AlertDescription>
                             <Button
@@ -307,25 +307,24 @@ export default function ProjectsIndex({ projects: projectsData = [] }: ProjectsP
                     )}
 
                     {/* Header Section */}
-                    <div className="mb-16">
-                        <div className="flex items-start justify-between">
+                    <div className="mb-8">
+                        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                             <div>
-                                <h1 className="mb-3 text-[32px] font-black leading-tight" style={{ color: '#191919' }}>
+                                <h1 className="font-display text-3xl font-normal tracking-tight text-foreground">
                                     Projects
                                 </h1>
-                                <p className="text-base font-normal" style={{ color: '#505050' }}>
+                                <p className="mt-1 text-sm text-muted-foreground">
                                     Manage and organize your projects
                                 </p>
                             </div>
-                            <div className="flex items-center gap-4">
+                            <div className="flex flex-wrap items-center gap-3">
                                 {/* Sort Button */}
                                 <DropdownMenu>
                                     <DropdownMenuTrigger asChild>
                                         <Button
-                                            variant="ghost"
+                                            variant="outline"
                                             size="sm"
                                             className="h-9 justify-start gap-2 px-3 font-medium"
-                                            style={{ color: '#505050' }}
                                         >
                                             <ChevronsUpDown className="size-4" />
                                             Sort by: {sortOptions.find(option => option.value === sortBy)?.label}
@@ -346,7 +345,7 @@ export default function ProjectsIndex({ projects: projectsData = [] }: ProjectsP
                                 </DropdownMenu>
 
                                 {/* View Toggle */}
-                                <div className="flex items-center gap-1 rounded-lg border border-gray-200 bg-gray-50 p-1">
+                                <div className="flex items-center gap-1 rounded-full border border-border bg-card p-1">
                                     <Button
                                         variant={viewMode === 'grid' ? 'default' : 'ghost'}
                                         size="sm"
@@ -368,8 +367,7 @@ export default function ProjectsIndex({ projects: projectsData = [] }: ProjectsP
                                 {/* New Project Button */}
                                 <Button
                                     onClick={() => router.visit(create_project().url)}
-                                    className="h-9 gap-2 px-4 font-medium"
-                                    style={{ backgroundColor: '#191919', color: 'white' }}
+                                    className="h-9 gap-2 px-4"
                                 >
                                     <Plus className="size-4" />
                                     New Project
@@ -378,19 +376,16 @@ export default function ProjectsIndex({ projects: projectsData = [] }: ProjectsP
                         </div>
 
                         {/* Filter Tabs */}
-                        <div className="mt-12 flex gap-2">
+                        <div className="mt-8 flex flex-wrap gap-2">
                             {tabs.map((tab) => (
                                 <Link
                                     key={tab.key}
                                     href={tab.href}
-                                    className={`rounded-lg px-4 py-2.5 text-sm font-medium transition-colors ${activeTab === tab.key
-                                            ? 'text-white'
-                                            : 'hover:bg-gray-50'
-                                        }`}
-                                    style={activeTab === tab.key
-                                        ? { backgroundColor: '#191919' }
-                                        : { color: '#505050' }
-                                    }
+                                    className={`rounded-full px-4 py-2 text-sm font-semibold transition-colors ${
+                                        activeTab === tab.key
+                                            ? 'bg-primary text-primary-foreground'
+                                            : 'bg-card text-muted-foreground hover:bg-surface-1 hover:text-foreground border border-border'
+                                    }`}
                                 >
                                     {tab.label}
                                 </Link>
@@ -399,7 +394,7 @@ export default function ProjectsIndex({ projects: projectsData = [] }: ProjectsP
                     </div>
 
                     {/* Projects Grid/List */}
-                    <div className="mt-16">
+                    <div>
                         {projects.length === 0 ? (
                             // Truly no projects at all
                             <NoProjectsYet />
@@ -407,7 +402,7 @@ export default function ProjectsIndex({ projects: projectsData = [] }: ProjectsP
                             // Empty State for filtered view
                             <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                                 <Link href="/projects/create">
-                                    <div className="group cursor-pointer rounded-lg bg-muted/40 hover:bg-muted/60 transition-colors">
+                                    <div className="group cursor-pointer rounded-2xl border border-border bg-card transition-colors hover:bg-surface-1">
                                         <div className="aspect-video bg-muted/60 p-8">
                                             <div className="flex h-full items-center justify-center">
                                                 <Plus className="size-12 text-muted-foreground transition-transform group-hover:scale-110" />
@@ -456,15 +451,16 @@ export default function ProjectsIndex({ projects: projectsData = [] }: ProjectsP
                             </div>
                         )}
                     </div>
-                </div>
             </div>
 
             {/* Delete confirmation modal */}
             <Dialog open={deleteConfirmId !== null} onOpenChange={(open) => { if (!open) setDeleteConfirmId(null); }}>
                 <DialogContent>
                     <DialogHeader>
-                        <DialogTitle className="flex items-center gap-2">
-                            <AlertTriangle className="size-5 text-destructive" />
+                        <DialogTitle className="flex items-center gap-3">
+                            <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-destructive/10 text-destructive">
+                                <AlertTriangle className="size-4" />
+                            </span>
                             Delete project?
                         </DialogTitle>
                         <DialogDescription>
@@ -580,7 +576,7 @@ function ProjectCard({ project, formatDate, onToggleFavorite, onDelete, onRename
     return (
         <Link href={`/projects/${project.id}`}>
             <div
-                className="group cursor-pointer rounded-xl overflow-hidden bg-background border border-border hover:border-border/60 transition-all"
+                className="group cursor-pointer overflow-hidden rounded-2xl border border-border bg-card transition-all hover:border-border/80"
                 onMouseEnter={() => setShowActions(true)}
                 onMouseLeave={() => setShowActions(false)}
             >
@@ -588,7 +584,7 @@ function ProjectCard({ project, formatDate, onToggleFavorite, onDelete, onRename
                 <div className="aspect-[4/3] bg-muted relative overflow-hidden">
                     {project.featured_image ? (
                         <img
-                            src={`/storage/${project.featured_image}`}
+                            src={mediaUrl(project.featured_image) ?? ''}
                             alt={project.title}
                             className="h-full w-full object-cover"
                         />
@@ -778,7 +774,7 @@ function ProjectListItem({ project, formatDate, onToggleFavorite, onDelete, onRe
     return (
         <Link href={`/projects/${project.id}`}>
             <div
-                className="group cursor-pointer rounded-lg bg-background border border-border hover:border-border/60 transition-all p-4"
+                className="group cursor-pointer rounded-2xl border border-border bg-card p-4 transition-all hover:border-border/80"
                 onMouseEnter={() => setShowActions(true)}
                 onMouseLeave={() => setShowActions(false)}
             >
@@ -787,7 +783,7 @@ function ProjectListItem({ project, formatDate, onToggleFavorite, onDelete, onRe
                     <div className="h-16 w-24 shrink-0 overflow-hidden rounded-lg bg-muted relative">
                         {project.featured_image ? (
                             <img
-                                src={`/storage/${project.featured_image}`}
+                                src={mediaUrl(project.featured_image) ?? ''}
                                 alt={project.title}
                                 className="h-full w-full object-cover"
                             />

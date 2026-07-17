@@ -4,9 +4,9 @@ namespace App\Http\Controllers;
 
 use App\Models\Image;
 use App\Models\Project;
+use App\Services\UserMediaStorage;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Storage;
 use Intervention\Image\Laravel\Facades\Image as InterventionImage;
 use Symfony\Component\HttpFoundation\Response;
 
@@ -51,13 +51,15 @@ class CanvasController extends Controller
         $directory = 'projects/'.$projectId.'/images';
         $fullPath = $directory.'/'.$filename;
 
+        $media = app(UserMediaStorage::class);
+
         // Save full size image
-        Storage::disk('public')->put($fullPath, $interventionImage->toPng()->toString());
+        $media->put($fullPath, $interventionImage->toPng()->toString());
 
         // Generate thumbnail (400x400) from a fresh read so we don't mutate the saved file
         $thumbnailPath = $directory.'/thumbnails/'.$filename;
         $thumbnail = InterventionImage::read($imageData)->cover(400, 400);
-        Storage::disk('public')->put($thumbnailPath, $thumbnail->toPng()->toString());
+        $media->put($thumbnailPath, $thumbnail->toPng()->toString());
 
         $createNew = $validated['create_new'] ?? false;
 
@@ -90,12 +92,12 @@ class CanvasController extends Controller
                 ->with('success', 'Canvas saved as new image!');
         }
 
-        // Update existing image — replace at project level
-        if ($image->url && Storage::disk('public')->exists($image->url)) {
-            Storage::disk('public')->delete($image->url);
+        // Update existing image - replace at project level
+        if ($image->url) {
+            $media->delete($image->url);
         }
-        if ($image->thumbnail_url && Storage::disk('public')->exists($image->thumbnail_url)) {
-            Storage::disk('public')->delete($image->thumbnail_url);
+        if ($image->thumbnail_url) {
+            $media->delete($image->thumbnail_url);
         }
 
         $image->update([

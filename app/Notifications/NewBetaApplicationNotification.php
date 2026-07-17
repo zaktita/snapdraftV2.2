@@ -26,13 +26,13 @@ class NewBetaApplicationNotification extends Notification implements ShouldQueue
         $a = $this->application;
 
         return (new MailMessage)
-            ->subject('[SnapDraft] New beta application — '.$a->email)
+            ->subject('[SnapDraft] New beta application - '.$a->email)
             ->greeting('New beta application')
             ->line('Email: '.$a->email)
             ->line('Role: '.$a->role)
             ->line('Monthly posts: '.$a->monthly_post_volume)
             ->line('Visual workflow:')
             ->line($a->visual_workflow)
-            ->salutation('— SnapDraft');
+            ->salutation('- SnapDraft');
     }
 }

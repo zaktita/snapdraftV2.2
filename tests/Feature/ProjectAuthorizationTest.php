@@ -5,17 +5,19 @@ namespace Tests\Feature;
 use App\Models\Project;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\CreatesActiveSubscription;
 use Tests\TestCase;
 
 class ProjectAuthorizationTest extends TestCase
 {
+    use CreatesActiveSubscription;
     use RefreshDatabase;
 
     /** @test */
     public function user_can_only_see_own_projects()
     {
-        $user = User::factory()->create();
-        $otherUser = User::factory()->create();
+        $user = $this->createUserWithSubscription();
+        $otherUser = $this->createUserWithSubscription();
 
         $userProject = Project::factory()->create(['user_id' => $user->id]);
         $otherProject = Project::factory()->create(['user_id' => $otherUser->id]);
@@ -34,8 +36,8 @@ class ProjectAuthorizationTest extends TestCase
     /** @test */
     public function user_cannot_view_others_project_details()
     {
-        $owner = User::factory()->create();
-        $otherUser = User::factory()->create();
+        $owner = $this->createUserWithSubscription();
+        $otherUser = $this->createUserWithSubscription();
         $project = Project::factory()->create(['user_id' => $owner->id]);
 
         $response = $this->actingAs($otherUser)
@@ -47,7 +49,7 @@ class ProjectAuthorizationTest extends TestCase
     /** @test */
     public function user_can_view_own_project_details()
     {
-        $user = User::factory()->create();
+        $user = $this->createUserWithSubscription();
         $project = Project::factory()->create(['user_id' => $user->id]);
 
         $response = $this->actingAs($user)
@@ -60,11 +62,11 @@ class ProjectAuthorizationTest extends TestCase
     public function admin_can_view_all_projects()
     {
         $admin = User::factory()->create(['is_admin' => true]);
-        $user = User::factory()->create();
+        $user = $this->createUserWithSubscription();
         $project = Project::factory()->create(['user_id' => $user->id]);
 
         $response = $this->actingAs($admin)
-            ->get(route('admin.projects.index'));
+            ->get(route('admin.projects'));
 
         $response->assertOk();
     }
@@ -75,7 +77,7 @@ class ProjectAuthorizationTest extends TestCase
         $user = User::factory()->create(['is_admin' => false]);
 
         $response = $this->actingAs($user)
-            ->get(route('admin.projects.index'));
+            ->get(route('admin.projects'));
 
         $response->assertForbidden();
     }

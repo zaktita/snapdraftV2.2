@@ -35,11 +35,15 @@ export default function Feedback() {
         <AppLayout breadcrumbs={breadcrumbs}>
             <Head title="Share Feedback" />
 
-            <div className="flex flex-col gap-6 p-6 max-w-2xl">
+            <div className="mx-auto flex max-w-2xl flex-col gap-6 p-6 md:p-8">
                 <div className="flex items-center gap-3">
-                    <MessageSquareHeart className="h-6 w-6 text-muted-foreground" />
+                    <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[var(--sd-or-pale)] text-primary">
+                        <MessageSquareHeart className="h-6 w-6" />
+                    </div>
                     <div>
-                        <h1 className="text-xl font-semibold">Share Your Feedback</h1>
+                        <h1 className="font-display text-3xl font-normal tracking-tight">
+                            Share Your Feedback
+                        </h1>
                         <p className="text-sm text-muted-foreground">
                             Help us improve SnapDraft. Every response goes directly to the team.
                         </p>
@@ -47,12 +51,12 @@ export default function Feedback() {
                 </div>
 
                 {flash?.success && (
-                    <div className="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800 dark:border-green-800 dark:bg-green-950 dark:text-green-200">
+                    <div className="rounded-2xl border border-success/30 bg-success/10 px-4 py-3 text-sm text-foreground">
                         {flash.success}
                     </div>
                 )}
 
-                <form onSubmit={submit} className="flex flex-col gap-6">
+                <form onSubmit={submit} className="flex flex-col gap-6 rounded-2xl border border-border bg-card p-6">
                     {/* Rating */}
                     <div className="flex flex-col gap-2">
                         <Label>
@@ -61,16 +65,17 @@ export default function Feedback() {
                                 <span className="font-semibold text-foreground">{data.rating}/10</span>
                             )}
                         </Label>
-                        <div className="flex gap-2 flex-wrap">
+                        <div className="flex flex-wrap gap-2">
                             {Array.from({ length: 10 }, (_, i) => i + 1).map((n) => (
                                 <button
                                     key={n}
                                     type="button"
                                     onClick={() => setData('rating', n)}
-                                    className={`h-10 w-10 rounded-lg border text-sm font-medium transition-colors ${data.rating === n
-                                            ? 'border-foreground bg-foreground text-background'
-                                            : 'border-border bg-background text-muted-foreground hover:border-foreground hover:text-foreground'
-                                        }`}
+                                    className={`h-10 w-10 rounded-full border text-sm font-semibold transition-colors ${
+                                        data.rating === n
+                                            ? 'border-primary bg-primary text-primary-foreground'
+                                            : 'border-border bg-card text-muted-foreground hover:border-primary hover:text-primary'
+                                    }`}
                                 >
                                     {n}
                                 </button>

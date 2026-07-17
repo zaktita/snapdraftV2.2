@@ -1,5 +1,6 @@
 import { Component, type ErrorInfo, type ReactNode } from 'react';
 import { router } from '@inertiajs/react';
+import { Sentry } from '@/lib/sentry';
 import { Button } from './ui/button';
 import {
     AlertTriangle,
@@ -57,11 +58,11 @@ export class ErrorBoundary extends Component<Props, State> {
         // Log error to console in development
         if (import.meta.env.DEV) {
             console.error('ErrorBoundary caught an error:', error, errorInfo);
+        } else {
+            Sentry.captureException(error, {
+                contexts: { react: { componentStack: errorInfo.componentStack } },
+            });
         }
-
-        // TODO: Send error to monitoring service (Sentry, LogRocket, etc.)
-        // Example:
-        // Sentry.captureException(error, { contexts: { react: errorInfo } });
 
         this.setState({
             errorInfo,

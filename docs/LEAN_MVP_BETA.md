@@ -1,4 +1,4 @@
-# SnapDraft — Lean MVP Beta Plan
+# SnapDraft - Lean MVP Beta Plan
 
 > **Goal**: Ship a working beta to 20 users (agencies/freelancers + social media managers) in 1–2 weeks.
 > **Principle**: One hero flow, one plan, zero confusion. Expand after validation.
@@ -19,25 +19,25 @@
 
 ---
 
-## 2. Feature Scope — Keep vs. Cut vs. Defer
+## 2. Feature Scope - Keep vs. Cut vs. Defer
 
 ### ✅ KEEP (Beta Core)
 
 | Feature | Status | Notes |
 |---|---|---|
-| **CSV Wizard** (3-step) | Built | Hero flow — polish & stabilize |
+| **CSV Wizard** (3-step) | Built | Hero flow - polish & stabilize |
 | **Dashboard** | Built | Stats, recent projects, credits display |
 | **Projects CRUD** | Built | Create, view, edit, delete, favorites |
 | **Project Gallery** | Built | View generated images, download, bulk download |
 | **Canvas Editor (limited)** | Built | Keep: text replace, AI edit, erase. Cut the rest |
 | **Auth (email/pass + 2FA)** | Built | Keep as-is |
-| **Social Login (Google)** | Not built | **BUILD** — reduces signup friction |
+| **Social Login (Google)** | Not built | **BUILD** - reduces signup friction |
 | **Single Plan billing** | Partially built | Simplify Lemon Squeezy to 1 plan |
-| **Admin (minimal)** | Built | Keep: users, credits, usage — cut the rest |
+| **Admin (minimal)** | Built | Keep: users, credits, usage - cut the rest |
 | **Image regenerate** | Built | Single image regenerate within a project |
 | **Generate More (CSV)** | Built | Upload additional CSV to existing project |
 | **Credits system** | Built | Monthly credits via subscription |
-| **Marketing Homepage** | Built | `website/home` — polish for launch |
+| **Marketing Homepage** | Built | `website/home` - polish for launch |
 
 ### ❌ CUT (Remove from beta routes/nav)
 
@@ -45,14 +45,14 @@
 |---|---|
 | **Images Wizard** | Overlaps with CSV Wizard (just CSV without text rows) |
 | **Text Wizard** | Overlaps with CSV Wizard |
-| **Brand Kit Wizard** | Overlaps — brand analysis happens inside CSV Wizard already |
+| **Brand Kit Wizard** | Overlaps - brand analysis happens inside CSV Wizard already |
 | **Brand Analysis Wizard** | Lab/testing tool, not user-facing |
 | **Simple Text Wizard** | Overlaps with Quick Generate |
 | **Quick Generate** | Nice-to-have, not core. Defer to v1.1 |
-| **Canvas: Outpainting** | Advanced — defer |
-| **Canvas: Upscale** | Advanced — defer |
-| **Canvas: Remove Background** | Advanced — defer |
-| **Canvas: Resize Canvas** | Advanced — defer |
+| **Canvas: Outpainting** | Advanced - defer |
+| **Canvas: Upscale** | Advanced - defer |
+| **Canvas: Remove Background** | Advanced - defer |
+| **Canvas: Resize Canvas** | Advanced - defer |
 | **Canvas: Generate from Prompt** | Overlaps with AI Edit |
 | **Admin: Analytics page** | Not needed for 20 users |
 | **Admin: Plans management** | 1 plan = no management needed |
@@ -128,7 +128,7 @@
 
 | | **SnapDraft Beta** |
 |---|---|
-| **Price** | $29/month (or $290/year — 2 months free) |
+| **Price** | $29/month (or $290/year - 2 months free) |
 | **Credits** | 100 generations/month |
 | **Projects** | 10 active projects |
 | **CSV rows** | 25 per upload |
@@ -176,7 +176,7 @@ Hits credit limit → Upgrade prompt → Lemon Squeezy checkout
 
 ## 6. Implementation Checklist (1–2 Weeks)
 
-### Week 1 — Stabilize Core + Cut Bloat
+### Week 1 - Stabilize Core + Cut Bloat
 
 - [ ] **Hide cut features from UI**
   - Remove sidebar links: Images Wizard, Text Wizard, Brand Kit, Brand Analysis, Simple Wizard, Quick Generate, Search, Updates
@@ -190,7 +190,7 @@ Hits credit limit → Upgrade prompt → Lemon Squeezy checkout
 
 - [ ] **Simplify Billing**
   - Create single "SnapDraft Beta" plan in DB seeder
-  - Hide plan selection page — go straight to checkout
+  - Hide plan selection page - go straight to checkout
   - Ensure Lemon Squeezy webhook handles: subscription created, payment success, cancellation
   - Test credit deduction + refund on failed generation
   - Add trial: 7 days, 10 credits
@@ -212,7 +212,7 @@ Hits credit limit → Upgrade prompt → Lemon Squeezy checkout
   - Ensure stats display correctly for new users (0/0 shouldn't break)
   - Credits remaining indicator prominent
 
-### Week 2 — Auth, Polish, Deploy
+### Week 2 - Auth, Polish, Deploy
 
 - [ ] **Add Google OAuth**
   - Install Laravel Socialite
@@ -239,8 +239,8 @@ Hits credit limit → Upgrade prompt → Lemon Squeezy checkout
   - Remove: Appearance tab from settings nav
 
 - [ ] **Production readiness**
-  - Queue worker setup (Redis/database — ensure jobs survive restarts)
-  - File storage (S3 or equivalent — not local disk)
+  - Queue worker setup (Redis/database - ensure jobs survive restarts)
+  - File storage (S3 or equivalent - not local disk)
   - Email setup (Postmark/Resend for transactional: welcome, verification, invoice)
   - SSL + domain configured
   - `.env.production` with all API keys
@@ -255,7 +255,7 @@ Hits credit limit → Upgrade prompt → Lemon Squeezy checkout
 
 ---
 
-## 7. Database — What Stays
+## 7. Database - What Stays
 
 | Model | Status | Notes |
 |---|---|---|
@@ -274,7 +274,7 @@ Hits credit limit → Upgrade prompt → Lemon Squeezy checkout
 
 ---
 
-## 8. Routes — Beta Surface
+## 8. Routes - Beta Surface
 
 ### Public
 ```
@@ -430,4 +430,4 @@ Email support       + In-app chat          + Priority support
 
 The CSV Wizard IS SnapDraft. Everything else is a nice-to-have that dilutes focus and introduces bugs. Get 20 users through the hero flow, measure what breaks and what they ask for, then build that.
 
-**Next action**: Start hiding features from the UI (sidebar nav, project create page, canvas buttons, admin nav, settings nav). Don't delete code — just remove the entry points.
+**Next action**: Start hiding features from the UI (sidebar nav, project create page, canvas buttons, admin nav, settings nav). Don't delete code - just remove the entry points.

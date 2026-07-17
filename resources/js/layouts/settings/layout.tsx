@@ -36,26 +36,24 @@ export default function SettingsLayout({ children }: PropsWithChildren) {
     const currentPath = window.location.pathname;
 
     return (
-        <div className="px-4 py-6">
+        <div className="px-4 py-6 md:px-8">
             <Heading
                 title="Settings"
                 description="Manage your profile and account settings"
             />
 
             <div className="flex flex-col lg:flex-row lg:space-x-12">
-                <aside className="w-full max-w-xl lg:w-48">
-                    <nav className="flex flex-col space-y-1 space-x-0">
+                <aside className="w-full max-w-xl lg:w-52">
+                    <nav className="flex flex-col space-y-1 space-x-0 rounded-2xl border border-border bg-card p-2">
                         {sidebarNavItems.map((item, index) => (
                             <Button
                                 key={`${resolveUrl(item.href)}-${index}`}
                                 size="sm"
                                 variant="ghost"
                                 asChild
-                                className={cn('w-full justify-start', {
-                                    'bg-muted': isSameUrl(
-                                        currentPath,
-                                        item.href,
-                                    ),
+                                className={cn('w-full justify-start rounded-xl', {
+                                    'bg-[var(--sd-or-pale)] text-[var(--sd-or-soft)] hover:bg-[var(--sd-or-pale)] hover:text-[var(--sd-or-soft)]':
+                                        isSameUrl(currentPath, item.href),
                                 })}
                             >
                                 <Link href={item.href}>

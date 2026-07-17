@@ -38,7 +38,7 @@ class GenerateBetaInvites extends Command
                 $invite->code,
                 $credits.' credits',
                 $days.' days access',
-                $invite->expires_at?->format('Y-m-d') ?? '—',
+                $invite->expires_at?->format('Y-m-d') ?? '-',
             ];
         }
 

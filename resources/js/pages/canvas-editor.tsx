@@ -12,6 +12,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { CANVAS_COLORS, MAGIC_WAND_CURSOR } from '@/lib/canvas-editor-tokens';
 import { csrfHeaders } from '@/lib/csrf';
 import { debug } from '@/lib/debug';
+import { mediaUrl } from '@/lib/media-url';
 import type {
     AnnotationPoint,
     CanvasTool,
@@ -659,11 +660,12 @@ export default function CanvasEditor(props: CanvasEditorProps) {
     };
 
     const loadImageFromUrl = (src: string) => {
-        // If src is a relative storage path (not a URL or data URI), prepend /storage/
         const resolvedSrc =
             src.startsWith('http') || src.startsWith('data:') || src.startsWith('/')
-                ? src
-                : `/storage/${src}`;
+                ? src.startsWith('/storage/')
+                    ? mediaUrl(src.replace(/^\/storage\//, '')) ?? src
+                    : src
+                : mediaUrl(src) ?? src;
         const img = new Image();
         img.crossOrigin = 'anonymous';
         img.onload = () => {
@@ -1368,7 +1370,7 @@ export default function CanvasEditor(props: CanvasEditorProps) {
         const rect = canvas.getBoundingClientRect();
 
         if (e.touches.length === 2) {
-            // Two-finger pan start — store midpoint as last pan point
+            // Two-finger pan start - store midpoint as last pan point
             const t0 = e.touches[0]; const t1 = e.touches[1];
             setIsDragging(true);
             setLastPanPoint({ x: (t0.clientX + t1.clientX) / 2, y: (t0.clientY + t1.clientY) / 2 });
@@ -2181,7 +2183,7 @@ export default function CanvasEditor(props: CanvasEditorProps) {
                 return;
             }
 
-            const prompt = `Intelligently recompose this image to fit a ${aspectRatio} aspect ratio. Preserve the main subject and visual intent. Extend, crop, or reposition content naturally — do not distort or stretch. The output must match ${aspectRatio} proportions.`;
+            const prompt = `Intelligently recompose this image to fit a ${aspectRatio} aspect ratio. Preserve the main subject and visual intent. Extend, crop, or reposition content naturally - do not distort or stretch. The output must match ${aspectRatio} proportions.`;
 
             const response = await fetch('/api/ai-edit-image', {
                 method: 'POST',
@@ -2416,7 +2418,7 @@ export default function CanvasEditor(props: CanvasEditorProps) {
             let imageToSend = '';
 
             if (hasStrokes) {
-                debug.log('[AI Edit] Strokes detected — using green-highlighted composite for area edit');
+                debug.log('[AI Edit] Strokes detected - using green-highlighted composite for area edit');
                 const compositeCanvas = createGreenHighlightedImage(selectedObject);
                 if (!compositeCanvas) throw new Error('Failed to create green-highlighted composite');
                 try {
@@ -2431,7 +2433,7 @@ export default function CanvasEditor(props: CanvasEditorProps) {
                     return;
                 }
             } else {
-                debug.log('[AI Edit] No strokes — sending full image for global edit');
+                debug.log('[AI Edit] No strokes - sending full image for global edit');
                 try {
                     imageToSend = imageToDataUrl(selectedObject.image);
                 } catch (e) {
@@ -3119,7 +3121,7 @@ export default function CanvasEditor(props: CanvasEditorProps) {
             return;
         }
         if (!imageId) {
-            toast.warning('Cannot save — open the editor from a project image.');
+            toast.warning('Cannot save - open the editor from a project image.');
             return;
         }
         if (isSaving || isGenerating) return;
@@ -3180,7 +3182,7 @@ export default function CanvasEditor(props: CanvasEditorProps) {
             link.href = exportCanvas.toDataURL();
             link.click();
         } catch {
-            showAlert('Error', 'Could not download — CORS restriction. Try uploading the image locally first.', 'error');
+            showAlert('Error', 'Could not download - CORS restriction. Try uploading the image locally first.', 'error');
         }
     };
 

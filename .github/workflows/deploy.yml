@@ -1,15 +1,15 @@
-# SnapDraft — production deploy
+# SnapDraft - production deploy
 #
 # Triggers: every push to `main`, or manual "Run workflow" (workflow_dispatch).
 #
 # Pipeline order:
-#   1. quality      — Composer + npm ci, PHPUnit, ESLint (must pass)
-#   2. build_assets — npm run build on GitHub → uploads public/build as an artifact
-#   3. deploy       — SSH: git pull + composer + migrate on server → SCP artifact → optimize + optional health check
+#   1. quality      - Composer + npm ci, PHPUnit, ESLint (must pass)
+#   2. build_assets - npm run build on GitHub → uploads public/build as an artifact
+#   3. deploy       - SSH: git pull + composer + migrate on server → SCP artifact → optimize + optional health check
 #
 # Required GitHub secrets (Settings → Secrets and variables → Actions):
 #   DEPLOY_HOST, DEPLOY_USER, DEPLOY_SSH_KEY, DEPLOY_PATH
-#   DEPLOY_PORT — set to 22 if you use default SSH (empty port can break appleboy/ssh-action)
+#   DEPLOY_PORT - set to 22 if you use default SSH (empty port can break appleboy/ssh-action)
 #
 # Optional: DEPLOY_HEALTHCHECK_URL (GET URL that must return 200 after deploy)
 #
@@ -208,7 +208,7 @@ jobs:
                 exit 1
               fi
             else
-              echo "DEPLOY_HEALTHCHECK_URL not set — skipping health check"
+              echo "DEPLOY_HEALTHCHECK_URL not set - skipping health check"
             fi
 
             php artisan up

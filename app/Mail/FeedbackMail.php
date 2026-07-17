@@ -23,7 +23,7 @@ class FeedbackMail extends Mailable
     public function envelope(): Envelope
     {
         return new Envelope(
-            subject: "[SnapDraft Beta Feedback] {$this->category} — Rating {$this->rating}/10 from {$this->userName}",
+            subject: "[SnapDraft Beta Feedback] {$this->category} - Rating {$this->rating}/10 from {$this->userName}",
             replyTo: [$this->userEmail],
         );
     }

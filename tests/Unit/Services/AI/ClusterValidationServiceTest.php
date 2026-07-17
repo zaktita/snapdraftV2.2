@@ -61,7 +61,7 @@ class ClusterValidationServiceTest extends TestCase
     public function single_image_cluster_produces_error_when_size_enforced(): void
     {
         $clusters = [
-            ['cluster_id' => 0, 'image_indices' => [0]],  // only 1 image — too small
+            ['cluster_id' => 0, 'image_indices' => [0]],  // only 1 image - too small
             ['cluster_id' => 1, 'image_indices' => [1, 2]],
         ];
 
@@ -126,7 +126,7 @@ class ClusterValidationServiceTest extends TestCase
     public function oversized_cluster_produces_error_when_size_enforced(): void
     {
         $clusters = [
-            ['cluster_id' => 0, 'image_indices' => [0, 1, 2, 3]],  // 4 images — too large
+            ['cluster_id' => 0, 'image_indices' => [0, 1, 2, 3]],  // 4 images - too large
         ];
 
         $result = $this->service->validateStyleClusters($clusters, 4, enforceClusterSize: true);

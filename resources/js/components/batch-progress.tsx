@@ -53,7 +53,7 @@ export function BatchProgress({
                             <>
                                 <AlertTriangle className="h-5 w-5 text-yellow-600" />
                                 <span className="font-semibold text-yellow-600">
-                                    Partially Complete — {failed} image{failed !== 1 ? 's' : ''} failed
+                                    Partially Complete - {failed} image{failed !== 1 ? 's' : ''} failed
                                 </span>
                             </>
                         )}

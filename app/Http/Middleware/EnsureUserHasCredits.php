@@ -17,7 +17,7 @@ class EnsureUserHasCredits
     {
         $user = $request->user();
 
-        // No active subscription — send to plans
+        // No active subscription - send to plans
         if (!$user || !$user->hasActiveSubscription()) {
             return redirect()->route('subscription.plans')
                 ->with('error', 'Choose a plan or redeem a beta invite to continue.');

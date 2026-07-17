@@ -14,7 +14,7 @@ export interface GenerationProgress {
     total: number;
     progress_percentage: number;
     is_complete: boolean;
-    // v2 pipeline optional fields — null when not applicable
+    // v2 pipeline optional fields - null when not applicable
     pipeline_version?: string | null;
     cluster_validated?: boolean | null;
     phases?: GenerationProgressPhases | null;

@@ -4,6 +4,7 @@ namespace App\Jobs;
 
 use App\Models\BrandReference;
 use App\Models\Image;
+use App\Services\UserMediaStorage;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -18,13 +19,10 @@ class CleanOrphanedFilesJob implements ShouldQueue
 
     public int $timeout = 300;
 
-    public function handle(): void
+    public function handle(UserMediaStorage $media): void
     {
         $deleted = 0;
-        $disk    = Storage::disk('public');
 
-        // ── Images ─────────────────────────────────────────────────────────
-        // Collect all paths referenced in the images table
         $knownImagePaths = Image::withTrashed()
             ->whereNotNull('url')
             ->pluck('url')
@@ -32,36 +30,34 @@ class CleanOrphanedFilesJob implements ShouldQueue
                 Image::withTrashed()->whereNotNull('thumbnail_url')->pluck('thumbnail_url')
             )
             ->unique()
-            ->flip(); // flip for O(1) key lookup
+            ->flip();
 
-        // Scan the projects/ directory and remove files not tracked in DB
-        foreach ($disk->allFiles('projects') as $file) {
-            if (!isset($knownImagePaths[$file])) {
-                $disk->delete($file);
-                $deleted++;
-                Log::info("CleanOrphanedFilesJob: deleted orphaned image file [{$file}]");
-            }
-        }
-
-        // ── Brand references ───────────────────────────────────────────────
         $knownRefPaths = BrandReference::withTrashed()
             ->whereNotNull('url')
             ->pluck('url')
-            ->map(fn ($url) => ltrim(str_replace('storage/', '', $url), '/'))
             ->merge(
-                BrandReference::withTrashed()
-                    ->whereNotNull('thumbnail_url')
-                    ->pluck('thumbnail_url')
-                    ->map(fn ($url) => ltrim(str_replace('storage/', '', $url), '/'))
+                BrandReference::withTrashed()->whereNotNull('thumbnail_url')->pluck('thumbnail_url')
             )
             ->unique()
             ->flip();
 
-        foreach ($disk->allFiles('brand-references') as $file) {
-            if (!isset($knownRefPaths[$file])) {
-                $disk->delete($file);
-                $deleted++;
-                Log::info("CleanOrphanedFilesJob: deleted orphaned brand-reference file [{$file}]");
+        foreach ([$media->diskName(), 'public'] as $diskName) {
+            $disk = Storage::disk($diskName);
+
+            foreach ($disk->allFiles('projects') as $file) {
+                if (! isset($knownImagePaths[$file])) {
+                    $disk->delete($file);
+                    $deleted++;
+                    Log::info("CleanOrphanedFilesJob: deleted orphaned image [{$diskName}:{$file}]");
+                }
+            }
+
+            foreach ($disk->allFiles('brand-references') as $file) {
+                if (! isset($knownRefPaths[$file])) {
+                    $disk->delete($file);
+                    $deleted++;
+                    Log::info("CleanOrphanedFilesJob: deleted orphaned brand-reference [{$diskName}:{$file}]");
+                }
             }
         }
 

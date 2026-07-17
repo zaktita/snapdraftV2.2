@@ -245,14 +245,14 @@ export default function ClusterGenerationTest({
                 </div>
 
                 {/* ══════════════════════════════════════════════════════════════
-                    PHASE 1 — Upload
+                    PHASE 1 - Upload
                 ══════════════════════════════════════════════════════════════ */}
                 {!analysis && (
                     <Card>
                         <CardHeader>
                             <CardTitle className="flex items-center gap-2">
                                 <Upload className="h-5 w-5" />
-                                Step 1 — Upload Brand Reference Images
+                                Step 1 - Upload Brand Reference Images
                             </CardTitle>
                         </CardHeader>
                         <CardContent>
@@ -327,7 +327,7 @@ export default function ClusterGenerationTest({
                 )}
 
                 {/* ══════════════════════════════════════════════════════════════
-                    PHASE 2 + 3 — Analysis view
+                    PHASE 2 + 3 - Analysis view
                 ══════════════════════════════════════════════════════════════ */}
                 {analysis && (
                     <>
@@ -359,14 +359,14 @@ export default function ClusterGenerationTest({
                                 <CardContent className="pt-4">
                                     <p className="text-muted-foreground text-xs uppercase tracking-wide">Brand Summary</p>
                                     <p className="truncate text-sm font-medium leading-snug">
-                                        {analysis.brand_dna?.brand_positioning?.one_line_summary ?? '—'}
+                                        {analysis.brand_dna?.brand_positioning?.one_line_summary ?? '-'}
                                     </p>
                                 </CardContent>
                             </Card>
                         </div>
 
                         {/* ══════════════════════════════════════════════════════
-                            PHASE 3 — Generation result
+                            PHASE 3 - Generation result
                         ══════════════════════════════════════════════════════ */}
                         {generation_result && (
                             <Card className="border-green-300 bg-green-50/40">
@@ -510,7 +510,7 @@ export default function ClusterGenerationTest({
                             <CardHeader>
                                 <CardTitle className="flex items-center gap-2">
                                     <Sparkles className="h-5 w-5" />
-                                    {generation_result ? 'Try Another Caption' : 'Step 2 — Generate Image'}
+                                    {generation_result ? 'Try Another Caption' : 'Step 2 - Generate Image'}
                                 </CardTitle>
                             </CardHeader>
                             <CardContent>
@@ -578,7 +578,7 @@ export default function ClusterGenerationTest({
                                         Style Clusters
                                         {generation_result?.cluster_id != null && (
                                             <span className="text-muted-foreground ml-2 text-sm font-normal">
-                                                — cluster {generation_result.cluster_id} was selected
+                                                - cluster {generation_result.cluster_id} was selected
                                             </span>
                                         )}
                                     </CardTitle>

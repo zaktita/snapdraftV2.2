@@ -198,7 +198,7 @@ function DebugBlock({
 }
 
 function JsonBlock({ data }: { data?: Record<string, unknown> | ClusterResult | CaptionMatch | PromptGeneration | ImageGeneration | null }) {
-    if (!data) return <p className="text-muted-foreground text-sm">—</p>;
+    if (!data) return <p className="text-muted-foreground text-sm">-</p>;
     return (
         <pre className="bg-muted max-h-96 overflow-auto rounded-md p-3 text-xs">
             {JSON.stringify(data, null, 2)}
@@ -207,7 +207,7 @@ function JsonBlock({ data }: { data?: Record<string, unknown> | ClusterResult | 
 }
 
 function PreBlock({ content }: { content?: string | null }) {
-    if (!content) return <p className="text-muted-foreground text-sm">—</p>;
+    if (!content) return <p className="text-muted-foreground text-sm">-</p>;
     return (
         <pre className="bg-muted max-h-96 overflow-auto rounded-md p-3 text-xs whitespace-pre-wrap">
             {content}
@@ -445,7 +445,7 @@ export default function ClusteringTest({
                                                 {imageGeneration.image_request_prompt}
                                             </pre>
                                         ) : (
-                                            <p className="text-muted-foreground text-sm">—</p>
+                                            <p className="text-muted-foreground text-sm">-</p>
                                         )}
                                     </div>
                                 </div>
@@ -496,7 +496,7 @@ export default function ClusteringTest({
                                     <Upload className="text-muted-foreground mb-3 h-10 w-10" />
                                     <p className="font-medium">Drop images here or click to browse</p>
                                     <p className="text-muted-foreground text-sm">
-                                        2–10 images (JPEG, PNG, WebP) — max 10 MB each
+                                        2–10 images (JPEG, PNG, WebP) - max 10 MB each
                                     </p>
                                     <input
                                         ref={fileInputRef}
@@ -665,7 +665,7 @@ export default function ClusteringTest({
                             <CardHeader>
                                 <CardTitle className="flex items-center gap-2 text-base">
                                     <Target className="h-5 w-5" />
-                                    Step 2 — Match caption to cluster
+                                    Step 2 - Match caption to cluster
                                 </CardTitle>
                             </CardHeader>
                             <CardContent className="space-y-4">
@@ -674,7 +674,7 @@ export default function ClusteringTest({
                                         <Label htmlFor="caption">Caption / post topic</Label>
                                         <Textarea
                                             id="caption"
-                                            placeholder="e.g. Summer workshop registration is now open — sign up today!"
+                                            placeholder="e.g. Summer workshop registration is now open - sign up today!"
                                             rows={3}
                                             value={matchForm.data.caption}
                                             onChange={(e) => matchForm.setData('caption', e.target.value)}
@@ -781,7 +781,7 @@ export default function ClusteringTest({
                             <CardHeader>
                                 <CardTitle className="flex items-center gap-2 text-base">
                                     <Sparkles className="h-5 w-5" />
-                                    Step 3 — Generate post prompt from DNA
+                                    Step 3 - Generate post prompt from DNA
                                 </CardTitle>
                             </CardHeader>
                             <CardContent className="space-y-4">
@@ -928,7 +928,7 @@ export default function ClusteringTest({
                             <CardHeader>
                                 <CardTitle className="flex items-center gap-2 text-base">
                                     <Zap className="h-5 w-5" />
-                                    Step 4 — Generate image
+                                    Step 4 - Generate image
                                 </CardTitle>
                             </CardHeader>
                             <CardContent className="space-y-4">

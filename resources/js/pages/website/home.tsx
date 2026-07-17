@@ -1,466 +1,666 @@
-import { useInView } from '@/hooks/use-in-view';
-import { cn } from '@/lib/utils';
-import { login, register } from '@/routes';
-import { Head, Link, router } from '@inertiajs/react';
-import { ArrowRight } from 'lucide-react';
-import { type FormEvent, useEffect, useRef, useState } from 'react';
+import { Reveal } from '@/components/marketing/reveal';
+import MarketingLayout from '@/layouts/marketing-layout';
+import { register } from '@/routes';
+import { Link } from '@inertiajs/react';
+import {
+    ArrowRight,
+    Check,
+    Layers,
+    Palette,
+    Smartphone,
+    Sparkles,
+    Table2,
+    Wand2,
+} from 'lucide-react';
+import { useState } from 'react';
 
-/* ── Scroll-reveal wrapper ── */
-
-function Reveal({
-    children,
-    className,
-    delay = 0,
-}: {
-    children: React.ReactNode;
-    className?: string;
-    delay?: number;
-}) {
-    const { ref, inView } = useInView<HTMLDivElement>();
-    return (
-        <div
-            ref={ref}
-            className={cn('reveal', inView && 'revealed', className)}
-            style={delay ? { transitionDelay: `${delay}ms` } : undefined}
-        >
-            {children}
-        </div>
-    );
+interface MarketingPlan {
+    id: string;
+    name: string;
+    subtitle: string;
+    price: number;
+    yearly_price: number;
+    yearly_total: number;
+    currency: string;
+    popular: boolean;
+    features: string[];
 }
 
-/* ── Page ── */
+interface BlogPostSummary {
+    slug: string;
+    title: string;
+    excerpt: string;
+    cover: string | null;
+    category?: string;
+    date: string | null;
+    date_formatted: string | null;
+    reading_minutes: number;
+}
 
-export default function HomePage() {
-    const [scrolled, setScrolled] = useState(false);
-    const [openFaq, setOpenFaq] = useState(0);
-    const [showInviteRequiredNotice, setShowInviteRequiredNotice] =
-        useState(false);
+const CURRENCY_SYMBOLS: Record<string, string> = {
+    EUR: '€',
+    USD: '$',
+    GBP: '£',
+};
 
-    // Invite code form
-    const [inviteCode, setInviteCode] = useState('');
-    const [inviteError, setInviteError] = useState('');
-    const [inviteLoading, setInviteLoading] = useState(false);
+const FEATURE_TABS = [
+    {
+        id: 'brand',
+        label: 'Brand DNA analysis',
+        title: 'Learn the brand once',
+        desc: 'Upload client or brand references. SnapDraft locks in palette, composition, and typography so every batch looks like it came from the same studio without another designer round.',
+        image: '/images/marketing/feature-brand-dna.png',
+        icon: Palette,
+        tone: 'yellow',
+    },
+    {
+        id: 'batch',
+        label: 'Batch from CSV',
+        title: 'Calendar in, visuals out',
+        desc: 'Drop your content sheet. Each row becomes a finished visual in minutes. Plan captions in the spreadsheet, review the set, skip the prompt gymnastics.',
+        image: '/images/marketing/feature-batch.png',
+        icon: Table2,
+        tone: 'pink',
+    },
+    {
+        id: 'canvas',
+        label: 'Canvas Editor',
+        title: 'Tweak until it fits',
+        desc: 'Swap objects, fix headlines, erase, expand, and upscale. Handle last-mile client feedback yourself instead of waiting on another revision ticket.',
+        image: '/images/marketing/feature-canvas.png',
+        icon: Wand2,
+        tone: 'blue',
+    },
+    {
+        id: 'export',
+        label: 'Export & delivery',
+        title: 'Ready to schedule',
+        desc: 'Download batches sized for feed, stories, and banners. Consistent formats and naming so you can hand off or post the same day.',
+        image: '/images/marketing/feature-export.png',
+        icon: Layers,
+        tone: 'orange',
+    },
+] as const;
 
-    const inviteRef = useRef<HTMLInputElement>(null);
+const COLOR_CARDS = [
+    {
+        tone: 'orange',
+        title: 'Brand DNA',
+        desc: 'Lock the look once. Every client or brand stays consistent.',
+        image: '/images/marketing/feature-brand-dna.png',
+    },
+    {
+        tone: 'ink',
+        title: 'Batch from CSV',
+        desc: 'A week of posts from one spreadsheet upload.',
+        image: '/images/marketing/feature-batch.png',
+    },
+    {
+        tone: 'pink',
+        title: 'Canvas polish',
+        desc: 'Tweak text, objects, and framing before you ship.',
+        image: '/images/marketing/feature-canvas.png',
+    },
+    {
+        tone: 'blue',
+        title: 'Campaign export',
+        desc: 'Download a full set ready to schedule or send to clients.',
+        image: '/images/marketing/feature-export.png',
+    },
+] as const;
 
-    useEffect(() => {
-        const onScroll = () => setScrolled(window.scrollY > 20);
-        window.addEventListener('scroll', onScroll, { passive: true });
-        return () => window.removeEventListener('scroll', onScroll);
-    }, []);
+const HOW_STEPS = [
+    {
+        id: 'upload',
+        label: 'Upload references',
+        title: 'Show us the brand',
+        desc: 'Add 5–10 images that look like the client (or your own brand). We pull color, composition, and typography automatically.',
+        image: '/images/landing/upload.png',
+    },
+    {
+        id: 'csv',
+        label: 'Drop in CSV',
+        title: 'Paste your content calendar',
+        desc: 'Title, description, format. Each row becomes one visual. No briefs, no waiting on a designer queue.',
+        image: '/images/landing/csv.png',
+    },
+    {
+        id: 'generate',
+        label: 'Generate & refine',
+        title: 'Ship, then tweak',
+        desc: 'Review the batch in minutes. Fine-tune anything in Canvas before you post or send to the client.',
+        image: '/images/landing/generate.png',
+    },
+];
 
-    useEffect(() => {
-        if (typeof window === 'undefined') return;
+const TESTIMONIALS = [
+    {
+        quote: 'I used to sit on a designer queue for a week. Now I turn a content calendar into a full Instagram set in an afternoon - and it still looks like the brand.',
+        name: 'Priya Nair',
+        role: 'Social media manager',
+        initials: 'PN',
+        tone: 'pink',
+    },
+    {
+        quote: 'As a freelancer I was the bottleneck. SnapDraft lets me generate a client batch, tweak headlines in Canvas, and deliver the same day.',
+        name: 'Jordan Blake',
+        role: 'Freelance content designer',
+        initials: 'JB',
+        tone: 'blue',
+    },
+    {
+        quote: 'We run multiple brands. Brand DNA keeps each account looking distinct, and CSV batches mean we stop chasing designers for every post.',
+        name: 'Maya Chen',
+        role: 'Agency account lead',
+        initials: 'MC',
+        tone: 'coral',
+    },
+    {
+        quote: 'Client feedback used to mean another round. Now I swap a logo, fix a line, export. Done. Revision loops got cut in half.',
+        name: 'Sam Ortiz',
+        role: 'Social media freelancer',
+        initials: 'SO',
+        tone: 'ink',
+    },
+    {
+        quote: 'Consistency across 40 posts used to be impossible for our bench. SnapDraft is how we keep calendars full without adding design headcount.',
+        name: 'Alex Rivera',
+        role: 'Agency founder',
+        initials: 'AR',
+        tone: 'orange',
+    },
+    {
+        quote: 'It feels like a production pipeline, not a prompt toy. We plan in the sheet, review finished work, and only open Canvas when something needs a tweak.',
+        name: 'Chris Adeyemi',
+        role: 'In-house social lead',
+        initials: 'CA',
+        tone: 'green',
+    },
+];
 
-        const params = new URLSearchParams(window.location.search);
-        if (params.get('invite') === 'required') {
-            setShowInviteRequiredNotice(true);
-        }
-    }, []);
+const FALLBACK_PLANS: MarketingPlan[] = [
+    {
+        id: 'starter',
+        name: 'Starter',
+        subtitle: 'For freelancers and solo social managers',
+        price: 29,
+        yearly_price: 24,
+        yearly_total: 288,
+        currency: 'USD',
+        popular: false,
+        features: [
+            'Brand DNA extraction',
+            'Batch generation from CSV',
+            'Canvas Editor for last-mile tweaks',
+            'Email support',
+        ],
+    },
+    {
+        id: 'pro',
+        name: 'Professional',
+        subtitle: 'For managers shipping weekly calendars',
+        price: 79,
+        yearly_price: 66,
+        yearly_total: 792,
+        currency: 'USD',
+        popular: true,
+        features: [
+            'Everything in Starter',
+            'Higher monthly credits',
+            'Advanced Canvas Editor',
+            'Priority processing',
+        ],
+    },
+    {
+        id: 'business',
+        name: 'Enterprise',
+        subtitle: 'For agencies running multiple brands',
+        price: 199,
+        yearly_price: 166,
+        yearly_total: 1992,
+        currency: 'USD',
+        popular: false,
+        features: [
+            'Everything in Professional',
+            'Larger CSV batches',
+            'Higher volume credits',
+            'Priority support',
+        ],
+    },
+];
 
-    async function handleInvite(e: FormEvent) {
-        e.preventDefault();
-        const code = inviteCode.trim().toUpperCase();
-        if (!code) return;
-        setInviteError('');
-        setInviteLoading(true);
-        try {
-            const res = await fetch(
-                `/invite/validate?code=${encodeURIComponent(code)}`,
-            );
-            const data = await res.json();
-            if (data.valid) {
-                router.visit(
-                    `${register().url}?invite=${encodeURIComponent(code)}`,
-                );
-            } else {
-                setInviteError(
-                    data.message || 'Invalid or expired invite code.',
-                );
-            }
-        } catch {
-            setInviteError('Something went wrong. Please try again.');
-        } finally {
-            setInviteLoading(false);
-        }
-    }
+const PLAN_ICONS = [Smartphone, Sparkles, Layers] as const;
 
-    const steps = [
-        {
-            num: '01',
-            iconSrc: '/images/landing/upload.png',
-            title: 'Upload brand references',
-            desc: 'Add 5-10 images that represent your style. We extract color, composition, and typography cues.',
-        },
-        {
-            num: '02',
-            iconSrc: '/images/landing/csv.png',
-            title: 'Drop in your spreadsheet',
-            desc: 'Use title, description, and format columns. Each row becomes one generated visual.',
-        },
-        {
-            num: '03',
-            iconSrc: '/images/landing/generate.png',
-            title: 'Generate & refine',
-            desc: 'Download consistent images in batch, then fine-tune any result in the Canvas Editor.',
-        },
-    ];
+export default function HomePage({
+    plans = [],
+    posts = [],
+}: {
+    plans?: MarketingPlan[];
+    posts?: BlogPostSummary[];
+}) {
+    const [activeFeature, setActiveFeature] = useState(0);
+    const [activeHow, setActiveHow] = useState(0);
+    const [pricingPeriod, setPricingPeriod] = useState<'monthly' | 'yearly'>(
+        'yearly',
+    );
 
-    const betaPerks = [
-        {
-            iconSrc: '/images/landing/full product.png',
-            title: 'Full product access',
-            desc: 'Every feature unlocked — spreadsheet batch generation, brand analysis, Canvas Editor, and more.',
-        },
-        {
-            iconSrc: '/images/landing/access.png',
-            title: 'Direct founder access',
-            desc: 'Report bugs, suggest features, and chat directly with the person building it.',
-        },
-        {
-            iconSrc: '/images/landing/discount.png',
-            title: 'Keep your discount',
-            desc: 'Beta testers lock in a special rate when SnapDraft launches publicly.',
-        },
-    ];
+    const displayPlans =
+        plans.length > 0 ? plans.slice(0, 3) : FALLBACK_PLANS;
+    const feature = FEATURE_TABS[activeFeature];
+    const FeatureIcon = feature.icon;
+    const how = HOW_STEPS[activeHow];
 
     return (
-        <div className="sd-home">
-            <Head title="SnapDraft — Closed Beta · 20 spots" />
-
-            {/* ── Nav ── */}
-            <header
-                className={cn(
-                    'sd-nav-wrap',
-                    scrolled && 'sd-nav-wrap-scrolled',
-                )}
-            >
-                <nav className="sd-nav">
-                    <Link href="/" className="sd-logo">
-                        <img
-                            src="/SnapdraftLogoBlack.svg"
-                            alt="SnapDraft"
-                            className="sd-logo-image"
-                        />
-                    </Link>
-                    <ul className="sd-nav-links">
-                        <li>
-                            <a href="#how">How it works</a>
-                        </li>
-                        <li>
-                            <a href="#beta">Beta perks</a>
-                        </li>
-                        <li>
-                            <a href="#faq">FAQ</a>
-                        </li>
-                    </ul>
-                    <div className="sd-nav-end">
-                        <Link href={login().url} className="sd-btn-sm-ghost">
-                            Sign in
-                        </Link>
-                        <Link href="/beta/apply" className="sd-btn-sm">
-                            Request access
-                            <ArrowRight size={14} />
-                        </Link>
-                    </div>
-                </nav>
-            </header>
-
-            {/* ── Hero ── */}
-            <section className="sd-hero-shell">
-                <div className="sd-hero-glow" aria-hidden="true" />
-                <div className="sd-hero">
-                    <div className="sd-hero-grid">
-                        <div className="sd-hero-copy">
-                            <Reveal>
-                                <div className="sd-hero-badge">
-                                    <span className="sd-badge-dot" />
-                                    Closed Beta : 20 spots only
-                                </div>
-                            </Reveal>
-                            <Reveal delay={60}>
-                                <h1>
-                                    Help us build
-                                    <br />
-                                    the future of
-                                    <br />
-                                    <em>brand visuals</em>
-                                </h1>
-                            </Reveal>
-                            <Reveal delay={120}>
-                                <p className="sd-hero-desc">
-                                    SnapDraft turns a spreadsheet and a few
-                                    reference images into a full batch of
-                                    on-brand visuals. We need 20 testers to
-                                    push it to its limits before launch.
-                                </p>
-                                {showInviteRequiredNotice && (
-                                    <p className="sd-invite-required-msg">
-                                        A valid invite code is required to
-                                        create an account.
-                                    </p>
-                                )}
-                            </Reveal>
-
-                            <Reveal delay={180}>
-                                <div className="sd-hero-forms" id="hero-forms">
-                                    <form
-                                        onSubmit={handleInvite}
-                                        className="sd-hero-inline-form"
-                                    >
-                                        <input
-                                            ref={inviteRef}
-                                            type="text"
-                                            placeholder="Have an invite code? XXXX-XXXX"
-                                            value={inviteCode}
-                                            onChange={(e) =>
-                                                setInviteCode(e.target.value)
-                                            }
-                                            autoComplete="off"
-                                            spellCheck={false}
-                                            className="sd-code-input"
-                                        />
-                                        <button
-                                            type="submit"
-                                            disabled={inviteLoading}
-                                        >
-                                            {inviteLoading
-                                                ? 'Checking…'
-                                                : 'Redeem'}
-                                        </button>
-                                    </form>
-                                    {inviteError && (
-                                        <p className="sd-hero-inline-error">
-                                            {inviteError}
-                                        </p>
-                                    )}
-                                </div>
-                            </Reveal>
-
-                            <Reveal delay={240}>
-                                <div className="sd-hero-trust">
-                                    <span>Free during beta</span>
-                                    <span className="sd-hero-trust-dot" />
-                                    <span>No credit card</span>
-                                    <span className="sd-hero-trust-dot" />
-                                    <span>Direct line to the founder</span>
-                                </div>
-                            </Reveal>
-                        </div>
-
-                        <Reveal className="sd-hero-image-wrap" delay={120}>
+        <MarketingLayout
+            title="SnapDraft - On-brand visuals without waiting on designers"
+            description="For social media managers, freelancers, and agencies. Upload brand references, drop in your content calendar, and get on-brand visuals in minutes. Then tweak them until they fit."
+        >
+            {/* Hero */}
+            <section className="sd-hero-shell sd-hero-shell-centered">
+                <div className="sd-hero sd-hero-centered">
+                    <div className="sd-hero-floaters" aria-hidden="true">
+                        <div className="sd-hero-float sd-hero-float-tl">
                             <img
-                                src="/images/landing/hero_image.png"
-                                alt="SnapDraft visual generation preview"
-                                className="sd-hero-image"
+                                src="/images/marketing/poster1.jpg"
+                                alt=""
                             />
-                        </Reveal>
-                    </div>
-                </div>
-            </section>
-
-            {/* ── Stats ── */}
-            <section className="sd-stats-strip">
-                <div className="sd-stats-inner">
-                    {[
-                        { val: '20', label: 'Beta spots' },
-                        { val: 'Free', label: 'No cost during beta' },
-                        { val: '~30d', label: 'Before public launch' },
-                        { val: 'You', label: 'Shape the product' },
-                    ].map((s) => (
-                        <div className="sd-stat-cell" key={s.label}>
-                            <div className="sd-stat-num">{s.val}</div>
-                            <div className="sd-stat-lbl">{s.label}</div>
                         </div>
-                    ))}
-                </div>
-            </section>
+                        <div className="sd-hero-float sd-hero-float-tr">
+                            <img
+                                src="/images/marketing/poster2.jpg"
+                                alt=""
+                            />
+                        </div>
+                        <div className="sd-hero-float sd-hero-float-bl">
+                            <img
+                                src="/images/marketing/poster3.jpg"
+                                alt=""
+                            />
+                        </div>
+                        <div className="sd-hero-float sd-hero-float-br">
+                            <img
+                                src="/images/marketing/poster4.jpg"
+                                alt=""
+                            />
+                        </div>
+                    </div>
 
-            {/* ── How it works ── */}
-            <section className="sd-section" id="how">
-                <Reveal>
-                    <div className="sd-sec-eyebrow">How it works</div>
-                    <h2 className="sd-sec-title">
-                        From spreadsheet to visuals{' '}
-                        <strong>in 3 steps</strong>
-                    </h2>
-                    <p className="sd-sec-sub">
-                        No design skills required. Just brand references and a
-                        spreadsheet.
-                    </p>
-                </Reveal>
-                <div className="sd-steps-grid">
-                    {steps.map((step, i) => (
-                        <Reveal key={step.num} delay={i * 100}>
-                            <div className="sd-step-card">
-                                <div className="sd-step-head">
-                                    <span className="sd-step-ico">
-                                        <img
-                                            src={step.iconSrc}
-                                            alt={step.title}
-                                            className="sd-card-icon"
-                                        />
-                                    </span>
-                                    <span className="sd-step-num">
-                                        {step.num}
-                                    </span>
-                                </div>
-                                <h3>{step.title}</h3>
-                                <p>{step.desc}</p>
+                    <div className="sd-hero-center">
+                        <Reveal>
+                            <h1>
+                                Stop waiting on designers.
+                                Ship the week&apos;s posts today.
+                            </h1>
+                        </Reveal>
+                        <Reveal delay={80}>
+                            <p className="sd-hero-desc">
+                                Built for social media managers, freelancers,
+                                and agencies. Turn brand references and a
+                                content spreadsheet into a ready-to-post batch.
+                                Then tweak anything until it fits.
+                            </p>
+                        </Reveal>
+                        <Reveal delay={140}>
+                            <div className="sd-hero-cta">
+                                <Link
+                                    href={register().url}
+                                    className="sd-btn-hero sd-btn-hero-pill"
+                                >
+                                    Generate your next batch
+                                    <ArrowRight size={18} strokeWidth={2.5} />
+                                </Link>
                             </div>
                         </Reveal>
-                    ))}
-                </div>
-            </section>
-
-            {/* ── Beta perks ── */}
-            <section className="sd-section-band" id="beta">
-                <div className="sd-section-band-inner">
-                    <Reveal>
-                        <div className="sd-sec-eyebrow">Beta perks</div>
-                        <h2 className="sd-sec-title">
-                            What you get as a <em>beta tester</em>
-                        </h2>
-                    </Reveal>
-                    <div className="sd-feature-grid">
-                        {betaPerks.map((perk, i) => (
-                            <Reveal key={perk.title} delay={i * 100}>
-                                <div className="sd-feature-card">
-                                    <span className="sd-feature-ico">
-                                        <img
-                                            src={perk.iconSrc}
-                                            alt={perk.title}
-                                            className="sd-card-icon"
-                                        />
-                                    </span>
-                                    <h3>{perk.title}</h3>
-                                    <p>{perk.desc}</p>
-                                </div>
-                            </Reveal>
-                        ))}
                     </div>
                 </div>
             </section>
 
-            {/* ── FAQ ── */}
-            <section className="sd-section" id="faq">
+            {/* Trust */}
+            <div className="sd-trust-bar">
+                <div className="sd-trust-bar-inner">
+                    <div className="sd-trust-bar-label">
+                        Built for people who ship weekly
+                    </div>
+                    Social media managers · freelancers · agencies
+                </div>
+            </div>
+
+            {/* About + Stats */}
+            <section className="sd-about-section">
                 <Reveal>
-                    <div className="sd-sec-eyebrow">FAQ</div>
-                    <h2 className="sd-sec-title">
-                        Frequently asked <em>questions</em>
-                    </h2>
+                    <div className="sd-about-intro">
+                        <div className="sd-sec-eyebrow">The bottleneck</div>
+                        <h2 className="sd-about-title">
+                            Your calendar moves faster than the design queue.
+                            SnapDraft closes that gap. On-brand visuals in
+                            minutes, with room to tweak before you publish.
+                        </h2>
+                    </div>
                 </Reveal>
-                <div className="sd-faq-wrap">
+                <div className="sd-about-grid">
                     {[
                         {
-                            q: 'What is the closed beta?',
-                            a: "We're inviting 20 people to test SnapDraft before the public launch. You'll get full access to every feature for free, and your feedback will directly shape the product.",
+                            val: '1 row',
+                            label: 'One spreadsheet row → one post-ready visual',
                         },
                         {
-                            q: 'Is it really free?',
-                            a: "Yes. During the beta there's no charge and no credit card required. We just want your honest feedback.",
+                            val: 'Minutes',
+                            label: 'From calendar upload to a full batch',
                         },
                         {
-                            q: 'How should my spreadsheet be set up?',
-                            a: 'Use title, description, and format columns. Each row is turned into one generated visual matching your brand style.',
+                            val: 'On-brand',
+                            label: 'Stays consistent once Brand DNA is set',
                         },
                         {
-                            q: 'Can I edit the generated images?',
-                            a: 'Yes. Use the Canvas Editor to replace text, swap objects, and fine-tune any result.',
+                            val: 'You',
+                            label: 'Handle last-mile tweaks - no designer wait',
                         },
-                        {
-                            q: 'What happens after the beta ends?',
-                            a: 'Beta testers get early access to the paid plans at a discounted rate. Your projects and assets carry over.',
-                        },
-                    ].map((item, idx) => {
-                        const isOpen = openFaq === idx;
-                        return (
-                            <div
-                                key={item.q}
-                                className={cn('sd-faq-item', isOpen && 'open')}
-                            >
-                                <button
-                                    type="button"
-                                    className="sd-faq-btn"
-                                    onClick={() =>
-                                        setOpenFaq(isOpen ? -1 : idx)
-                                    }
+                    ].flatMap((s, i) => {
+                        const nodes = [];
+                        if (i > 0) {
+                            nodes.push(
+                                <div
+                                    className="sd-about-divider"
+                                    aria-hidden="true"
+                                    key={`div-${s.label}`}
                                 >
-                                    <span>{item.q}</span>
-                                    <span className="sd-faq-ico">+</span>
-                                </button>
-                                <div className="sd-faq-ans">{item.a}</div>
-                            </div>
+                                    <div className="sd-about-divider-space"/>
+                                    <div className="sd-about-divider-center" />
+                                    <div className="sd-about-divider-space"/>
+                                    
+                                </div>,
+                            );
+                        }
+                        nodes.push(
+                            <article className="sd-about-card" key={s.label}>
+                                <p className="sd-about-card-text">{s.label}</p>
+                                <div className="sd-about-card-stat">{s.val}</div>
+                            </article>,
                         );
+                        return nodes;
                     })}
                 </div>
             </section>
 
-            {/* ── CTA ── */}
-            <section className="sd-cta">
+            {/* Core features */}
+            <section className="sd-feat-section">
                 <Reveal>
-                    <h2>
-                        20 spots. <em>Be one of them.</em>
-                    </h2>
-                    <p>
-                        Free during beta. No credit card. Your feedback shapes
-                        the product.
-                    </p>
-                    <div className="sd-cta-row">
-                        <Link href="/beta/apply" className="sd-btn-hero">
-                            Request access
-                            <ArrowRight size={16} />
-                        </Link>
-                        <Link
-                            href={login().url}
-                            className="sd-btn-hero-ghost sd-btn-hero-ghost-inv"
-                        >
-                            Already have an account? Sign in
-                        </Link>
-                    </div>
-                </Reveal>
-            </section>
-
-            {/* ── Footer ── */}
-            <footer className="sd-footer">
-                <div className="sd-footer-grid">
-                    <div>
-                        <Link href="/" className="sd-logo sd-logo-light">
-                            <img
-                                src="/SnapdraftLogoBlack.svg"
-                                alt="SnapDraft"
-                                className="sd-logo-image"
-                            />
-                        </Link>
-                        <p>
-                            AI-powered visual content generation — currently in
-                            closed beta.
+                    <div className="sd-feat-head">
+                        <div className="sd-sec-eyebrow">How it works</div>
+                        <h2 className="sd-sec-title">
+                            From brief to batch without the wait
+                        </h2>
+                        <p className="sd-sec-sub">
+                            Learn the brand, generate from your spreadsheet,
+                            tweak in Canvas, and export. Built for calendar
+                            speed, not design tickets.
                         </p>
                     </div>
-                    <div>
-                        <h5>Product</h5>
-                        <a href="#how">How it works</a>
-                        <a href="#beta">Beta perks</a>
-                        <a href="#faq">FAQ</a>
+                </Reveal>
+
+                <div className="sd-feat-tab-list" role="tablist">
+                    {FEATURE_TABS.map((tab, i) => (
+                        <button
+                            key={tab.id}
+                            type="button"
+                            role="tab"
+                            aria-selected={i === activeFeature}
+                            className={
+                                i === activeFeature
+                                    ? `sd-feat-tab active sd-feat-tab-${tab.tone}`
+                                    : 'sd-feat-tab'
+                            }
+                            onClick={() => setActiveFeature(i)}
+                        >
+                            {tab.label}
+                        </button>
+                    ))}
+                </div>
+
+                <div
+                    className={`sd-feat-panel sd-feat-panel-${feature.tone}`}
+                    role="tabpanel"
+                >
+                    <div className="sd-feat-panel-copy">
+                        <span className="sd-feat-panel-ico">
+                            <FeatureIcon size={22} strokeWidth={2} />
+                        </span>
+                        <div className="sd-feat-panel-text">
+                            <h3>{feature.title}</h3>
+                            <p>{feature.desc}</p>
+                        </div>
                     </div>
-                    <div>
-                        <h5>Account</h5>
-                        <Link href={register().url}>Create account</Link>
-                        <Link href={login().url}>Sign in</Link>
+                    <div className="sd-feat-panel-media">
+                        <img src={feature.image} alt="" />
                     </div>
                 </div>
-                <div className="sd-footer-bottom">
-                    <span>
-                        © {new Date().getFullYear()} SnapDraft. All rights
-                        reserved.
-                    </span>
-                    <span className="flex gap-3">
-                        <Link href="/privacy">Privacy</Link>
-                        <Link href="/terms">Terms</Link>
-                        <Link href="/refund">Refunds</Link>
-                    </span>
+            </section>
+
+            {/* Color feature cards */}
+            <div className="sd-color-cards">
+                {COLOR_CARDS.map((card, i) => (
+                    <Reveal key={card.title} delay={i * 60}>
+                        <div className={`sd-color-card sd-color-card-${card.tone}`}>
+                            <div className="sd-color-card-media">
+                                <img src={card.image} alt="" />
+                            </div>
+                            <div>
+                                <h3>{card.title}</h3>
+                                <p>{card.desc}</p>
+                            </div>
+                        </div>
+                    </Reveal>
+                ))}
+            </div>
+
+
+            {/* Pricing */}
+            <section className="sd-pricing-section">
+                <Reveal>
+                    <div className="sd-sec-head sd-pricing-head">
+                        <div className="sd-sec-eyebrow">Pricing</div>
+                        <h2 className="sd-sec-title">
+                            Plans for solo operators and agencies
+                        </h2>
+                        <p className="sd-sec-sub">
+                            Brand DNA, batch generation, and Canvas tweaks on
+                            every plan. Priced for freelancers, social managers,
+                            and multi-brand teams.
+                        </p>
+                        <div className="sd-pricing-toggle">
+                            <button
+                                type="button"
+                                className={
+                                    pricingPeriod === 'monthly' ? 'active' : ''
+                                }
+                                onClick={() => setPricingPeriod('monthly')}
+                            >
+                                Monthly
+                            </button>
+                            <button
+                                type="button"
+                                className={
+                                    pricingPeriod === 'yearly' ? 'active' : ''
+                                }
+                                onClick={() => setPricingPeriod('yearly')}
+                            >
+                                Yearly
+                                <span className="sd-pricing-save">
+                                    2 months free
+                                </span>
+                            </button>
+                        </div>
+                    </div>
+                </Reveal>
+                <div className="sd-pricing-shell">
+                    <div className="sd-pricing-grid">
+                        {displayPlans.map((plan, i) => {
+                            const symbol =
+                                CURRENCY_SYMBOLS[plan.currency] ??
+                                plan.currency;
+                            const Icon = PLAN_ICONS[i % PLAN_ICONS.length];
+                            const hasPopular = displayPlans.some(
+                                (p) => p.popular,
+                            );
+                            const featured = hasPopular
+                                ? plan.popular
+                                : i === 1;
+                            const monthly =
+                                pricingPeriod === 'yearly'
+                                    ? plan.yearly_price
+                                    : plan.price;
+                            return (
+                                <div
+                                    key={plan.id}
+                                    className={
+                                        featured
+                                            ? 'sd-price-card sd-price-card-featured'
+                                            : 'sd-price-card'
+                                    }
+                                >
+                                    <div className="sd-price-plan-head">
+                                        <span className="sd-price-ico">
+                                            <Icon size={16} strokeWidth={2.25} />
+                                        </span>
+                                        <span className="sd-price-name">
+                                            {plan.name} plan
+                                        </span>
+                                    </div>
+                                    <div className="sd-price-amount">
+                                        <strong>
+                                            {symbol}
+                                            {monthly % 1 === 0
+                                                ? monthly
+                                                : monthly.toFixed(2)}
+                                        </strong>
+                                        <span>/month</span>
+                                    </div>
+                                    <p className="sd-price-subtitle">
+                                        {plan.subtitle}
+                                    </p>
+                                    <div className="sd-price-billed">
+                                        {pricingPeriod === 'yearly'
+                                            ? `Billed ${symbol}${plan.yearly_total % 1 === 0 ? plan.yearly_total : plan.yearly_total.toFixed(2)} yearly`
+                                            : 'Billed monthly'}
+                                    </div>
+                                    <ul className="sd-price-features">
+                                        {plan.features.map((f) => (
+                                            <li key={f}>
+                                                <span className="sd-price-check">
+                                                    <Check
+                                                        size={12}
+                                                        strokeWidth={3}
+                                                    />
+                                                </span>
+                                                {f}
+                                            </li>
+                                        ))}
+                                    </ul>
+                                    <Link
+                                        href={register().url}
+                                        className="sd-btn-price"
+                                    >
+                                        Get Started
+                                    </Link>
+                                </div>
+                            );
+                        })}
+                    </div>
                 </div>
-            </footer>
-        </div>
+                <div className="sd-cta-row" style={{ marginTop: 28 }}>
+                    <Link href="/pricing" className="sd-btn-hero-ghost">
+                        Compare all plans
+                        <ArrowRight size={16} />
+                    </Link>
+                </div>
+            </section>
+
+            {/* Testimonials */}
+            <section className="sd-quotes">
+                <Reveal>
+                    <div className="sd-sec-head sd-quotes-head">
+                        <div className="sd-sec-eyebrow">Testimonials</div>
+                        <h2 className="sd-sec-title">
+                            Less queue time. More posts shipped.
+                        </h2>
+                    </div>
+                </Reveal>
+                <div className="sd-quotes-grid">
+                    {TESTIMONIALS.map((t) => (
+                        <article className="sd-quote-card" key={t.name}>
+                            <div className="sd-quote-mark" aria-hidden="true">
+                                &rdquo;
+                            </div>
+                            <p>{t.quote}</p>
+                            <div className="sd-quote-author">
+                                <div
+                                    className={`sd-quote-avatar sd-quote-avatar-${t.tone}`}
+                                    aria-hidden="true"
+                                >
+                                    {t.initials}
+                                </div>
+                                <div>
+                                    <strong>{t.name}</strong>
+                                    <span>{t.role}</span>
+                                </div>
+                            </div>
+                        </article>
+                    ))}
+                </div>
+            </section>
+
+            {/* Blog */}
+            <section className="sd-home-blog">
+                <div className="sd-home-blog-head">
+                    <div>
+                        <div className="sd-sec-eyebrow">From the blog</div>
+                        <h2 className="sd-sec-title">
+                            Workflow tips for people who publish weekly
+                        </h2>
+                    </div>
+                    <Link href="/blog" className="sd-btn-sm sd-home-blog-cta">
+                        Read the blog
+                    </Link>
+                </div>
+                {posts.length === 0 ? (
+                    <p className="sd-pricing-note">
+                        New posts coming soon.{' '}
+                        <Link href="/blog">Visit the blog</Link>.
+                    </p>
+                ) : (
+                    <div className="sd-blog-grid sd-home-blog-grid">
+                        {posts.map((post, i) => (
+                            <Reveal key={post.slug} delay={i * 80}>
+                                <Link
+                                    href={`/blog/${post.slug}`}
+                                    className="sd-blog-card sd-home-blog-card"
+                                >
+                                    {post.cover && (
+                                        <div className="sd-blog-card-cover">
+                                            <img
+                                                src={post.cover}
+                                                alt=""
+                                                loading="lazy"
+                                            />
+                                        </div>
+                                    )}
+                                    <div className="sd-blog-card-body">
+                                        <span className="sd-blog-card-tag">
+                                            {post.category ?? 'News'}
+                                        </span>
+                                        <h3>{post.title}</h3>
+                                        {post.date_formatted && (
+                                            <div className="sd-blog-card-date">
+                                                {post.date_formatted}
+                                            </div>
+                                        )}
+                                    </div>
+                                </Link>
+                            </Reveal>
+                        ))}
+                    </div>
+                )}
+            </section>
+        </MarketingLayout>
     );
 }

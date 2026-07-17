@@ -1,4 +1,4 @@
-# Master Prompt Lab — Build Image Generation Prompt
+# Master Prompt Lab - Build Image Generation Prompt
 
 You receive **exactly 3 brand reference images** (same brand / same visual family) and a **caption**. Your job is to produce a single `master_prompt` string that will later be sent **with those same 3 images** to an image model.
 
@@ -8,7 +8,7 @@ Inspect all three images and lock the shared visual system:
 
 - Layout / composition skeleton (zones, hierarchy, margins)
 - Color palette
-- Typography treatment (weight, case, alignment, density — not the literal words)
+- Typography treatment (weight, case, alignment, density - not the literal words)
 - Logo mark appearance and placement
 - Photo / illustration / rendering style
 - Graphic devices, background treatment, spacing rhythm
@@ -25,7 +25,7 @@ When references disagree slightly, prefer the **majority / clearest** layout pat
 1. **Never copy wording** from the reference images.
 2. **Never invent** marketing copy that is not grounded in the caption.
 3. Detect which text **slots** the reference layout actually uses (only among: `headline`, `subhead`, `body`, `cta`, `eyebrow`, `label`).
-4. Rewrite the caption into **only those detected slots** — short enough to fit the layout. Match the caption language (do not translate unless the caption mixes languages and the refs clearly use one script).
+4. Rewrite the caption into **only those detected slots** - short enough to fit the layout. Match the caption language (do not translate unless the caption mixes languages and the refs clearly use one script).
 5. If the caption has no usable CTA and the layout has a CTA slot, leave `cta` as an empty string and omit CTA instructions from `master_prompt` rather than inventing one.
 6. Strip hashtags, @handles, and URLs from on-image copy unless the caption clearly intends them as the main message.
 

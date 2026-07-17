@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Marketing\HomeController;
 use App\Http\Controllers\Auth\SocialAuthController;
 use App\Http\Controllers\BetaApplicationController;
 use App\Http\Controllers\CanvasController;
@@ -16,7 +17,7 @@ use App\Http\Controllers\Wizards\CSVWizardController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
-// Google OAuth (guest middleware — must be accessible before login)
+// Google OAuth (guest middleware - must be accessible before login)
 Route::middleware('guest')->group(function () {
     Route::get('/auth/google', [SocialAuthController::class, 'redirect'])->name('auth.google');
     Route::get('/auth/google/callback', [SocialAuthController::class, 'callback'])->name('auth.google.callback');
@@ -28,19 +29,12 @@ Route::get('/', function () {
         return redirect()->route('dashboard');
     }
 
-    return Inertia::render('website/home');
+    return app(HomeController::class)();
 })->name('home');
 
 Route::get('/privacy', fn () => Inertia::render('website/privacy'))->name('privacy');
 Route::get('/terms', fn () => Inertia::render('website/terms'))->name('terms');
 Route::get('/refund', fn () => Inertia::render('website/refund'))->name('refund');
-
-// Startup landing page — local/dev only (placeholder template)
-if (app()->environment('local')) {
-    Route::get('/startup', function () {
-        return Inertia::render('website/startup');
-    })->name('startup');
-}
 
 // Guest-accessible beta invite validation + waitlist signup
 Route::get('invite/validate', [\App\Http\Controllers\BetaInviteController::class, 'validateCode'])
@@ -61,7 +55,12 @@ Route::post('beta/apply', [BetaApplicationController::class, 'store'])
 Route::middleware(['auth', 'verified', 'not.suspended'])->group(function () {
     Route::get('dashboard', [DashboardController::class, 'index'])->name('dashboard');
 
-    // Beta invite code redemption — needs auth but no subscription
+    // Private user media (auth-gated - replaces public /storage for uploads)
+    Route::get('media/{path}', [\App\Http\Controllers\MediaController::class, 'show'])
+        ->where('path', '.*')
+        ->name('media.show');
+
+    // Beta invite code redemption - needs auth but no subscription
     Route::post('invite/redeem', [\App\Http\Controllers\BetaInviteController::class, 'redeem'])
         ->middleware('throttle:5,5')
         ->name('invite.redeem');
@@ -72,7 +71,7 @@ Route::middleware(['auth', 'verified', 'not.suspended'])->group(function () {
     // the wizard UX and blocks wasted time generating with zero credits.
     Route::middleware('has.credits')->group(function () {
 
-        // Simple Wizard + quick-generate — local labs only (not in production product)
+        // Simple Wizard + quick-generate - local labs only (not in production product)
         if (app()->environment('local')) {
             Route::get('simple-wizard', [SimpleTextWizardController::class, 'index'])->name('simple-wizard.index');
             Route::post('simple-wizard/generate', [SimpleTextWizardController::class, 'generate'])->name('simple-wizard.generate');
@@ -95,20 +94,20 @@ Route::middleware(['auth', 'verified', 'not.suspended'])->group(function () {
         Route::get('projects/wizards/csv/sessions/{session}', [CSVWizardController::class, 'show'])
             ->name('projects.wizards.csv.session');
 
-        Route::get('projects/create/csv-cluster', [\App\Http\Controllers\Wizards\ClusterCsvWizardController::class, 'create'])
-            ->name('projects.wizards.csv-cluster');
-        Route::post('projects/wizards/csv-cluster', [\App\Http\Controllers\Wizards\ClusterCsvWizardController::class, 'store'])
-            ->middleware('throttle.user:5,1')
-            ->name('projects.wizards.csv-cluster.store');
-        Route::get('projects/wizards/csv-cluster/sessions/{session}', [\App\Http\Controllers\Wizards\ClusterCsvWizardController::class, 'show'])
-            ->name('projects.wizards.csv-cluster.session');
-        Route::get('projects/wizards/csv-cluster/sessions/{session}/status', [\App\Http\Controllers\Wizards\ClusterCsvWizardController::class, 'status'])
-            ->name('projects.wizards.csv-cluster.status');
-        Route::get('projects/wizards/csv-cluster/sessions/{session}/result', [\App\Http\Controllers\Wizards\ClusterCsvWizardController::class, 'result'])
-            ->name('projects.wizards.csv-cluster.result');
-
-        // Stub wizards, test labs, quick-generate, row-debug — local only
-        if (app()->environment('local')) {
+        // Stub wizards, CSV cluster lab, test labs, quick-generate - local/testing only
+        // User-facing create flow is only /projects/create → /projects/create/csv
+        if (app()->environment(['local', 'testing'])) {
+            Route::get('projects/create/csv-cluster', [\App\Http\Controllers\Wizards\ClusterCsvWizardController::class, 'create'])
+                ->name('projects.wizards.csv-cluster');
+            Route::post('projects/wizards/csv-cluster', [\App\Http\Controllers\Wizards\ClusterCsvWizardController::class, 'store'])
+                ->middleware('throttle.user:5,1')
+                ->name('projects.wizards.csv-cluster.store');
+            Route::get('projects/wizards/csv-cluster/sessions/{session}', [\App\Http\Controllers\Wizards\ClusterCsvWizardController::class, 'show'])
+                ->name('projects.wizards.csv-cluster.session');
+            Route::get('projects/wizards/csv-cluster/sessions/{session}/status', [\App\Http\Controllers\Wizards\ClusterCsvWizardController::class, 'status'])
+                ->name('projects.wizards.csv-cluster.status');
+            Route::get('projects/wizards/csv-cluster/sessions/{session}/result', [\App\Http\Controllers\Wizards\ClusterCsvWizardController::class, 'result'])
+                ->name('projects.wizards.csv-cluster.result');
             Route::get('projects/wizards/csv-cluster/sessions/{session}/rows/{rowIndex}/debug', [\App\Http\Controllers\Wizards\ClusterCsvWizardController::class, 'rowDebug'])
                 ->whereNumber('rowIndex')
                 ->name('projects.wizards.csv-cluster.row-debug');
@@ -245,7 +244,7 @@ Route::middleware(['auth', 'verified', 'not.suspended'])->group(function () {
         Route::post('projects/{projectId}/canvas/export', [CanvasController::class, 'exportCanvas'])
             ->name('canvas.export');
 
-        // AI-powered canvas editing — MVP operations
+        // AI-powered canvas editing - MVP operations
         Route::post('/api/generate-with-mask', [ImageEditController::class, 'generateWithMask'])
             ->middleware('throttle.user:20,1')
             ->name('api.generate-with-mask');
@@ -275,7 +274,7 @@ Route::middleware(['auth', 'verified', 'not.suspended'])->group(function () {
             ->middleware('throttle.user:10,1')
             ->name('api.generate-from-prompt');
 
-        // FAL.ai AI upscale — proxied server-side so the API key stays off the client
+        // FAL.ai AI upscale - proxied server-side so the API key stays off the client
         Route::post('/api/fal/upscale/submit', [FalProxyController::class, 'submitUpscale'])
             ->middleware('throttle.user:5,1')
             ->name('api.fal.upscale.submit');
@@ -285,7 +284,7 @@ Route::middleware(['auth', 'verified', 'not.suspended'])->group(function () {
 
     }); // end has.credits group
 
-    // Search & Updates (accessible without subscription — view-only)
+    // Search & Updates (accessible without subscription - view-only)
     Route::get('search', [SearchController::class, 'index'])->name('search');
     Route::post('search', [SearchController::class, 'search'])->name('search.query');
 

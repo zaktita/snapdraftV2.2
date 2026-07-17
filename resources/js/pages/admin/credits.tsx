@@ -123,7 +123,7 @@ export default function CreditsPage({ users, filters }: Props) {
             <Dialog open={!!selected} onOpenChange={closeAdjust}>
                 <DialogContent>
                     <DialogHeader>
-                        <DialogTitle>{op === 'add' ? 'Add Credits' : 'Deduct Credits'} — {selected?.name}</DialogTitle>
+                        <DialogTitle>{op === 'add' ? 'Add Credits' : 'Deduct Credits'} - {selected?.name}</DialogTitle>
                     </DialogHeader>
                     <div className="space-y-3">
                         <p className="text-sm text-gray-500">

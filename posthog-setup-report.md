@@ -7,7 +7,7 @@ The wizard has completed a deep integration of PostHog analytics into Snapdraft.
 
 - Installed `posthog/posthog-php` (v4) via Composer and `posthog-js` via npm
 - Created `config/posthog.php` for environment-based configuration
-- Created `app/Services/PostHogService.php` — a singleton wrapper around the PHP SDK with `capture`, `identify`, and `shutdown` methods
+- Created `app/Services/PostHogService.php` - a singleton wrapper around the PHP SDK with `capture`, `identify`, and `shutdown` methods
 - Registered `PostHogService` as a singleton in `app/Providers/AppServiceProvider.php`
 - Updated `app/Http/Middleware/HandleInertiaRequests.php` to share the PostHog token and host with the React frontend via Inertia shared props
 - Updated `resources/js/app.tsx` to initialize `posthog-js` on page load and identify the currently authenticated user, correlating client-side and server-side events by user ID
@@ -32,7 +32,7 @@ The wizard has completed a deep integration of PostHog analytics into Snapdraft.
 
 We've built some insights and a dashboard for you to keep an eye on user behavior, based on the events we just instrumented:
 
-- **Dashboard — Analytics basics**: https://us.posthog.com/project/378849/dashboard/1457900
+- **Dashboard - Analytics basics**: https://us.posthog.com/project/378849/dashboard/1457900
 - **New Signups (Daily)**: https://us.posthog.com/project/378849/insights/AARAvCQY
 - **Subscription Health (Weekly)**: https://us.posthog.com/project/378849/insights/37mz2W6O
 - **Core Generation Activity (Daily)**: https://us.posthog.com/project/378849/insights/N9BVRunT

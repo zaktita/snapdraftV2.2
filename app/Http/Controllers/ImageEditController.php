@@ -820,7 +820,7 @@ class ImageEditController extends Controller
      */
     public function erase(Request $request)
     {
-        // SeedDream 4.5 can take 60-90 seconds — lift PHP's 30s limit for this action
+        // SeedDream 4.5 can take 60-90 seconds - lift PHP's 30s limit for this action
         set_time_limit(180);
 
         $validated = $request->validate([
@@ -969,7 +969,7 @@ class ImageEditController extends Controller
         $data = base64_decode($resultBase64);
         $img  = imagecreatefromstring($data);
         if (!$img) {
-            // Can't decode — return as-is
+            // Can't decode - return as-is
             return $resultBase64;
         }
 

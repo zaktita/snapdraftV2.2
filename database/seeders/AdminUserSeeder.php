@@ -16,7 +16,7 @@ class AdminUserSeeder extends Seeder
     public function run(): void
     {
         if (app()->environment('production')) {
-            $this->command?->warn('AdminUserSeeder skipped in production — create admins manually with a strong password.');
+            $this->command?->warn('AdminUserSeeder skipped in production - create admins manually with a strong password.');
 
             return;
         }

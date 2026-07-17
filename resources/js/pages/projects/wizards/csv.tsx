@@ -43,11 +43,11 @@ function BrandReferenceTip() {
                     background: 'var(--color-card)',
                 }}>
                     <ul style={{ margin: 0, paddingLeft: '18px' }}>
-                        <li><strong>Showcase your brand</strong> — use real marketing images, hero shots, or product visuals.</li>
-                        <li><strong>Be consistent</strong> — images from the same campaign ensure coherent style extraction.</li>
-                        <li><strong>Include typography</strong> — images with your brand fonts help the AI match your text style.</li>
-                        <li><strong>Vary the content</strong> — include different compositions so the AI captures the full style range.</li>
-                        <li><strong>Avoid watermarks</strong> — clean images produce better style extraction.</li>
+                        <li><strong>Showcase your brand</strong> - use real marketing images, hero shots, or product visuals.</li>
+                        <li><strong>Be consistent</strong> - images from the same campaign ensure coherent style extraction.</li>
+                        <li><strong>Include typography</strong> - images with your brand fonts help the AI match your text style.</li>
+                        <li><strong>Vary the content</strong> - include different compositions so the AI captures the full style range.</li>
+                        <li><strong>Avoid watermarks</strong> - clean images produce better style extraction.</li>
                     </ul>
                 </div>
             )}
@@ -56,27 +56,27 @@ function BrandReferenceTip() {
 }
 
 const formatPresetOptions = [
-    { value: '', label: 'Auto — AI chooses best format' },
-    { value: 'instagram_square', label: '■  Instagram — Square (1:1)' },
-    { value: 'instagram_portrait', label: '▮  Instagram — Portrait (4:5)' },
-    { value: 'instagram_story', label: '▌  Instagram — Story / Reel (9:16)' },
-    { value: 'instagram_landscape', label: '▬  Instagram — Landscape (16:9)' },
+    { value: '', label: 'Auto - AI chooses best format' },
+    { value: 'instagram_square', label: '■  Instagram - Square (1:1)' },
+    { value: 'instagram_portrait', label: '▮  Instagram - Portrait (4:5)' },
+    { value: 'instagram_story', label: '▌  Instagram - Story / Reel (9:16)' },
+    { value: 'instagram_landscape', label: '▬  Instagram - Landscape (16:9)' },
 
-    { value: 'facebook_square', label: '■  Facebook — Square (1:1)' },
-    { value: 'facebook_link', label: '▬  Facebook — Link / Post (1.91:1)' },
-    { value: 'facebook_story', label: '▌  Facebook — Story (9:16)' },
-    { value: 'facebook_landscape', label: '▬  Facebook — Landscape (16:9)' },
+    { value: 'facebook_square', label: '■  Facebook - Square (1:1)' },
+    { value: 'facebook_link', label: '▬  Facebook - Link / Post (1.91:1)' },
+    { value: 'facebook_story', label: '▌  Facebook - Story (9:16)' },
+    { value: 'facebook_landscape', label: '▬  Facebook - Landscape (16:9)' },
 
-    { value: 'linkedin_square', label: '■  LinkedIn — Square (1:1)' },
-    { value: 'linkedin_landscape', label: '▬  LinkedIn — Post (1.91:1)' },
+    { value: 'linkedin_square', label: '■  LinkedIn - Square (1:1)' },
+    { value: 'linkedin_landscape', label: '▬  LinkedIn - Post (1.91:1)' },
 
-    { value: 'x_square', label: '■  X — Square (1:1)' },
-    { value: 'x_landscape', label: '▬  X — Landscape (16:9)' },
+    { value: 'x_square', label: '■  X - Square (1:1)' },
+    { value: 'x_landscape', label: '▬  X - Landscape (16:9)' },
 
-    { value: 'tiktok_video', label: '▌  TikTok — Video (9:16)' },
-    { value: 'youtube_thumbnail', label: '▬  YouTube — Thumbnail (16:9)' },
-    { value: 'pinterest_pin', label: '▮  Pinterest — Pin (2:3)' },
-    { value: 'pinterest_square', label: '■  Pinterest — Square (1:1)' },
+    { value: 'tiktok_video', label: '▌  TikTok - Video (9:16)' },
+    { value: 'youtube_thumbnail', label: '▬  YouTube - Thumbnail (16:9)' },
+    { value: 'pinterest_pin', label: '▮  Pinterest - Pin (2:3)' },
+    { value: 'pinterest_square', label: '■  Pinterest - Square (1:1)' },
 ];
 
 interface CSVRow {
@@ -95,7 +95,7 @@ const creativityLevelOptions: Array<{ value: CreativityLevel; label: string; des
     {
         value: 'strict',
         label: 'Strict',
-        description: 'Replicate the reference layout exactly — swap only subject and copy.',
+        description: 'Replicate the reference layout exactly - swap only subject and copy.',
     },
     {
         value: 'balanced',
@@ -238,7 +238,7 @@ export default function CSVWizard() {
         if (backendErrorMessage) {
             // Clear any local error when a backend error arrives
             setLocalError(null);
-            // Backend flash errors are persistent — user must explicitly dismiss them
+            // Backend flash errors are persistent - user must explicitly dismiss them
             setShowError(true);
         }
     }, [backendErrorMessage]);
@@ -267,7 +267,7 @@ export default function CSVWizard() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [currentStep]);
 
-    // Parse CSV — handles CRLF, quoted fields with embedded commas, and all rows
+    // Parse CSV - handles CRLF, quoted fields with embedded commas, and all rows
     const parseCSV = (text: string): CSVRow[] => {
         debug('parseCSV: start', { length: text.length });
 
@@ -683,7 +683,7 @@ export default function CSVWizard() {
             return;
         }
 
-        // ── Credit check — block before submission so the user doesn't wait ──
+        // ── Credit check - block before submission so the user doesn't wait ──
         if (!isLab) {
             const creditsRemaining = page.props.auth?.user?.credits_remaining ?? 0;
             if (creditsRemaining === 0) {
@@ -900,7 +900,7 @@ export default function CSVWizard() {
                                     color: 'var(--color-primary)',
                                 }}>
                                     <Zap size={12} />
-                                    Admin test lab — no credits charged
+                                    Admin test lab - no credits charged
                                 </div>
                             ) : page.props.auth?.user?.credits_remaining !== undefined && (
                                 <div style={{
@@ -998,20 +998,13 @@ export default function CSVWizard() {
                         }}>
                             {getSubtitle()}
                         </p>
-                        <p style={{ margin: '10px 0 0', fontSize: '13px' }}>
-                            {isLab ? (
+                        {isLab && (
+                            <p style={{ margin: '10px 0 0', fontSize: '13px' }}>
                                 <span style={{ color: 'var(--color-muted-foreground)' }}>
                                     Cluster DNA → match captions → PromptForge post JSON → batch image generation
                                 </span>
-                            ) : (
-                                <a
-                                    href="/projects/create/csv-cluster"
-                                    style={{ color: 'var(--color-primary)', textDecoration: 'none', fontWeight: 500 }}
-                                >
-                                    Try CSV Cluster Wizard (4-step pipeline) →
-                                </a>
-                            )}
-                        </p>
+                            </p>
+                        )}
                     </div>
 
                     {/* Progress Bar */}
@@ -1662,9 +1655,9 @@ export default function CSVWizard() {
                             </div>
                         )}
 
-                        {/* Step 3: Review Data — reserved for future expansion; flow skips to step 4 after upload */}
+                        {/* Step 3: Review Data - reserved for future expansion; flow skips to step 4 after upload */}
 
-                        {/* Step 4: Style References (Required — min 3, max 10) */}
+                        {/* Step 4: Style References (Required - min 3, max 10) */}
                         {currentStep === 4 && (
                             <div style={{ animation: 'fadeIn 0.3s ease' }}>
                                 {/* Auto-skip notice */}
@@ -1687,7 +1680,7 @@ export default function CSVWizard() {
                                     </div>
                                 )}
 
-                                {/* What makes a good reference — collapsible tip */}
+                                {/* What makes a good reference - collapsible tip */}
                                 <BrandReferenceTip />
 
                                 <div
@@ -1717,7 +1710,7 @@ export default function CSVWizard() {
                                     </div>
                                     {styleImageFiles.length > 0 && (
                                         <div style={{ marginTop: '12px', fontSize: '14px', fontWeight: 500, color: styleImageFiles.length >= 3 ? 'var(--color-primary)' : 'hsl(var(--destructive))' }}>
-                                            {styleImageFiles.length}/10 — {styleImageFiles.length >= 3 ? 'Ready to continue' : `Need ${3 - styleImageFiles.length} more to proceed`}
+                                            {styleImageFiles.length}/10 - {styleImageFiles.length >= 3 ? 'Ready to continue' : `Need ${3 - styleImageFiles.length} more to proceed`}
                                             {styleImageFiles.length >= 10 && ' (maximum reached)'}
                                         </div>
                                     )}
@@ -1915,11 +1908,11 @@ export default function CSVWizard() {
                                             <div style={{ fontSize: '13px', color: 'var(--color-muted-foreground)', marginBottom: '4px' }}>Credit Cost</div>
                                             <div style={{ fontSize: '16px', fontWeight: 500, color: 'var(--color-foreground)' }}>
                                                 {isLab ? (
-                                                    <>Admin lab — pipeline runs automatically for {selectedRows.size} row{selectedRows.size !== 1 ? 's' : ''}</>
+                                                    <>Admin lab - pipeline runs automatically for {selectedRows.size} row{selectedRows.size !== 1 ? 's' : ''}</>
                                                 ) : (
                                                     <>
                                                         This will use {selectedRows.size * resolutionMultiplier} of your{' '}
-                                                        {page.props.auth?.user?.credits_remaining ?? '—'} available credits
+                                                        {page.props.auth?.user?.credits_remaining ?? '-'} available credits
                                                     </>
                                                 )}
                                             </div>

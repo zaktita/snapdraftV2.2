@@ -94,7 +94,7 @@ export default function BetaApplicationsPage({ applications }: Props) {
                                             </Badge>
                                         </td>
                                         <td className="px-4 py-3 font-mono text-xs text-gray-700">
-                                            {row.invite_code ?? '—'}
+                                            {row.invite_code ?? '-'}
                                         </td>
                                         <td className="px-4 py-3 text-xs text-gray-500">
                                             {new Date(row.created_at).toLocaleString()}

@@ -56,7 +56,7 @@ class CSVWizardController extends Controller
             return back()->withErrors(['csv_file' => 'The CSV file contains no valid rows.']);
         }
 
-        // ── 1b. Credit gate — must have enough credits for every selected row ─
+        // ── 1b. Credit gate - must have enough credits for every selected row ─
         if (! $user->hasActiveSubscription()) {
             return redirect()->route('dashboard')
                 ->with('error', 'You need a beta invite to generate images. Check your email for your invite code.');

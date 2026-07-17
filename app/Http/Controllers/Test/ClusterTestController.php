@@ -56,7 +56,7 @@ class ClusterTestController extends Controller
             ];
         }
 
-        // Run brand analysis — clustering + element detection — in a single Gemini call
+        // Run brand analysis - clustering + element detection - in a single Gemini call
         $paths    = array_column($storedRefs, 'path');
         $analysis = $this->analyzer->analyze($paths);
 

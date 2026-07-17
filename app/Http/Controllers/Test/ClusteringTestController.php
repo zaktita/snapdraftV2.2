@@ -149,7 +149,7 @@ class ClusteringTestController extends Controller
         $project->loadMissing(['clusters.images.brandReference']);
 
         if ($project->clusters->isEmpty()) {
-            return back()->withErrors(['error' => 'Run clustering analysis first — no clusters found.']);
+            return back()->withErrors(['error' => 'Run clustering analysis first - no clusters found.']);
         }
 
         try {
@@ -235,11 +235,11 @@ class ClusteringTestController extends Controller
         }
 
         if (! is_array($project->dna_json) || $project->dna_json === []) {
-            return back()->withErrors(['error' => 'Run clustering analysis first — no DNA JSON found.']);
+            return back()->withErrors(['error' => 'Run clustering analysis first - no DNA JSON found.']);
         }
 
         if ($project->clusters()->count() === 0) {
-            return back()->withErrors(['error' => 'Run clustering analysis first — no clusters found.']);
+            return back()->withErrors(['error' => 'Run clustering analysis first - no clusters found.']);
         }
 
         try {

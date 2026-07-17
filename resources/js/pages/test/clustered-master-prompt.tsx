@@ -92,7 +92,7 @@ function draftsFromCaptions(captions: string[]): CaptionDraft[] {
     return sliced.map((text) => ({ id: newDraftId(), text }));
 }
 
-/** Prefer XSRF cookie — meta csrf-token goes stale after Inertia login/session regen. */
+/** Prefer XSRF cookie - meta csrf-token goes stale after Inertia login/session regen. */
 function labHeaders(): HeadersInit {
     return csrfHeaders({ Accept: 'application/json' });
 }

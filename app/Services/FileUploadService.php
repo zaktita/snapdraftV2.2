@@ -3,13 +3,16 @@
 namespace App\Services;
 
 use Illuminate\Http\UploadedFile;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
-use Intervention\Image\ImageManager;
 use Intervention\Image\Drivers\Gd\Driver;
+use Intervention\Image\ImageManager;
 
 class FileUploadService
 {
+    public function __construct(
+        protected UserMediaStorage $media,
+    ) {}
+
     /**
      * Allowed image mime types
      */
@@ -28,22 +31,17 @@ class FileUploadService
     /**
      * Upload an image and create thumbnail
      *
-     * @param UploadedFile $file
-     * @param string $directory (e.g., 'projects/1/images' or 'projects/1/references')
-     * @return array ['url' => string, 'thumbnail_url' => string|null]
+     * @return array{url: string, thumbnail_url: string|null, format: string, width: int|null, height: int|null}
      */
     public function uploadImage(UploadedFile $file, string $directory): array
     {
         $this->validateImage($file);
 
-        // Generate unique filename
-        $filename = Str::uuid() . '.' . $file->getClientOriginalExtension();
-        $path = $directory . '/' . $filename;
+        $filename = Str::uuid().'.'.$file->getClientOriginalExtension();
+        $path = $directory.'/'.$filename;
 
-        // Store the original file
-        Storage::disk('public')->put($path, file_get_contents($file->getRealPath()));
+        $this->media->put($path, file_get_contents($file->getRealPath()));
 
-        // Generate thumbnail
         $thumbnailPath = $this->generateThumbnail($file, $directory, $filename);
 
         return [
@@ -56,11 +54,8 @@ class FileUploadService
     }
 
     /**
-     * Upload multiple images
-     *
-     * @param array $files
-     * @param string $directory
-     * @return array
+     * @param  array<int, UploadedFile>  $files
+     * @return array<int, array<string, mixed>>
      */
     public function uploadMultipleImages(array $files, string $directory): array
     {
@@ -75,93 +70,54 @@ class FileUploadService
         return $uploadedFiles;
     }
 
-    /**
-     * Generate a thumbnail for the image
-     *
-     * @param UploadedFile $file
-     * @param string $directory
-     * @param string $filename
-     * @return string|null
-     */
     protected function generateThumbnail(UploadedFile $file, string $directory, string $filename): ?string
     {
         try {
             $manager = new ImageManager(new Driver());
             $image = $manager->read($file->getRealPath());
-
-            // Resize to thumbnail (400x400 max, maintaining aspect ratio)
             $image->scale(width: 400);
 
-            // Save thumbnail
-            $thumbnailFilename = 'thumb_' . $filename;
-            $thumbnailPath = $directory . '/' . $thumbnailFilename;
-            
-            $thumbnailFullPath = storage_path('app/public/' . $thumbnailPath);
-            
-            // Ensure directory exists
-            $thumbnailDir = dirname($thumbnailFullPath);
-            if (!is_dir($thumbnailDir)) {
-                mkdir($thumbnailDir, 0755, true);
-            }
+            $thumbnailFilename = 'thumb_'.$filename;
+            $thumbnailPath = $directory.'/'.$thumbnailFilename;
 
-            $image->save($thumbnailFullPath, quality: 85);
+            $this->media->put($thumbnailPath, $image->toJpeg(85)->toString());
 
             return $thumbnailPath;
         } catch (\Exception $e) {
-            // If thumbnail generation fails, return null
-            // The full image will be used as fallback
-            \Log::warning('Thumbnail generation failed: ' . $e->getMessage());
+            \Log::warning('Thumbnail generation failed: '.$e->getMessage());
+
             return null;
         }
     }
 
-    /**
-     * Validate the uploaded image
-     *
-     * @param UploadedFile $file
-     * @throws \InvalidArgumentException
-     */
     protected function validateImage(UploadedFile $file): void
     {
-        // Check file size
         if ($file->getSize() > $this->maxFileSize * 1024) {
-            throw new \InvalidArgumentException('File size exceeds maximum allowed size of ' . $this->maxFileSize . 'KB');
+            throw new \InvalidArgumentException('File size exceeds maximum allowed size of '.$this->maxFileSize.'KB');
         }
 
-        // Check mime type
-        if (!in_array($file->getMimeType(), $this->allowedMimeTypes)) {
+        if (! in_array($file->getMimeType(), $this->allowedMimeTypes, true)) {
             throw new \InvalidArgumentException('Invalid file type. Only JPG, PNG, and WebP images are allowed.');
         }
 
-        // Check if file is actually an image
-        if (!getimagesize($file->getRealPath())) {
+        if (! getimagesize($file->getRealPath())) {
             throw new \InvalidArgumentException('The uploaded file is not a valid image.');
         }
     }
 
-    /**
-     * Delete an image and its thumbnail
-     *
-     * @param string $path
-     * @param string|null $thumbnailPath
-     * @return bool
-     */
     public function deleteImage(string $path, ?string $thumbnailPath = null): bool
     {
-        $deleted = Storage::disk('public')->delete($path);
+        $deleted = $this->media->delete($path);
 
         if ($thumbnailPath) {
-            Storage::disk('public')->delete($thumbnailPath);
+            $deleted = $this->media->delete($thumbnailPath) || $deleted;
         }
 
         return $deleted;
     }
 
     /**
-     * Delete multiple images
-     *
-     * @param array $paths Array of ['url' => string, 'thumbnail_url' => string|null]
-     * @return bool
+     * @param  array<int, array{url: string, thumbnail_url?: string|null}>  $paths
      */
     public function deleteMultipleImages(array $paths): bool
     {

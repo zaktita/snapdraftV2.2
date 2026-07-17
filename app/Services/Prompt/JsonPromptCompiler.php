@@ -34,16 +34,16 @@ class JsonPromptCompiler
 
         if ($referenceImageCount > 0) {
             $parts[] = CreativityLevel::imageReferenceInstruction($creativityLevel, $referenceImageCount);
-            $parts[] = 'IMAGERY CONTENT (critical): The references define the template, style, and layout ONLY. Do NOT reuse the people, faces, objects, products, or scenes they depict. Every photo or illustration in the new image must show the subject described below — treat the reference imagery as placeholder content to be fully replaced.';
+            $parts[] = 'IMAGERY CONTENT (critical): The references define the template, style, and layout ONLY. Do NOT reuse the people, faces, objects, products, or scenes they depict. Every photo or illustration in the new image must show the subject described below - treat the reference imagery as placeholder content to be fully replaced.';
 
             if ($hasOnImageText) {
-                $parts[] = 'Use the references to decide WHERE each text type goes and how many text zones there are, then reproduce the same set of zones with the same information density. If the references show a bulleted list or multiple pills, render them too. Do NOT copy any words from the references — fill the zones with the strings below.';
+                $parts[] = 'Use the references to decide WHERE each text type goes and how many text zones there are, then reproduce the same set of zones with the same information density. If the references show a bulleted list or multiple pills, render them too. Do NOT copy any words from the references - fill the zones with the strings below.';
                 if ($creativityLevel === CreativityLevel::STRICT) {
                     $parts[] = 'Do not invent a new grid, collage, speech bubble, or modular layout.';
                 } elseif ($creativityLevel !== CreativityLevel::CREATIVE) {
                     $parts[] = 'Do not invent a new grid, collage, speech bubble, or modular layout unless creativity level is creative.';
                 }
-                $parts[] = 'ON-IMAGE COPY (critical): Render EVERY ON-IMAGE TEXT string listed below, in its matching zone — including any lists or pills. Do NOT add, invent, translate, or pad with any extra text, label, tagline, or CTA that is not in the list (no generic placeholder copy in any language). If a zone is not in the list, leave that area free of invented text.';
+                $parts[] = 'ON-IMAGE COPY (critical): Render EVERY ON-IMAGE TEXT string listed below, in its matching zone - including any lists or pills. Do NOT add, invent, translate, or pad with any extra text, label, tagline, or CTA that is not in the list (no generic placeholder copy in any language). If a zone is not in the list, leave that area free of invented text.';
             } else {
                 $parts[] = 'This visual contains NO on-image text. Do not render any words, letters, watermarks, captions, labels, or taglines on the image. Focus on subject, composition, rendering style, and brand visual language from the references.';
             }
@@ -65,8 +65,8 @@ class JsonPromptCompiler
         $caption = trim($caption ?? (string) ($post['caption'] ?? ''));
         if ($caption !== '') {
             $captionLabel = $hasOnImageText
-                ? 'Rewritten caption (context for facts — do not render in full on the image; use the ON-IMAGE TEXT zones above, shortened but complete for each zone):'
-                : 'Rewritten caption (context for facts and subject direction — do not render any text on the image):';
+                ? 'Rewritten caption (context for facts - do not render in full on the image; use the ON-IMAGE TEXT zones above, shortened but complete for each zone):'
+                : 'Rewritten caption (context for facts and subject direction - do not render any text on the image):';
             $parts[] = $captionLabel."\n\"{$caption}\"";
         }
 
@@ -87,7 +87,7 @@ class JsonPromptCompiler
         if ($constraintsJson !== []) {
             $json = json_encode($constraintsJson, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
             if ($json !== false) {
-                $parts[] = "Visual constraints (subject, palette, quality — on-image copy is above, not in this block):\n\n```json\n{$json}\n```";
+                $parts[] = "Visual constraints (subject, palette, quality - on-image copy is above, not in this block):\n\n```json\n{$json}\n```";
             }
         }
 
@@ -234,7 +234,7 @@ class JsonPromptCompiler
             ? 'Place each string in the matching text zone from the references (same position, size, and hierarchy). '
             : '';
 
-        return 'ON-IMAGE TEXT — render ALL of the following strings, spelled exactly, character for character. Each entry is one text zone (a list entry may contain several items separated by " • " — render them as a bulleted/inline list). Keep them scannable, but render every zone listed; do not merge, drop, or shorten away facts. '
+        return 'ON-IMAGE TEXT - render ALL of the following strings, spelled exactly, character for character. Each entry is one text zone (a list entry may contain several items separated by " • " - render them as a bulleted/inline list). Keep them scannable, but render every zone listed; do not merge, drop, or shorten away facts. '
             .$zoneHint
             ."Do not copy reference wording, and do not add any zone, label, tagline, or CTA that is not in this list:\n"
             .implode("\n", $numbered);

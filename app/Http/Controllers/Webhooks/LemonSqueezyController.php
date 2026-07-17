@@ -90,7 +90,7 @@ class LemonSqueezyController extends Controller
     {
         $secret = config('services.lemonsqueezy.webhook_secret');
         
-        // Reject webhooks if no secret is configured — never skip verification
+        // Reject webhooks if no secret is configured - never skip verification
         if (empty($secret)) {
             Log::error('❌ Webhook secret not configured - rejecting webhook for security');
             return false;
@@ -168,7 +168,7 @@ class LemonSqueezyController extends Controller
         // Idempotent: ignore duplicate delivery of the same Lemon subscription id
         $existing = Subscription::where('lemonsqueezy_id', $data['id'])->first();
         if ($existing) {
-            Log::info('Subscription already exists for Lemon id — skipping create', [
+            Log::info('Subscription already exists for Lemon id - skipping create', [
                 'lemonsqueezy_id' => $data['id'],
                 'subscription_id' => $existing->id,
             ]);

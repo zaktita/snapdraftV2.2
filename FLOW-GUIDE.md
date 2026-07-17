@@ -1,4 +1,4 @@
-# PromptForge — End-to-End Flow & Model Guide
+# PromptForge - End-to-End Flow & Model Guide
 
 This document explains how PromptForge works from upload to generated image: every step, which AI model runs, what JSON is produced, and how to recreate the project from scratch.
 
@@ -10,20 +10,20 @@ This document explains how PromptForge works from upload to generated image: eve
 
 ```mermaid
 flowchart LR
-    subgraph step1 [Step 1 — Extract Brand DNA]
+    subgraph step1 [Step 1 - Extract Brand DNA]
         A[Upload 1–10 past posts] --> B[Vision LLM]
         B --> C[Brand DNA JSON + clusters]
         C --> D[(brand_profiles)]
     end
 
-    subgraph step2 [Step 2 — Generate post JSON]
+    subgraph step2 [Step 2 - Generate post JSON]
         E[Caption + saved profile] --> F[Cluster selector]
         F --> G[Vision LLM + cluster refs]
         G --> H[Post prompt JSON]
         H --> I[(post_prompts)]
     end
 
-    subgraph step3 [Step 3 — Generate image]
+    subgraph step3 [Step 3 - Generate image]
         J[Post JSON] --> K[JsonPromptCompiler]
         K --> L[Natural-language prompt]
         L --> M[Image model + refs]
@@ -36,10 +36,10 @@ flowchart LR
 
 | Step | Purpose | Model slug | OpenRouter model ID | Capability |
 |------|---------|------------|---------------------|------------|
-| **1 — Extract DNA** | Analyze past posts → reusable brand profile | `gpt-4o` | `openai/gpt-4o` | Vision chat (analyze) |
-| **2 — Post JSON** | Caption + DNA → on-brand structured prompt | `gpt-4o` | `openai/gpt-4o` | Vision chat (text + optional refs) |
-| **2b — Cluster pick** *(only when ambiguous)* | Pick best template cluster for caption | `gpt-4o` | `openai/gpt-4o` | Short text chat |
-| **3 — Image** | Compile JSON → generate PNG | `nano-banana-2` | `google/gemini-3.1-flash-image-preview` | Image generation |
+| **1 - Extract DNA** | Analyze past posts → reusable brand profile | `gpt-4o` | `openai/gpt-4o` | Vision chat (analyze) |
+| **2 - Post JSON** | Caption + DNA → on-brand structured prompt | `gpt-4o` | `openai/gpt-4o` | Vision chat (text + optional refs) |
+| **2b - Cluster pick** *(only when ambiguous)* | Pick best template cluster for caption | `gpt-4o` | `openai/gpt-4o` | Short text chat |
+| **3 - Image** | Compile JSON → generate PNG | `nano-banana-2` | `google/gemini-3.1-flash-image-preview` | Image generation |
 
 This project uses **two models only**: GPT-4o for all vision/text analysis steps, Nano Banana 2 for image generation. Slugs live in `model_configs` (seeded by `ModelConfigSeeder`); override via `.env` if needed.
 
@@ -56,7 +56,7 @@ This project uses **two models only**: GPT-4o for all vision/text analysis steps
 
 ```env
 OPENROUTER_API_KEY=sk-or-...
-QUEUE_CONNECTION=sync          # recommended locally — jobs run immediately
+QUEUE_CONNECTION=sync          # recommended locally - jobs run immediately
 
 AI_DEFAULT_ANALYZER=gpt-4o
 AI_DEFAULT_POST_MODEL=gpt-4o
@@ -83,15 +83,15 @@ Source of truth for prompt rules: `.cursor/skills/brand-dna-extractor/`
 
 ---
 
-## Step 1 — Extract Brand DNA
+## Step 1 - Extract Brand DNA
 
 ### What it does
 
 Upload 1–10 images of past social posts. A vision model reads all images in one request and returns:
 
-1. **Analysis** — short prose on shared brand language
-2. **DNA JSON** — brand-wide locked/flex rules + `clusters[]` (template families)
-3. **Summary** — 6–10 human bullets
+1. **Analysis** - short prose on shared brand language
+2. **DNA JSON** - brand-wide locked/flex rules + `clusters[]` (template families)
+3. **Summary** - 6–10 human bullets
 
 On success, the app auto-saves a `BrandProfile` with clusters and reference images (anchor per cluster).
 
@@ -248,7 +248,7 @@ Schema file: `resources/prompts/brand-dna-schema.json`
 
 ---
 
-## Step 2 — Generate on-brand post JSON
+## Step 2 - Generate on-brand post JSON
 
 ### What it does
 
@@ -281,7 +281,7 @@ PostPromptController::store()
   → post_prompts row updated
 ```
 
-### Cluster selection (Step 2a — no vision, optional)
+### Cluster selection (Step 2a - no vision, optional)
 
 **When:** Multiple clusters exist AND (top keyword score &lt; 0.15 OR top two scores within 0.05).
 
@@ -322,7 +322,7 @@ PostPromptController::store()
       "content": [
         {
           "type": "text",
-          "text": "Generate one on-brand post JSON prompt.\n\nTarget generator: nano-banana\nChosen cluster: Institutional event announcements (institutional-events)\nCluster keywords: [\"événement\",\"formation\"]\nAttached reference images: 2\nCaption: Cours du soir — inscrivez-vous maintenant\n\nBrand DNA JSON:\n{ ... full dna_json ... }\n\nRespond with: On-brand check, JSON Prompt, Tweaks."
+          "text": "Generate one on-brand post JSON prompt.\n\nTarget generator: nano-banana\nChosen cluster: Institutional event announcements (institutional-events)\nCluster keywords: [\"événement\",\"formation\"]\nAttached reference images: 2\nCaption: Cours du soir - inscrivez-vous maintenant\n\nBrand DNA JSON:\n{ ... full dna_json ... }\n\nRespond with: On-brand check, JSON Prompt, Tweaks."
         },
         { "type": "image_url", "image_url": { "url": "data:image/jpeg;base64,..." } }
       ]
@@ -346,7 +346,7 @@ Key instructions:
 
 ### Post prompt JSON schema
 
-Validator: `JsonSchemaValidator::validatePostPrompt()` (relaxed — accepts `quality.must_have` as alias for `include`; `post.concept` is the hard requirement for image gen)
+Validator: `JsonSchemaValidator::validatePostPrompt()` (relaxed - accepts `quality.must_have` as alias for `include`; `post.concept` is the hard requirement for image gen)
 
 Schema file: `resources/prompts/post-prompt-schema.json`
 
@@ -462,7 +462,7 @@ DNA locked rules enforced: split layout, lime pill, French warm tone...
 
 ---
 
-## Step 3 — Generate image
+## Step 3 - Generate image
 
 ### What it does
 
@@ -519,7 +519,7 @@ Reference usage: Match the attached reference layout exactly...
 
 ### OpenRouter request (Step 3)
 
-**No system message** — user message only, with compiled text + reference images.
+**No system message** - user message only, with compiled text + reference images.
 
 ```json
 {
@@ -591,20 +591,20 @@ runs (mode=extract)
 
 | URL | Step |
 |-----|------|
-| `/runs/create` | 1 — upload & extract |
-| `/runs/{id}` | 1 — view extraction results |
-| `/post-prompts/create` | 2 — new post from profile |
-| `/post-prompts/{id}` | 2 + 3 — view JSON, generate & preview image |
+| `/runs/create` | 1 - upload & extract |
+| `/runs/{id}` | 1 - view extraction results |
+| `/post-prompts/create` | 2 - new post from profile |
+| `/post-prompts/{id}` | 2 + 3 - view JSON, generate & preview image |
 
 ---
 
 ## Console commands
 
 ```bash
-# Step 1 — extract DNA from images (sync queue)
+# Step 1 - extract DNA from images (sync queue)
 php artisan brand:extract "Brand Name" post1.png post2.png --notes="Optional brief" --model=gpt-4o
 
-# Step 2 — generate post JSON
+# Step 2 - generate post JSON
 php artisan brand:generate college-lasalle-maroc \
   --caption="Your caption" \
   --generator=nano-banana \
@@ -616,7 +616,7 @@ php artisan ai:ping
 php artisan ai:ping --model=openai/gpt-4o
 ```
 
-Step 3 has no dedicated artisan command — call `PostPromptService::dispatchImageGeneration()` or use the UI.
+Step 3 has no dedicated artisan command - call `PostPromptService::dispatchImageGeneration()` or use the UI.
 
 ---
 
@@ -640,10 +640,10 @@ Seed `ModelConfigSeeder` with `gpt-4o` (analyze, default) and `nano-banana-2` (g
 
 ### 3. OpenRouter layer
 
-- `OpenRouterClient` — HTTP client with `Authorization: Bearer`
-- `OpenRouterChatAnalyzer` — vision chat for Step 1
-- `OpenRouterPostGenerator` — vision chat for Step 2
-- `OpenRouterImageGenerator` — `modalities` + `image_config` for Step 3
+- `OpenRouterClient` - HTTP client with `Authorization: Bearer`
+- `OpenRouterChatAnalyzer` - vision chat for Step 1
+- `OpenRouterPostGenerator` - vision chat for Step 2
+- `OpenRouterImageGenerator` - `modalities` + `image_config` for Step 3
 
 ### 4. Prompt layer
 
@@ -675,8 +675,8 @@ Run `php artisan storage:link`.
 
 ### 7. Frontend (Inertia)
 
-- `Runs/Create`, `Runs/Show` — Step 1
-- `PostPrompts/Create`, `PostPrompts/Show` — Steps 2 & 3
+- `Runs/Create`, `Runs/Show` - Step 1
+- `PostPrompts/Create`, `PostPrompts/Show` - Steps 2 & 3
 
 Show page: display JSON, "Generate image" button when `post.concept` exists, image preview when `image_status === completed`.
 
@@ -744,4 +744,4 @@ php artisan test --filter=JsonSchemaValidator
 
 ---
 
-*Last updated: 2026-06-04 — reflects Phase 2 complete (extract → post JSON → Nano Banana 2 image).*
+*Last updated: 2026-06-04 - reflects Phase 2 complete (extract → post JSON → Nano Banana 2 image).*

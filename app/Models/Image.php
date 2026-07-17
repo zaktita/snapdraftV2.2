@@ -2,10 +2,10 @@
 
 namespace App\Models;
 
+use App\Services\UserMediaStorage;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Support\Facades\Storage;
 
 class Image extends Model
 {
@@ -38,6 +38,11 @@ class Image extends Model
         'height' => 'integer',
     ];
 
+    protected $appends = [
+        'full_url',
+        'thumbnail_full_url',
+    ];
+
     /**
      * Get the project that owns the image.
      */
@@ -47,19 +52,21 @@ class Image extends Model
     }
 
     /**
-     * Get the full URL for the image.
+     * Get the authenticated URL for the image.
      */
-    public function getFullUrlAttribute(): string
+    public function getFullUrlAttribute(): ?string
     {
-        return Storage::url($this->url);
+        return app(UserMediaStorage::class)->url($this->url);
     }
 
     /**
-     * Get the full URL for the thumbnail.
+     * Get the authenticated URL for the thumbnail.
      */
     public function getThumbnailFullUrlAttribute(): ?string
     {
-        return $this->thumbnail_url ? Storage::url($this->thumbnail_url) : null;
+        $path = $this->thumbnail_url ?: $this->url;
+
+        return app(UserMediaStorage::class)->url($path);
     }
 
     /**
@@ -67,7 +74,6 @@ class Image extends Model
      */
     protected static function booted(): void
     {
-        // Update project's images count when image is created
         static::created(function (Image $image) {
             $project = $image->project;
             if (! $project) {
@@ -75,23 +81,21 @@ class Image extends Model
             }
             $project->updateImagesCount();
 
-            // Set as featured image if it's the first one (refresh to get updated count)
             $project->refresh();
             if ($project->images_count === 1) {
                 $project->updateFeaturedImage();
             }
         });
 
-        // Update project's images count when image is deleted
         static::deleted(function (Image $image) {
             $project = $image->project;
+            $media = app(UserMediaStorage::class);
 
-            // Delete the actual files from storage first (doesn't need project)
             if ($image->url) {
-                Storage::disk('public')->delete($image->url);
+                $media->delete($image->url);
             }
             if ($image->thumbnail_url) {
-                Storage::disk('public')->delete($image->thumbnail_url);
+                $media->delete($image->thumbnail_url);
             }
 
             if (! $project) {

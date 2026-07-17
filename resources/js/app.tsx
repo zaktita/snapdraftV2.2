@@ -8,6 +8,9 @@ import { createRoot } from 'react-dom/client';
 import { Toaster } from 'sonner';
 import { ErrorBoundary } from './components/error-boundary';
 import { initializeTheme } from './hooks/use-appearance';
+import { initializeSentry, Sentry } from './lib/sentry';
+
+initializeSentry();
 
 const appName = import.meta.env.VITE_APP_NAME || 'Laravel';
 const DEFAULT_POSTHOG_HOST = 'https://us.i.posthog.com';
@@ -79,14 +82,32 @@ createInertiaApp({
         root.render(
             <StrictMode>
                 <ErrorBoundary>
-                    <Toaster position="top-right" richColors />
+                    <Toaster
+                        position="top-center"
+                        richColors={false}
+                        closeButton
+                        toastOptions={{
+                            classNames: {
+                                toast: 'sd-toast',
+                                title: 'sd-toast-title',
+                                description: 'sd-toast-description',
+                                success: 'sd-toast-success',
+                                error: 'sd-toast-error',
+                                warning: 'sd-toast-warning',
+                                info: 'sd-toast-info',
+                                closeButton: 'sd-toast-close',
+                                actionButton: 'sd-toast-action',
+                                cancelButton: 'sd-toast-cancel',
+                            },
+                        }}
+                    />
                     <App {...props} />
                 </ErrorBoundary>
             </StrictMode>,
         );
     },
     progress: {
-        color: '#4B5563',
+        color: '#ff5806',
     },
 });
 

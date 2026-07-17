@@ -158,5 +158,5 @@ export function toolbarDividerStyle(): CSSProperties {
 
 const wandCursorSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="m21.64 3.64-1.28-1.28a1.21 1.21 0 0 0-1.72 0L2.36 18.64a1.21 1.21 0 0 0 0 1.72l1.28 1.28a1.2 1.2 0 0 0 1.72 0L21.64 5.36a1.2 1.2 0 0 0 0-1.72" stroke="#ffffff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/><path d="m21.64 3.64-1.28-1.28a1.21 1.21 0 0 0-1.72 0L2.36 18.64a1.21 1.21 0 0 0 0 1.72l1.28 1.28a1.2 1.2 0 0 0 1.72 0L21.64 5.36a1.2 1.2 0 0 0 0-1.72" stroke="${CANVAS_COLORS.toolbarActive}" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"/><path d="m14 7 3 3M5 6v4M19 14v4M10 2v2M7 8H3M21 16h-4M11 3H9" stroke="${CANVAS_COLORS.toolbarActive}" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
 
-/** Custom cursor for Edit mode — orange magic wand with white outline */
+/** Custom cursor for Edit mode - orange magic wand with white outline */
 export const MAGIC_WAND_CURSOR = `url("data:image/svg+xml,${encodeURIComponent(wandCursorSvg)}") 3 21, pointer`;

@@ -9,6 +9,7 @@ import { toast } from 'sonner';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { GenerationDebugDialog, type GenerationDebugData } from '@/components/generation-debug-dialog';
 import { csrfHeaders } from '@/lib/csrf';
+import { mediaUrl } from '@/lib/media-url';
 import { ArrowLeft, Star, Download, MoreHorizontal, BoxSelect, Square, SquareCheck, Edit, Maximize, RotateCw, Share, Trash2, Check, Plus, CheckCircle, X, ChevronLeft, ChevronRight, Upload, Edit3, FileText, Grid, Clock, AlertCircle, Image as ImageIcon, Zap, Sparkles, Bug } from 'lucide-react';
 import { useState, useRef, useEffect } from 'react';
 
@@ -488,7 +489,7 @@ export default function ProjectShow({ project, justCreated = false, expectedImag
         setUpscaleModalOpen(false);
 
         try {
-            const sourceResponse = await fetch(`/storage/${image.url}`);
+            const sourceResponse = await fetch(mediaUrl(image.url)!);
             const sourceBlob = await sourceResponse.blob();
             const imageDataUrl = await fileToDataUrl(sourceBlob);
 
@@ -1342,18 +1343,17 @@ export default function ProjectShow({ project, justCreated = false, expectedImag
                 </DialogContent>
             </Dialog>
 
-            <div className="min-h-screen bg-white">
-                <div className="mx-auto px-8 py-8">
+            <div className="mx-auto w-full max-w-[1600px] p-6 md:p-8">
                     {/* Success Toast */}
                     {showSuccess && (page.props.success || batchCompleted) && (
-                        <div className="mb-6 flex items-center justify-between rounded-lg border border-green-200 bg-green-50 p-4 text-green-800">
+                        <div className="mb-6 flex items-center justify-between rounded-2xl border border-success/30 bg-success/10 p-4 text-foreground">
                             <div className="flex items-center gap-3">
-                                <CheckCircle className="size-5" />
+                                <CheckCircle className="size-5 text-success" />
                                 <span className="font-medium">{page.props.success || 'Batch generation complete. Your new images are ready.'}</span>
                             </div>
                             <button
                                 onClick={() => setShowSuccess(false)}
-                                className="text-green-600 hover:text-green-800"
+                                className="text-muted-foreground hover:text-foreground"
                             >
                                 <Plus className="size-4 rotate-45" />
                             </button>
@@ -1361,10 +1361,10 @@ export default function ProjectShow({ project, justCreated = false, expectedImag
                     )}
 
                     {/* Header */}
-                    <div className="mb-8 flex items-center justify-between">
+                    <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                         {/* Left side */}
                         <div className="flex items-center gap-4">
-                            <Button variant="ghost" size="sm" asChild className="text-gray-500">
+                            <Button variant="outline" size="sm" asChild>
                                 <Link href="/projects" className="flex items-center gap-2">
                                     <ArrowLeft className="size-4" />
                                     My Projects
@@ -1374,12 +1374,11 @@ export default function ProjectShow({ project, justCreated = false, expectedImag
                         </div>
 
                         {/* Right side */}
-                        <div className="flex items-center gap-3">
+                        <div className="flex flex-wrap items-center gap-3">
                             <Button
-                                variant="ghost"
+                                variant="outline"
                                 size="sm"
-                                className="gap-2 border"
-                                style={{ borderColor: 'var(--color-border)', color: 'var(--color-foreground)', minWidth: '125px', background: 'var(--color-card)' }}
+                                className="gap-2 min-w-[125px]"
                                 onClick={() => {
                                     if (selectedImages.length === project.images.length) {
                                         setSelectedImages([]);
@@ -1403,12 +1402,7 @@ export default function ProjectShow({ project, justCreated = false, expectedImag
                             <Button
                                 size="sm"
                                 className="gap-2"
-                                style={{
-                                    backgroundColor: selectedImages.length > 0 ? 'var(--color-primary)' : 'var(--color-muted)',
-                                    color: selectedImages.length > 0 ? 'var(--color-primary-foreground)' : 'var(--color-muted-foreground)',
-                                    cursor: selectedImages.length === 0 ? 'not-allowed' : 'pointer',
-                                    border: 'none'
-                                }}
+                                variant={selectedImages.length > 0 ? 'default' : 'secondary'}
                                 disabled={selectedImages.length === 0}
                                 onClick={async () => {
                                     if (selectedImages.length === 0) return;
@@ -1421,7 +1415,7 @@ export default function ProjectShow({ project, justCreated = false, expectedImag
                                     const promises = selectedImages.map(async (index) => {
                                         const image = project.images[index];
                                         try {
-                                            const response = await fetch(`/storage/${image.url}`);
+                                            const response = await fetch(mediaUrl(image.url)!);
                                             const blob = await response.blob();
                                             const filename = `${project.title}_image_${index + 1}.jpg`;
                                             zip.file(filename, blob);
@@ -1481,18 +1475,18 @@ export default function ProjectShow({ project, justCreated = false, expectedImag
                                     onChange={(e) => setEditTitle(e.target.value)}
                                     onBlur={handleTitleBlur}
                                     onKeyDown={handleTitleKeyDown}
-                                    className="text-2xl font-semibold text-gray-900 border-b-2 border-blue-500 bg-transparent outline-none mb-1"
+                                    className="mb-1 border-b-2 border-primary bg-transparent text-2xl font-semibold text-foreground outline-none"
                                 />
                             ) : (
                                 <h1
-                                    className="text-2xl font-semibold text-gray-900 mb-1 cursor-text hover:opacity-80 transition-opacity"
+                                    className="mb-1 cursor-text text-2xl font-semibold text-foreground transition-opacity hover:opacity-80"
                                     onDoubleClick={handleTitleDoubleClick}
                                     title="Double-click to rename"
                                 >
                                     {project.title}
                                 </h1>
                             )}
-                            <p className="text-gray-500">
+                            <p className="text-muted-foreground">
                                 {project.images_count} images
                             </p>
                         </div>
@@ -1500,7 +1494,6 @@ export default function ProjectShow({ project, justCreated = false, expectedImag
                         <Button
                             size="sm"
                             className="gap-2"
-                            style={{ backgroundColor: 'var(--color-primary)', color: 'var(--color-primary-foreground)', border: 'none' }}
                             onClick={handleGenerateMore}
                         >
                             <Plus className="size-4" />
@@ -1512,9 +1505,9 @@ export default function ProjectShow({ project, justCreated = false, expectedImag
                     {project.images.length > 0 || isGenerationPending ? (
                         <>
                             {isGenerationPending && (!progress || progress.pending > 0) && (
-                                <div className="mb-4 flex items-center gap-3">
-                                    <div className="size-4 animate-spin rounded-full border-2 border-blue-200 border-t-blue-600" />
-                                    <span className="text-sm font-medium text-gray-600">
+                                    <div className="mb-4 flex items-center gap-3">
+                                    <div className="size-4 animate-spin rounded-full border-2 border-primary/25 border-t-primary" />
+                                    <span className="text-sm font-medium text-muted-foreground">
                                         {progress && progress.total > 0
                                             ? `Generating ${project.images.length} of ${progress.total}${progress.failed > 0 ? ` (${progress.failed} failed)` : ''}…`
                                             : 'Preparing your images…'}
@@ -1540,12 +1533,12 @@ export default function ProjectShow({ project, justCreated = false, expectedImag
                                             }}
                                         >
                                             <img
-                                                src={`/storage/${image.thumbnail_url || image.url}`}
+                                                src={mediaUrl(image.thumbnail_url || image.url) ?? ''}
                                                 alt={image.prompt || `${project.title} - Image ${index + 1}`}
                                                 className="h-full w-full object-cover"
                                             />
 
-                                            {/* Persistent 3-dot menu — always visible, accessible on touch/keyboard */}
+                                            {/* Persistent 3-dot menu - always visible, accessible on touch/keyboard */}
                                             <div className="absolute right-2 top-2 z-20">
                                                 <button
                                                     className="flex size-7 items-center justify-center rounded-full shadow-sm transition-all hover:scale-110"
@@ -1620,7 +1613,7 @@ export default function ProjectShow({ project, justCreated = false, expectedImag
                                                             onClick={async () => {
                                                                 setOpenImageMenuIndex(null);
                                                                 try {
-                                                                    const response = await fetch(`/storage/${image.url}`);
+                                                                    const response = await fetch(mediaUrl(image.url)!);
                                                                     const blob = await response.blob();
                                                                     const url = URL.createObjectURL(blob);
                                                                     const link = document.createElement('a');
@@ -1741,7 +1734,7 @@ export default function ProjectShow({ project, justCreated = false, expectedImag
                                                         e.stopPropagation();
                                                         // Handle download
                                                         try {
-                                                            const response = await fetch(`/storage/${image.url}`);
+                                                            const response = await fetch(mediaUrl(image.url)!);
                                                             const blob = await response.blob();
                                                             const url = URL.createObjectURL(blob);
                                                             const link = document.createElement('a');
@@ -1778,11 +1771,11 @@ export default function ProjectShow({ project, justCreated = false, expectedImag
                                         return pendingItems.map(({ title, idx }) => (
                                             <div
                                                 key={`skeleton-csv-${idx}`}
-                                                className="aspect-square overflow-hidden rounded-xl border bg-gray-100"
+                                                className="aspect-square overflow-hidden rounded-xl border border-border bg-muted"
                                             >
                                                 <div className="relative h-full w-full animate-pulse bg-gradient-to-br from-gray-100 via-gray-200 to-gray-100">
                                                     <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-gray-300/80 to-transparent px-3 py-2">
-                                                        <p className="truncate text-xs font-medium text-gray-500">{title}</p>
+                                                        <p className="truncate text-xs font-medium text-muted-foreground">{title}</p>
                                                     </div>
                                                 </div>
                                             </div>
@@ -1795,7 +1788,7 @@ export default function ProjectShow({ project, justCreated = false, expectedImag
                                     return Array.from({ length: pendingSlots }).map((_, i) => (
                                         <div
                                             key={`skeleton-${i}`}
-                                            className="aspect-square overflow-hidden rounded-xl border bg-gray-100"
+                                            className="aspect-square overflow-hidden rounded-xl border border-border bg-muted"
                                         >
                                             <div className="h-full w-full animate-pulse bg-gradient-to-br from-gray-100 via-gray-200 to-gray-100" />
                                         </div>
@@ -1805,18 +1798,16 @@ export default function ProjectShow({ project, justCreated = false, expectedImag
                         </>
                     ) : (
                         <div className="flex flex-col items-center justify-center py-16 text-center">
-                            <p className="text-gray-500 mb-4">No images generated yet.</p>
+                            <p className="text-muted-foreground mb-4">No images generated yet.</p>
                             <Button
                                 onClick={handleGenerateMore}
                                 className="gap-2"
-                                style={{ backgroundColor: 'var(--color-primary)', color: 'var(--color-primary-foreground)', border: 'none' }}
                             >
                                 <Plus className="size-4" />
                                 Generate Images
                             </Button>
                         </div>
                     )}
-                </div>
             </div>
 
             {/* Lightbox Modal */}
@@ -1873,7 +1864,7 @@ export default function ProjectShow({ project, justCreated = false, expectedImag
                         onClick={(e) => e.stopPropagation()}
                     >
                         <img
-                            src={`/storage/${project.images[lightboxImageIndex].url}`}
+                            src={mediaUrl(project.images[lightboxImageIndex].url) ?? ''}
                             alt={project.images[lightboxImageIndex].prompt || `${project.title} - Image ${lightboxImageIndex + 1}`}
                             className="max-h-[90vh] max-w-[90vw] object-contain"
                         />
@@ -1899,7 +1890,7 @@ export default function ProjectShow({ project, justCreated = false, expectedImag
                                 onClick={async () => {
                                     const image = project.images[lightboxImageIndex];
                                     try {
-                                        const response = await fetch(`/storage/${image.url}`);
+                                        const response = await fetch(mediaUrl(image.url)!);
                                         const blob = await response.blob();
                                         const url = URL.createObjectURL(blob);
                                         const link = document.createElement('a');

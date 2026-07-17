@@ -154,7 +154,7 @@ export function AppSidebar() {
             ],
         });
 
-        // Test labs — local environment only
+        // Test labs - local environment only
         if (labsEnabled) {
             dynamicProjectNavGroups.push({
                 title: 'Test Labs',
@@ -203,7 +203,7 @@ export function AppSidebar() {
                     <SidebarMenuItem className="mt-2">
                         <SidebarMenuButton
                             asChild
-                            className="hover:bg-sidebar-primary hover:text-sidebar-primary-foreground bg-neutral-900 text-sidebar-primary-foreground/90 transition-colors duration-150"
+                            className="bg-primary text-primary-foreground hover:bg-[var(--sd-or2)] hover:text-primary-foreground transition-colors duration-150"
                         >
                             <Link href="/projects/create" prefetch>
                                 <FolderPlus />

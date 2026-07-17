@@ -18,7 +18,9 @@
         "laravel/socialite": "^5.24",
         "laravel/tinker": "^2.10.1",
         "laravel/wayfinder": "^0.1.9",
-        "posthog/posthog-php": "^4.2"
+        "league/flysystem-aws-s3-v3": "3.0",
+        "posthog/posthog-php": "^4.2",
+        "sentry/sentry-laravel": "^4.27"
     },
     "require-dev": {
         "fakerphp/faker": "^1.23",

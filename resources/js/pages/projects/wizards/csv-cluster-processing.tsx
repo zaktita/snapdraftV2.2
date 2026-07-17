@@ -180,7 +180,7 @@ export default function CsvClusterProcessing({
                 { title: `Session #${session.id}`, href: '#' },
             ]}
         >
-            <Head title={completed ? `${pageTitle} — Complete` : `${pageTitle} — Processing`} />
+            <Head title={completed ? `${pageTitle} - Complete` : `${pageTitle} - Processing`} />
 
             <div className="mx-auto max-w-6xl space-y-6 p-6">
                 <div>
@@ -352,7 +352,7 @@ export default function CsvClusterProcessing({
                                                     )}
                                                 </div>
                                             ) : (
-                                                <span className="text-muted-foreground">—</span>
+                                                <span className="text-muted-foreground">-</span>
                                             )}
                                         </td>
                                         <td className="p-2">

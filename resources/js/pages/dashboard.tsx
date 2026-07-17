@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
+import { mediaUrl } from '@/lib/media-url';
 
 const breadcrumbs: BreadcrumbItem[] = [
     {
@@ -75,13 +76,13 @@ export default function Dashboard({ stats, recent_projects }: DashboardProps) {
     const getTierBadge = (tier: string) => {
         switch (tier) {
             case 'beta':
-                return <Badge className="bg-primary hover:bg-primary/90">Beta</Badge>;
+                return <Badge>Beta</Badge>;
             case 'launch':
-                return <Badge className="bg-blue-500 hover:bg-blue-600">Launch</Badge>;
+                return <Badge variant="blue">Launch</Badge>;
             case 'growth':
-                return <Badge className="bg-orange-500 hover:bg-orange-600">Growth</Badge>;
+                return <Badge>Growth</Badge>;
             case 'scale':
-                return <Badge className="bg-purple-500 hover:bg-purple-600">Scale</Badge>;
+                return <Badge variant="pink">Scale</Badge>;
             default:
                 return <Badge variant="secondary">Free</Badge>;
         }
@@ -100,33 +101,30 @@ export default function Dashboard({ stats, recent_projects }: DashboardProps) {
         <AppLayout breadcrumbs={breadcrumbs}>
             <Head title="Dashboard" />
 
-            <div className="p-6 md:p-8 max-w-[1600px] mx-auto">
-                {/* Welcome Header - Notion style */}
-                <div className="mb-8">
-                    <div className="flex items-center justify-between mb-2">
-                        <div className="flex items-center gap-3">
-                            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gradient-to-br from-primary/10 to-primary/5">
-                                <Sparkles className="h-5 w-5 text-primary" />
-                            </div>
-                            <div>
-                                <h1 className="text-3xl font-bold tracking-tight">Welcome back!</h1>
-                                <p className="text-sm text-muted-foreground mt-0.5">Here's what's happening with your projects</p>
-                            </div>
+            <div className="p-6 md:p-8 max-w-[1600px] mx-auto space-y-8">
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                    <div className="flex items-center gap-3">
+                        <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[var(--sd-or-pale)]">
+                            <Sparkles className="h-5 w-5 text-primary" />
                         </div>
-                        <Button asChild size="default" className="gap-2">
-                            <Link href="/projects/create">
-                                <Plus className="h-4 w-4" />
-                                New Project
-                            </Link>
-                        </Button>
+                        <div>
+                            <h1 className="font-display text-3xl font-normal tracking-tight text-foreground">Welcome back!</h1>
+                            <p className="text-sm text-muted-foreground mt-0.5">Here&apos;s what&apos;s happening with your projects</p>
+                        </div>
                     </div>
+                    <Button asChild size="default" className="gap-2">
+                        <Link href="/projects/create">
+                            <Plus className="h-4 w-4" />
+                            New Project
+                        </Link>
+                    </Button>
                 </div>
 
-                {/* Beta Invite Banner — prominent for users without a subscription */}
+                {/* Beta Invite Banner - prominent for users without a subscription */}
                 {stats.subscription_tier === 'free' && (
-                    <div className="mb-6 rounded-xl border-2 border-primary/30 bg-gradient-to-r from-primary/8 to-primary/4 p-6">
+                    <div className="rounded-2xl border border-primary/25 bg-[var(--sd-or-pale)] p-6">
                         <div className="flex flex-col sm:flex-row sm:items-center gap-4">
-                            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-primary/15">
+                            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-primary/15">
                                 <KeyRound className="h-6 w-6 text-primary" />
                             </div>
                             <div className="flex-1">
@@ -161,15 +159,15 @@ export default function Dashboard({ stats, recent_projects }: DashboardProps) {
 
                 {/* Low Credits Warning */}
                 {stats.is_low_credits && (
-                    <Card className="mb-6 border-amber-200 bg-amber-50/50 dark:border-amber-800 dark:bg-amber-950/20">
+                    <Card className="border-warning/40 bg-warning/15">
                         <CardContent className="pt-6">
                             <div className="flex items-start gap-4">
-                                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-amber-100 dark:bg-amber-900">
-                                    <AlertCircle className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+                                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-warning/30">
+                                    <AlertCircle className="h-5 w-5 text-foreground" />
                                 </div>
                                 <div className="flex-1 space-y-1">
-                                    <p className="font-semibold text-amber-900 dark:text-amber-100">Running low on credits</p>
-                                    <p className="text-sm text-amber-700 dark:text-amber-300">
+                                    <p className="font-semibold text-foreground">Running low on credits</p>
+                                    <p className="text-sm text-muted-foreground">
                                         You have {stats.credits_remaining} credits remaining. Consider upgrading your plan or purchasing additional credits.
                                     </p>
                                 </div>
@@ -183,37 +181,33 @@ export default function Dashboard({ stats, recent_projects }: DashboardProps) {
                     </Card>
                 )}
 
-                {/* Stats Grid - Minimal clean cards */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-                    {/* Total Projects */}
-                    <div className="rounded-lg bg-muted/40 p-6">
+                {/* Stats Grid */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div className="rounded-2xl border border-border bg-card p-6">
                         <p className="text-sm text-muted-foreground mb-2">Total Projects</p>
-                        <p className="text-3xl font-semibold">{stats.total_projects}</p>
+                        <p className="font-display text-3xl font-normal">{stats.total_projects}</p>
                         <p className="text-xs text-muted-foreground mt-2">
                             {stats.favorite_projects} favorites
                         </p>
                     </div>
 
-                    {/* Total Images */}
-                    <div className="rounded-lg bg-muted/40 p-6">
+                    <div className="rounded-2xl border border-border bg-card p-6">
                         <p className="text-sm text-muted-foreground mb-2">Total Images</p>
-                        <p className="text-3xl font-semibold">{stats.total_images}</p>
+                        <p className="font-display text-3xl font-normal">{stats.total_images}</p>
                         <p className="text-xs text-muted-foreground mt-2">Generated visuals</p>
                     </div>
 
-                    {/* This Month */}
-                    <div className="rounded-lg bg-muted/40 p-6">
+                    <div className="rounded-2xl border border-border bg-card p-6">
                         <p className="text-sm text-muted-foreground mb-2">This Month</p>
-                        <p className="text-3xl font-semibold">{stats.generations_this_month}</p>
+                        <p className="font-display text-3xl font-normal">{stats.generations_this_month}</p>
                         <p className="text-xs text-muted-foreground mt-2">
                             {successRate}% success rate
                         </p>
                     </div>
 
-                    {/* Credits */}
-                    <div className="rounded-lg bg-muted/40 p-6">
+                    <div className="rounded-2xl border border-border bg-card p-6">
                         <p className="text-sm text-muted-foreground mb-2">Credits</p>
-                        <p className="text-3xl font-semibold">
+                        <p className="font-display text-3xl font-normal">
                             {stats.credits_total === 999999 ? '∞' : stats.credits_remaining}
                         </p>
                         <p className="text-xs text-muted-foreground mt-2">
@@ -226,10 +220,10 @@ export default function Dashboard({ stats, recent_projects }: DashboardProps) {
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                     {/* Recent Projects - Takes 2 columns */}
                     <div className="lg:col-span-2">
-                        <div className="rounded-lg bg-muted/40 p-6">
+                        <div className="rounded-2xl border border-border bg-card p-6">
                             <div className="flex items-center justify-between mb-6">
                                 <div>
-                                    <h2 className="text-lg font-semibold">Recent Projects</h2>
+                                    <h2 className="font-display text-xl font-normal">Recent Projects</h2>
                                     <p className="text-sm text-muted-foreground mt-1">Your latest work and creations</p>
                                 </div>
                                 <Button asChild variant="ghost" size="sm" className="gap-1">
@@ -251,7 +245,7 @@ export default function Dashboard({ stats, recent_projects }: DashboardProps) {
                                                 {project.thumbnail ? (
                                                     <div className="aspect-video overflow-hidden bg-muted">
                                                         <img
-                                                            src={`/storage/${project.thumbnail}`}
+                                                            src={mediaUrl(project.thumbnail) ?? ''}
                                                             alt={project.title}
                                                             className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
                                                         />
@@ -309,7 +303,7 @@ export default function Dashboard({ stats, recent_projects }: DashboardProps) {
                     {/* Sidebar - Takes 1 column */}
                     <div className="space-y-6">
                         {/* Subscription Card */}
-                        <div className="rounded-lg bg-muted/40 p-6">
+                        <div className="rounded-2xl border border-border bg-card p-6">
                             <div className="flex items-center justify-between mb-6">
                                 <h2 className="text-base font-semibold">Subscription</h2>
                                 {getTierBadge(stats.subscription_tier)}
@@ -364,7 +358,7 @@ export default function Dashboard({ stats, recent_projects }: DashboardProps) {
                         </div>
 
                         {/* Quick Actions */}
-                        <div className="rounded-lg bg-muted/40 p-6">
+                        <div className="rounded-2xl border border-border bg-card p-6">
                             <h2 className="text-base font-semibold mb-4">Quick Actions</h2>
                             <div className="space-y-2">
                                 <Button asChild variant="ghost" className="w-full justify-start gap-2" size="sm">

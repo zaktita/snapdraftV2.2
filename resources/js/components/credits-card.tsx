@@ -23,7 +23,7 @@ export function CreditsCard() {
     const usagePercent = isUnlimited || creditsTotal === 0 ? 0 : (creditsUsed / creditsTotal) * 100;
 
     return (
-        <Card className="mx-2 overflow-hidden bg-card border-border shadow-none p-4">
+        <Card className="mx-2 gap-3 overflow-hidden rounded-2xl border-border bg-card p-4 shadow-none">
             <div className="flex items-start justify-between">
                 <div className="flex items-center gap-1 text-muted-foreground">
                     <Info className="h-4 w-4" />
@@ -36,7 +36,7 @@ export function CreditsCard() {
                     <Progress
                         value={usagePercent}
                         className="h-1 bg-muted"
-                        indicatorClassName="bg-sidebar-primary"
+                        indicatorClassName="bg-primary"
                         aria-label="Credit usage"
                     />
                     <p className="mt-1 text-sm text-foreground">
@@ -48,11 +48,7 @@ export function CreditsCard() {
             )}
 
             <div>
-                <Button
-                    asChild
-                    size="sm"
-                    className="w-full bg-sidebar-primary text-sidebar-primary-foreground hover:bg-neutral-900 hover:text-sidebar-primary-foreground/90 transition-colors duration-150"
-                >
+                <Button asChild size="sm" className="w-full">
                     <Link href="/subscription/plans" prefetch>
                         View plans
                     </Link>

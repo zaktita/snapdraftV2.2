@@ -49,7 +49,7 @@ return [
         'api_key' => env('GEMINI_API_KEY'),
         // Text/analysis model
         'model' => env('GEMINI_MODEL', 'gemini-3.1-pro-preview'),
-        // Vision/analysis model — used for brand reference image analysis
+        // Vision/analysis model - used for brand reference image analysis
         'vision_model' => env('GEMINI_VISION_MODEL', 'gemini-3.1-pro-preview'),
         // Image generation model (default for most tasks)
         'image_model' => env('GEMINI_IMAGE_MODEL', 'gemini-3.1-flash-image-preview'),

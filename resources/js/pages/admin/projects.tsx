@@ -76,7 +76,7 @@ export default function ProjectsPage({ projects, filters }: Props) {
                                         {p.title && p.name && p.title !== p.name && <p className="text-xs text-gray-400">{p.title}</p>}
                                     </td>
                                     <td className="px-4 py-3">
-                                        <p className="text-sm text-gray-700">{p.user?.name ?? '—'}</p>
+                                        <p className="text-sm text-gray-700">{p.user?.name ?? '-'}</p>
                                         <p className="text-xs text-gray-400">{p.user?.email}</p>
                                     </td>
                                     <td className="px-4 py-3">
@@ -84,7 +84,7 @@ export default function ProjectsPage({ projects, filters }: Props) {
                                             {p.status ?? 'unknown'}
                                         </span>
                                     </td>
-                                    <td className="px-4 py-3 text-xs text-gray-500">{p.format ?? '—'}</td>
+                                    <td className="px-4 py-3 text-xs text-gray-500">{p.format ?? '-'}</td>
                                     <td className="px-4 py-3">
                                         <div className="flex items-center gap-1 text-xs text-gray-600">
                                             <Image className="h-3.5 w-3.5 text-gray-400" /> {p.images_count}

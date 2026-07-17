@@ -72,8 +72,8 @@ export default function BetaApplyPage() {
             <Head
                 title={
                     done
-                        ? "You're in our queue — SnapDraft"
-                        : 'Apply for beta access — SnapDraft'
+                        ? "You're in our queue - SnapDraft"
+                        : 'Apply for beta access - SnapDraft'
                 }
             />
 
@@ -128,7 +128,7 @@ export default function BetaApplyPage() {
                                 </li>
                                 <li>
                                     Approved testers get a one-time invite code
-                                    , no credit card, free during beta.
+                                   ,  no credit card, free during beta.
                                 </li>
                             </ul>
                             <div className="sd-beta-apply-thanks-actions">
@@ -158,8 +158,9 @@ export default function BetaApplyPage() {
                                     Apply for <em>early access</em>
                                 </h1>
                                 <p className="sd-beta-apply-sub">
-                                    Four questions. Takes 90 seconds. We review
-                                    every application and send codes manually.
+                                    For social media managers, freelancers, and
+                                    agencies tired of waiting on designers. Four
+                                    questions. About 90 seconds.
                                 </p>
                             </div>
                             <form

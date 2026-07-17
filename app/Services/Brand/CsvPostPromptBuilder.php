@@ -87,7 +87,7 @@ class CsvPostPromptBuilder
         }
 
         if ($rowMatches === []) {
-            throw new RuntimeException('row_matches missing — run caption matching first.');
+            throw new RuntimeException('row_matches missing - run caption matching first.');
         }
 
         $project->loadMissing(['clusters.images.brandReference']);

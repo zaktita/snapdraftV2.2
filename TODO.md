@@ -1,12 +1,12 @@
-# SnapDraft MVP — Pre-Launch TODO
+# SnapDraft MVP - Pre-Launch TODO
 
 > **Goal**: Fix all blockers and ship to 20 beta users
 > **Assessed**: April 5, 2026
-> **Overall readiness**: 6.5/10 — Core is solid, needs production hardening
+> **Overall readiness**: 6.5/10 - Core is solid, needs production hardening
 
 ---
 
-## 🔴 Phase 1 — Critical Blockers (Day 1)
+## 🔴 Phase 1 - Critical Blockers (Day 1)
 
 These 3 issues make the app **unsafe to launch**. Fix them first.
 
@@ -30,13 +30,13 @@ These 3 issues make the app **unsafe to launch**. Fix them first.
 
 ---
 
-## 🟠 Phase 2 — High Priority (Day 2-3)
+## 🟠 Phase 2 - High Priority (Day 2-3)
 
 ### 2.1 Security hardening
 - [x] Remove `testInpaint()` method from `ImageEditController.php`
 - [x] Add max file size validation (10MB) to all canvas/image edit endpoints
 - [x] Add ZIP download total size cap in `ImageController::bulkDownload()`
-- [x] Fix SSL verification pattern in `SubscriptionController.php` — replace `verify: false` with proper cert config
+- [x] Fix SSL verification pattern in `SubscriptionController.php` - replace `verify: false` with proper cert config
 - [x] Add admin audit logging for: suspend, reactivate, impersonate, credit adjustment, user delete
 - **Files**: `app/Http/Controllers/ImageEditController.php`, `app/Http/Controllers/CanvasController.php`, `app/Http/Controllers/ImageController.php`, `app/Http/Controllers/SubscriptionController.php`, `app/Http/Controllers/AdminDashboardController.php`
 
@@ -59,21 +59,21 @@ These 3 issues make the app **unsafe to launch**. Fix them first.
 - **Files**: `resources/js/pages/canvas-editor.tsx`, `resources/js/pages/quick-generate/`, `resources/js/pages/projects/show.tsx`, `app/Http/Controllers/QuickGenerateController.php`, `app/Http/Controllers/Webhooks/LemonSqueezyController.php`
 
 ### 2.4 Error handling
-- [x] Wire up `JobFailedNotification` — dispatch email to user when `GenerateSingleImageJob` fails
+- [x] Wire up `JobFailedNotification` - dispatch email to user when `GenerateSingleImageJob` fails
 - [x] Add global React error boundary in `resources/js/app.tsx`
 - [x] Fix empty catch blocks in `resources/js/pages/projects/show.tsx`
 
 ---
 
-## 🟡 Phase 3 — Polish (Day 4-5)
+## 🟡 Phase 3 - Polish (Day 4-5)
 
 ### 3.1 Admin panel improvements
 - [x] Add Plans, Subscriptions, Projects to admin sidebar nav in `resources/js/layouts/admin-layout.tsx`
 - [x] Add impersonation exit banner to `app-sidebar-layout.tsx` (when session has `impersonating_user_id`)
 
 ### 3.2 Stub implementations
-- [x] Implement `CleanOrphanedFilesJob` — delete storage files not referenced by any DB record
-- [x] Update `SubscriptionController::purchaseCredits()` — either implement credit packs or show clear "resets monthly" messaging
+- [x] Implement `CleanOrphanedFilesJob` - delete storage files not referenced by any DB record
+- [x] Update `SubscriptionController::purchaseCredits()` - either implement credit packs or show clear "resets monthly" messaging
 
 ### 3.3 UX polish
 - [ ] Verify empty states on all key pages (no projects, no images, no subscriptions)
@@ -82,12 +82,12 @@ These 3 issues make the app **unsafe to launch**. Fix them first.
 
 ---
 
-## 🔵 Phase 4 — Production Deploy (Day 5-7)
+## 🔵 Phase 4 - Production Deploy (Day 5-7)
 
 ### 4.1 Infrastructure
 - [ ] Set up production server (Forge, Vapor, or VPS)
 - [ ] Configure queue worker (Redis preferred) with process supervisor
-- [ ] Configure file storage (S3 or DigitalOcean Spaces — NOT local disk)
+- [ ] Configure file storage (S3 or DigitalOcean Spaces - NOT local disk)
 - [ ] Configure email (Postmark or Resend)
 - [ ] SSL certificate + custom domain
 - [ ] Set up `.env.production` with all API keys
@@ -105,11 +105,11 @@ These 3 issues make the app **unsafe to launch**. Fix them first.
 - [ ] Test LemonSqueezy webhook on production
 - [ ] Test Google OAuth on production
 - [ ] Set up daily database backups
-- [ ] Run `composer test` — fix any failures
+- [ ] Run `composer test` - fix any failures
 
 ---
 
-## 🟣 Phase 5 — Beta Launch (Day 7-8)
+## 🟣 Phase 5 - Beta Launch (Day 7-8)
 
 - [ ] Create 20 invite codes or open registration
 - [ ] Prepare onboarding email (welcome + quick start guide)
@@ -134,13 +134,13 @@ These 3 issues make the app **unsafe to launch**. Fix them first.
 - [x] Marketing homepage with pricing
 - [x] Plan seeder (single beta plan)
 - [x] Webhook signature verification (HMAC)
-- [x] Admin panel (7 pages — users, credits, subscriptions, plans, projects, analytics, dashboard)
+- [x] Admin panel (7 pages - users, credits, subscriptions, plans, projects, analytics, dashboard)
 
 ---
 
 ## Post-Launch Backlog
 
-- [ ] Accessibility audit (WCAG 2.1 AA — canvas editor gaps)
+- [ ] Accessibility audit (WCAG 2.1 AA - canvas editor gaps)
 - [ ] Performance audit (Lighthouse scores)
 - [ ] Rate limiting enforcement in AI services
 - [ ] Role-based admin permissions

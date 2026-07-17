@@ -6,6 +6,7 @@ use App\Mail\JobFailedNotification;
 use App\Models\GenerationHistory;
 use App\Models\Image;
 use App\Models\Project;
+use App\Services\UserMediaStorage;
 use App\Models\ProjectCluster;
 use App\Services\AI\CsvImageGenerationService;
 use App\Services\Brand\ProjectClusterSelector;
@@ -157,11 +158,12 @@ class GenerateSingleImageJob implements ShouldQueue
             $imagePath = "{$directory}/{$uuid}.png";
             $thumbPath = "{$directory}/{$uuid}_thumb.png";
 
-            Storage::disk('public')->put($imagePath, $binary);
+            $media = app(UserMediaStorage::class);
+            $media->put($imagePath, $binary);
 
-            $this->createThumbnail($imagePath, $thumbPath);
+            $this->createThumbnail($imagePath, $thumbPath, $media);
 
-            $absolutePath = storage_path("app/public/{$imagePath}");
+            $absolutePath = $media->path($imagePath);
             [$width, $height] = getimagesize($absolutePath) ?: [null, null];
 
             $image = Image::create([
@@ -244,7 +246,7 @@ class GenerateSingleImageJob implements ShouldQueue
         $referencePaths = [];
         foreach ($clusterImages->take(3) as $image) {
             $ref = $image->brandReference;
-            if ($ref && is_string($ref->url) && $ref->url !== '' && Storage::disk('public')->exists($ref->url)) {
+            if ($ref && is_string($ref->url) && $ref->url !== '' && app(UserMediaStorage::class)->exists($ref->url)) {
                 $referencePaths[] = $ref->url;
             }
         }
@@ -411,23 +413,13 @@ class GenerateSingleImageJob implements ShouldQueue
         }
     }
 
-    private function createThumbnail(string $imagePath, string $thumbPath): void
+    private function createThumbnail(string $imagePath, string $thumbPath, UserMediaStorage $media): void
     {
         try {
-            $absoluteSource = storage_path("app/public/{$imagePath}");
             $manager = new ImageManager(new Driver());
-            $img = $manager->read($absoluteSource);
-
+            $img = $manager->read($media->get($imagePath));
             $img->scale(width: 400);
-
-            $absoluteThumb = storage_path("app/public/{$thumbPath}");
-
-            $dir = dirname($absoluteThumb);
-            if (! is_dir($dir)) {
-                mkdir($dir, 0755, true);
-            }
-
-            $img->toPng()->save($absoluteThumb);
+            $media->put($thumbPath, $img->toPng()->toString());
         } catch (\Throwable $e) {
             Log::warning('GenerateSingleImageJob: thumbnail creation failed', [
                 'error' => $e->getMessage(),

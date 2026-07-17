@@ -43,7 +43,7 @@ class SocialAuthController extends Controller
             ]);
         }
 
-        // 1. Already have a user with this google_id — just log them in
+        // 1. Already have a user with this google_id - just log them in
         $user = User::where('google_id', $googleUser->getId())->first();
 
         if ($user) {
@@ -53,7 +53,7 @@ class SocialAuthController extends Controller
             return redirect()->intended(route('dashboard'));
         }
 
-        // 2. User exists with same email — link the Google account
+        // 2. User exists with same email - link the Google account
         $user = User::where('email', $googleUser->getEmail())->first();
 
         if ($user) {
@@ -67,17 +67,7 @@ class SocialAuthController extends Controller
             return redirect()->intended(route('dashboard'));
         }
 
-        // 3. Brand new user — require a valid invite code
-        $inviteCode = strtoupper(trim((string) session()->pull('oauth_invite_code', '')));
-        $invite = $inviteCode !== '' ? BetaInvite::where('code', $inviteCode)->first() : null;
-
-        if (! $invite || ! $invite->isValid()) {
-            return redirect()->route('home')->withErrors([
-                'invite_code' => 'A valid invite code is required to create an account.',
-            ]);
-        }
-
-        // 4. Brand new user — create account
+        // 3. Brand new user - create account (invite optional)
         $user = User::create([
             'name'              => $googleUser->getName(),
             'email'             => $googleUser->getEmail(),
@@ -87,7 +77,25 @@ class SocialAuthController extends Controller
             'password'          => null,  // No password for OAuth-only users
         ]);
 
-        $invite->redeem($user);
+        $signupMethod = 'google';
+        $inviteCode = strtoupper(trim((string) session()->pull('oauth_invite_code', '')));
+
+        if ($inviteCode !== '') {
+            $invite = BetaInvite::where('code', $inviteCode)->first();
+
+            if ($invite && $invite->isValid()) {
+                try {
+                    $invite->redeem($user);
+                    $signupMethod = 'google_invite_code';
+                } catch (\Throwable $e) {
+                    Log::warning('Optional invite redemption failed during Google signup', [
+                        'email' => $user->email,
+                        'code'  => $inviteCode,
+                        'error' => $e->getMessage(),
+                    ]);
+                }
+            }
+        }
 
         $posthog = app(PostHogService::class);
         $posthog->identify((string) $user->id, [
@@ -96,12 +104,12 @@ class SocialAuthController extends Controller
             'created_at'    => $user->created_at,
         ]);
         $posthog->capture((string) $user->id, 'user_signed_up', [
-            'signup_method' => 'google_invite_code',
+            'signup_method' => $signupMethod,
             'email'         => $user->email,
         ]);
 
         Auth::login($user, remember: true);
 
-        return redirect()->route('dashboard');
+        return redirect()->route('subscription.plans');
     }
 }

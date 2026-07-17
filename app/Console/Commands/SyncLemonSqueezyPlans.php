@@ -31,7 +31,7 @@ class SyncLemonSqueezyPlans extends Command
         $dryRun = $this->option('dry-run');
 
         if ($dryRun) {
-            $this->warn('DRY RUN — no changes will be saved.');
+            $this->warn('DRY RUN - no changes will be saved.');
         }
 
         $this->info('Fetching products from Lemon Squeezy (store: ' . $this->storeId . ')...');

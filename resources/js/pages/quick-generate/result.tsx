@@ -101,7 +101,7 @@ function DebugPanel({ debug }: { debug: DebugPayload }) {
                 <div>
                     <p className="text-xs font-medium uppercase text-muted-foreground">Selected cluster</p>
                     <p className="font-medium">
-                        {debug.cluster_label ?? '—'}{' '}
+                        {debug.cluster_label ?? '-'}{' '}
                         <span className="text-muted-foreground font-normal">({debug.cluster_key ?? 'n/a'})</span>
                     </p>
                 </div>
@@ -153,7 +153,7 @@ function DebugPanel({ debug }: { debug: DebugPayload }) {
                     </button>
                     {openJson && (
                         <pre className="mt-2 max-h-48 overflow-auto rounded-md border bg-card p-3 text-xs whitespace-pre-wrap">
-                            {debug.compiled_prompt ?? '—'}
+                            {debug.compiled_prompt ?? '-'}
                         </pre>
                     )}
                 </div>
@@ -195,7 +195,7 @@ export default function QuickGenerateResult({ session, project, image, reference
 
                 <div className="grid gap-6 lg:grid-cols-3">
                     <div className="lg:col-span-2">
-                        <div className="rounded-lg border bg-card p-6 shadow-sm">
+                        <div className="rounded-2xl border border-border bg-card p-6 shadow-xs">
                             <h2 className="mb-4 text-lg font-semibold">Generated image (Step 3)</h2>
                             {image ? (
                                 <div className="rounded-lg bg-muted p-4">
@@ -227,13 +227,13 @@ export default function QuickGenerateResult({ session, project, image, reference
                     </div>
 
                     <div className="space-y-6">
-                        <div className="rounded-lg border bg-card p-6 shadow-sm">
+                        <div className="rounded-2xl border border-border bg-card p-6 shadow-xs">
                             <h3 className="mb-4 font-semibold">Caption</h3>
                             <p className="text-sm italic">{session.caption}</p>
                             <p className="text-muted-foreground mt-2 text-xs">Format: {session.format}</p>
                         </div>
 
-                        <div className="rounded-lg border bg-card p-6 shadow-sm">
+                        <div className="rounded-2xl border border-border bg-card p-6 shadow-xs">
                             <h3 className="mb-4 font-semibold">All uploaded references</h3>
                             <div className="grid grid-cols-2 gap-2">
                                 {references.map((ref) => (

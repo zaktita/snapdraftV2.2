@@ -1,7 +1,7 @@
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Link } from '@inertiajs/react';
-import { AlertCircle, Crown } from 'lucide-react';
+import { Crown } from 'lucide-react';
 
 interface UpgradeAlertProps {
     title: string;
@@ -10,10 +10,10 @@ interface UpgradeAlertProps {
     feature?: string;
 }
 
-export function UpgradeAlert({ title, message, currentTier, feature }: UpgradeAlertProps) {
+export function UpgradeAlert({ title, message }: UpgradeAlertProps) {
     return (
-        <Alert variant="destructive" className="mb-6">
-            <AlertCircle className="h-4 w-4" />
+        <Alert variant="brand" className="mb-6">
+            <Crown className="h-4 w-4" />
             <AlertTitle>{title}</AlertTitle>
             <AlertDescription className="mt-2">
                 <p className="mb-3">{message}</p>

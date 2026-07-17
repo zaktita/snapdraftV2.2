@@ -1,5 +1,5 @@
 Generate a {format_description} social media post image ({aspect_ratio} aspect ratio) that matches the EXACT style of the reference images.
-Study the references carefully — your output must mirror their background, typography, layout, spacing, and mood.
+Study the references carefully - your output must mirror their background, typography, layout, spacing, and mood.
 
 STYLE ANCHOR:
 - Background: {background_treatment}

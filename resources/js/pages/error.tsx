@@ -53,7 +53,7 @@ export default function Error({ status }: Props) {
 
     return (
         <>
-            <Head title={`${status} — ${config.title}`} />
+            <Head title={`${status} - ${config.title}`} />
 
             <div className="bg-background flex min-h-screen flex-col items-center justify-center px-4">
                 <div className="flex w-full max-w-md flex-col items-center gap-6 text-center">

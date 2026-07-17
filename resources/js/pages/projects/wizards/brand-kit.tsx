@@ -353,7 +353,7 @@ export default function BrandKitWizard() {
                                         >
                                             <Upload size={24} />
                                             <span style={{ fontSize: '14px', fontWeight: 500 }}>Click to upload logo</span>
-                                            <span style={{ fontSize: '13px' }}>PNG, JPG, WebP — max 10 MB</span>
+                                            <span style={{ fontSize: '13px' }}>PNG, JPG, WebP - max 10 MB</span>
                                         </button>
                                     )}
 
@@ -424,7 +424,7 @@ export default function BrandKitWizard() {
                                 {/* Brand Colors */}
                                 <div>
                                     <label style={labelStyle}>
-                                        Brand Colors <span style={{ fontWeight: 400, color: 'var(--color-muted-foreground)' }}>(Optional — up to 3)</span>
+                                        Brand Colors <span style={{ fontWeight: 400, color: 'var(--color-muted-foreground)' }}>(Optional - up to 3)</span>
                                     </label>
                                     <p style={{ ...hintStyle, marginBottom: '16px' }}>
                                         Click a color swatch to open the picker, or type a hex code directly. Leave empty and AI will choose colors based on your brand.
@@ -527,8 +527,8 @@ export default function BrandKitWizard() {
                                         What will be generated:
                                     </p>
                                     <ul style={{ fontSize: '13px', color: 'var(--color-muted-foreground)', lineHeight: 1.7, paddingLeft: '18px', margin: 0 }}>
-                                        <li>Top module — brand name / logo on a solid background</li>
-                                        <li>Typography panel — headline, body, alphabet preview</li>
+                                        <li>Top module - brand name / logo on a solid background</li>
+                                        <li>Typography panel - headline, body, alphabet preview</li>
                                         <li>Color palette swatches with labels and hex codes</li>
                                         <li>Lifestyle photography strip (4 images)</li>
                                         <li>Logo adaptability panel across 3 background tones</li>

@@ -5,6 +5,7 @@ import AppLayout from '@/layouts/app-layout';
 import { Head, Link, router } from '@inertiajs/react';
 import { PlaceholderPattern } from '@/components/ui/placeholder-pattern';
 import { csrfHeaders } from '@/lib/csrf';
+import { mediaUrl } from '@/lib/media-url';
 import { Search as SearchIcon, FolderOpen, Image, Clock, Loader, Star, MoreVertical } from 'lucide-react';
 import { useState, FormEvent } from 'react';
 
@@ -97,21 +98,19 @@ export default function Search() {
         <AppLayout>
             <Head title="Search" />
             
-            <div className="min-h-screen bg-white">
-                <div className="mx-auto px-8 py-16">
-                    {/* Header */}
-                    <div className="mb-16">
-                        <h1 className="mb-3 text-[32px] font-black leading-tight" style={{ color: '#191919' }}>
+            <div className="mx-auto w-full max-w-[1600px] space-y-8 p-6 md:p-8">
+                    <div>
+                        <h1 className="font-display text-3xl font-normal tracking-tight text-foreground">
                             Search
                         </h1>
-                        <p className="text-base font-normal" style={{ color: '#505050' }}>
+                        <p className="mt-1 text-sm text-muted-foreground">
                             Find your projects and images
                         </p>
                     </div>
 
                     {/* Search Bar */}
-                    <div className="mb-12">
-                        <form onSubmit={handleSearch} className="flex gap-4">
+                    <div>
+                        <form onSubmit={handleSearch} className="flex flex-col gap-3 sm:flex-row sm:gap-4">
                             <div className="relative flex-1">
                                 <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
                                 <Input
@@ -124,8 +123,7 @@ export default function Search() {
                             <Button 
                                 type="submit" 
                                 disabled={loading}
-                                className="h-11 px-6 font-medium"
-                                style={{ backgroundColor: '#191919', color: 'white' }}
+                                className="h-11 px-6"
                             >
                                 {loading ? (
                                     <>
@@ -141,13 +139,13 @@ export default function Search() {
 
                     {/* Results */}
                     {hasSearched && results ? (
-                        <div className="space-y-12">
+                        <div className="space-y-10">
                             {results.total === 0 ? (
-                                <div className="rounded-lg bg-muted/40 p-12">
+                                <div className="rounded-2xl border border-border bg-card p-12">
                                     <div className="text-center">
                                         <SearchIcon className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
-                                        <h2 className="text-2xl font-semibold mb-2">No results found</h2>
-                                        <p className="text-muted-foreground max-w-md mx-auto">
+                                        <h2 className="font-display text-2xl font-normal mb-2">No results found</h2>
+                                        <p className="text-muted-foreground max-w-md mx-auto text-sm">
                                             No projects or images match "{results.query}". Try a different search term.
                                         </p>
                                     </div>
@@ -157,7 +155,7 @@ export default function Search() {
                                     {/* Projects Results */}
                                     {results.projects.length > 0 && (
                                         <div>
-                                            <h2 className="text-[24px] font-bold mb-6" style={{ color: '#191919' }}>
+                                            <h2 className="font-display text-2xl font-normal mb-6 text-foreground">
                                                 Projects ({results.projects.length})
                                             </h2>
                                             <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
@@ -166,12 +164,12 @@ export default function Search() {
                                                         key={project.id}
                                                         href={`/projects/${project.id}`}
                                                     >
-                                                        <div className="group cursor-pointer rounded-xl overflow-hidden bg-background border border-border hover:border-border/60 transition-all">
+                                                        <div className="group cursor-pointer overflow-hidden rounded-2xl border border-border bg-card transition-all hover:border-border/80">
                                                             {/* Image Container */}
                                                             <div className="aspect-[4/3] bg-muted relative overflow-hidden">
                                                                 {project.featured_image ? (
                                                                     <img 
-                                                                        src={`/storage/${project.featured_image}`} 
+                                                                        src={mediaUrl(project.featured_image) ?? ''} 
                                                                         alt={project.title || project.name}
                                                                         className="size-full object-cover transition-transform duration-300 group-hover:scale-105"
                                                                     />
@@ -183,18 +181,18 @@ export default function Search() {
                                                                 
                                                                 {/* Favorite Badge */}
                                                                 {project.is_favorite && (
-                                                                    <div className="absolute top-3 right-3 flex size-8 items-center justify-center rounded-full bg-background/90 backdrop-blur-sm">
-                                                                        <Star className="size-4 fill-yellow-500 text-yellow-500" />
+                                                                    <div className="absolute top-3 right-3 flex size-8 items-center justify-center rounded-full bg-card/90 backdrop-blur-sm">
+                                                                        <Star className="size-4 fill-accent-yellow text-accent-yellow" />
                                                                     </div>
                                                                 )}
                                                             </div>
 
                                                             {/* Content */}
                                                             <div className="p-4">
-                                                                <h3 className="text-[18px] font-semibold mb-1 truncate" style={{ color: '#191919' }}>
+                                                                <h3 className="mb-1 truncate text-lg font-semibold text-foreground">
                                                                     {project.title || project.name}
                                                                 </h3>
-                                                                <div className="flex items-center justify-between text-sm" style={{ color: '#808080' }}>
+                                                                <div className="flex items-center justify-between text-sm text-muted-foreground">
                                                                     <span>{project.images_count} {project.images_count === 1 ? 'image' : 'images'}</span>
                                                                     <span>{formatDate(project.created_at)}</span>
                                                                 </div>
@@ -209,7 +207,7 @@ export default function Search() {
                                     {/* Images Results */}
                                     {results.images.length > 0 && (
                                         <div>
-                                            <h2 className="text-[24px] font-bold mb-6" style={{ color: '#191919' }}>
+                                            <h2 className="font-display text-2xl font-normal mb-6 text-foreground">
                                                 Images ({results.images.length})
                                             </h2>
                                             <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
@@ -222,7 +220,7 @@ export default function Search() {
                                                         <Card className="overflow-hidden cursor-pointer hover:opacity-90 transition-opacity">
                                                             <div className="aspect-square bg-muted overflow-hidden">
                                                                 <img
-                                                                    src={`/storage/${image.url}`}
+                                                                    src={mediaUrl(image.url) ?? ''}
                                                                     alt={image.prompt}
                                                                     className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                                                                 />
@@ -246,11 +244,11 @@ export default function Search() {
                         </div>
                     ) : !hasSearched ? (
                         /* Placeholder */
-                        <div className="rounded-lg bg-muted/40 p-12">
+                        <div className="rounded-2xl border border-border bg-card p-12">
                             <div className="text-center">
                                 <SearchIcon className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
-                                <h2 className="text-2xl font-semibold mb-2">Start Searching</h2>
-                                <p className="text-muted-foreground max-w-md mx-auto">
+                                <h2 className="font-display text-2xl font-normal mb-2">Start Searching</h2>
+                                <p className="text-muted-foreground max-w-md mx-auto text-sm">
                                     Enter a keyword to search across your projects and images.
                                 </p>
                                 <div className="flex items-center justify-center gap-6 mt-8">
@@ -270,7 +268,6 @@ export default function Search() {
                             </div>
                         </div>
                     ) : null}
-                </div>
             </div>
         </AppLayout>
     );

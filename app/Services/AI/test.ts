@@ -187,7 +187,7 @@ function validateClusters(result: ClusterResponse, imageCount: number): void {
   const seen = new Set<number>();
   for (const [i, cluster] of result.clusters.entries()) {
     if (cluster.imageIndices.length < 3) {
-      throw new Error(`Cluster ${i} ("${cluster.name}") has ${cluster.imageIndices.length} images — must be at least 3.`);
+      throw new Error(`Cluster ${i} ("${cluster.name}") has ${cluster.imageIndices.length} images - must be at least 3.`);
     }
     for (const idx of cluster.imageIndices) {
       if (idx < 0 || idx >= imageCount) {
@@ -309,7 +309,7 @@ function buildGenerationPrompt(overlayText: string, cluster: Cluster, globalRule
     : "Maintain strict visual consistency with the reference images.";
 
   return `Generate a square 1:1 social media post image that matches the EXACT style of the reference images.
-Study the references carefully — your output must mirror their background, typography, layout, spacing, and mood.
+Study the references carefully - your output must mirror their background, typography, layout, spacing, and mood.
 
 STYLE ANCHOR:
 - Background: ${cluster.backgroundTreatment}

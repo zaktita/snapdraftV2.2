@@ -4,13 +4,22 @@ import { cva, type VariantProps } from "class-variance-authority"
 import { cn } from "@/lib/utils"
 
 const alertVariants = cva(
-  "relative w-full rounded-lg border px-4 py-3 text-sm grid has-[>svg]:grid-cols-[calc(var(--spacing)*4)_1fr] grid-cols-[0_1fr] has-[>svg]:gap-x-3 gap-y-0.5 items-start [&>svg]:size-4 [&>svg]:translate-y-0.5 [&>svg]:text-current",
+  "relative w-full rounded-2xl border px-4 py-3.5 text-sm grid has-[>svg]:grid-cols-[calc(var(--spacing)*4)_1fr] grid-cols-[0_1fr] has-[>svg]:gap-x-3 gap-y-0.5 items-start [&>svg]:size-4 [&>svg]:translate-y-0.5 [&>svg]:text-current shadow-xs",
   {
     variants: {
       variant: {
-        default: "bg-background text-foreground",
+        default:
+          "border-border bg-card text-foreground",
         destructive:
-          "text-destructive-foreground [&>svg]:text-current *:data-[slot=alert-description]:text-destructive-foreground/80",
+          "border-destructive/25 bg-destructive/10 text-foreground [&>svg]:text-destructive *:data-[slot=alert-description]:text-muted-foreground",
+        warning:
+          "border-warning/40 bg-warning/15 text-foreground [&>svg]:text-foreground *:data-[slot=alert-description]:text-muted-foreground",
+        success:
+          "border-success/30 bg-success/10 text-foreground [&>svg]:text-success *:data-[slot=alert-description]:text-muted-foreground",
+        info:
+          "border-info/25 bg-info/10 text-foreground [&>svg]:text-info *:data-[slot=alert-description]:text-muted-foreground",
+        brand:
+          "border-primary/25 bg-[var(--sd-or-pale)] text-foreground [&>svg]:text-primary *:data-[slot=alert-description]:text-muted-foreground",
       },
     },
     defaultVariants: {
@@ -39,7 +48,7 @@ function AlertTitle({ className, ...props }: React.ComponentProps<"div">) {
     <div
       data-slot="alert-title"
       className={cn(
-        "col-start-2 line-clamp-1 min-h-4 font-medium tracking-tight",
+        "col-start-2 line-clamp-1 min-h-4 font-semibold tracking-tight text-foreground",
         className
       )}
       {...props}

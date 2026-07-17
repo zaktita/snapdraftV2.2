@@ -92,10 +92,10 @@ export default function SubscriptionsPage({ subscriptions, filters }: Props) {
                             {subscriptions.data.map((s) => (
                                 <tr key={s.id} className="hover:bg-gray-50/60">
                                     <td className="px-4 py-3">
-                                        <p className="font-medium text-gray-900">{s.user?.name ?? '—'}</p>
+                                        <p className="font-medium text-gray-900">{s.user?.name ?? '-'}</p>
                                         <p className="text-xs text-gray-400">{s.user?.email}</p>
                                     </td>
-                                    <td className="px-4 py-3 text-xs text-gray-600">{s.plan?.name ?? s.name ?? '—'}</td>
+                                    <td className="px-4 py-3 text-xs text-gray-600">{s.plan?.name ?? s.name ?? '-'}</td>
                                     <td className="px-4 py-3">
                                         <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium capitalize ${STATUS_COLORS[s.status] ?? 'bg-gray-100 text-gray-600'}`}>
                                             {s.status}
@@ -105,10 +105,10 @@ export default function SubscriptionsPage({ subscriptions, filters }: Props) {
                                         {s.credits_remaining} / {s.credits_limit}
                                     </td>
                                     <td className="px-4 py-3 text-xs text-gray-600">
-                                        {s.price ? `$${Number(s.price).toFixed(2)}/${s.billing_period}` : '—'}
+                                        {s.price ? `$${Number(s.price).toFixed(2)}/${s.billing_period}` : '-'}
                                     </td>
                                     <td className="px-4 py-3 text-xs text-gray-400">
-                                        {s.renews_at ? new Date(s.renews_at).toLocaleDateString() : s.ends_at ? new Date(s.ends_at).toLocaleDateString() : '—'}
+                                        {s.renews_at ? new Date(s.renews_at).toLocaleDateString() : s.ends_at ? new Date(s.ends_at).toLocaleDateString() : '-'}
                                     </td>
                                     <td className="px-4 py-3">
                                         {s.status === 'active' && (

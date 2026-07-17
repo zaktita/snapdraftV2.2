@@ -651,7 +651,7 @@ class ProjectController extends Controller
             $imageGenerationPhase = 'processing';
         }
 
-        // Pipeline version — detect from the most recent history item with parameters
+        // Pipeline version - detect from the most recent history item with parameters
         $pipelineVersion = null;
         $clusterValidated = null;
         $recentHistory = $project->generationHistory()

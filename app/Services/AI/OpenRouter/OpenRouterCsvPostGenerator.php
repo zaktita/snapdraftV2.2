@@ -255,23 +255,23 @@ class OpenRouterCsvPostGenerator
         ];
 
         if ($this->shouldAttachClusterImages($project)) {
-            $parts[] = 'Attached reference images: '.$imageCount.' (complete cluster set — use ALL attached images together)';
+            $parts[] = 'Attached reference images: '.$imageCount.' (complete cluster set - use ALL attached images together)';
             $parts[] = 'Reference task: Study every attached image. Identify the visual form (rendering style, graphic devices, layout skeleton, structural elements, photo treatment). Your JSON must describe a post that fits this exact template family.';
         } else {
-            $parts[] = 'Reference images: not attached — use the cluster metadata below for layout, palette, typography, rendering style, and structural elements.';
+            $parts[] = 'Reference images: not attached - use the cluster metadata below for layout, palette, typography, rendering style, and structural elements.';
         }
 
         $parts = array_merge($parts, [
             CreativityLevel::step2Instruction($creativityLevel),
             'Visual form task: Before writing JSON, infer the visual form from the caption + cluster metadata + references. State it in post.visual_form and the On-brand check.',
-            'Raw caption/topic (rewrite and shorten — keep all relevant facts, add nothing):',
+            'Raw caption/topic (rewrite and shorten - keep all relevant facts, add nothing):',
             $caption,
-            'Caption task: Tighten the raw caption. Remove hashtags, URLs, filler, and repetition. Keep offer, dates, times, location, audience, names, numbers, and CTA. Do not drop important details, and do not ADD anything the caption does not contain — no invented dates, venues, offers, CTAs, or filler statements.',
+            'Caption task: Tighten the raw caption. Remove hashtags, URLs, filler, and repetition. Keep offer, dates, times, location, audience, names, numbers, and CTA. Do not drop important details, and do not ADD anything the caption does not contain - no invented dates, venues, offers, CTAs, or filler statements.',
             CreativityLevel::step2FactRetentionBlock(),
             CreativityLevel::step2OnImageTextBlock(),
             CreativityLevel::step2SubjectBlock(),
-            'Language (mandatory): Write post.caption, every on_image_text zone (if any), and any rendered text in post.concept in the SAME language as the raw caption above. Never translate — e.g. French caption → French copy only, even if references or DNA notes are in another language.',
-            'On-image text: Only when the visual carries text (check cluster text_density). If text-free, set on_image_text to []. Otherwise reproduce the zones THIS cluster\'s references actually use — but only those the caption can fill. Omit zones without matching facts. Keep zones scannable.',
+            'Language (mandatory): Write post.caption, every on_image_text zone (if any), and any rendered text in post.concept in the SAME language as the raw caption above. Never translate - e.g. French caption → French copy only, even if references or DNA notes are in another language.',
+            'On-image text: Only when the visual carries text (check cluster text_density). If text-free, set on_image_text to []. Otherwise reproduce the zones THIS cluster\'s references actually use - but only those the caption can fill. Omit zones without matching facts. Keep zones scannable.',
             'Aspect ratio: '.$aspectRatio,
         ]);
 

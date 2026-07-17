@@ -10,22 +10,11 @@ import { Label } from '@/components/ui/label';
 import { Spinner } from '@/components/ui/spinner';
 import AuthLayout from '@/layouts/auth-layout';
 
-function getInviteCode(): string {
-    if (typeof window === 'undefined') return '';
-    return new URLSearchParams(window.location.search).get('invite') ?? '';
-}
-
 export default function Register() {
-    const inviteCode = getInviteCode();
-
     return (
         <AuthLayout
             title="Create an account"
-            description={
-                inviteCode
-                    ? 'You have a beta invite — create your account to activate it'
-                    : 'Enter your details below to create your account'
-            }
+            description="Enter your details below to create your account"
         >
             <Head title="Register" />
 
@@ -40,21 +29,6 @@ export default function Register() {
             >
                 {({ processing, errors }) => (
                     <>
-                        {inviteCode && (
-                            <input
-                                type="hidden"
-                                name="invite_code"
-                                value={inviteCode}
-                            />
-                        )}
-                        {inviteCode && (
-                            <div className="rounded-md border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-700 dark:border-green-800 dark:bg-green-950 dark:text-green-300">
-                                Invite code:{' '}
-                                <span className="font-mono font-semibold">
-                                    {inviteCode}
-                                </span>
-                            </div>
-                        )}
                         <div className="grid gap-6">
                             <div className="grid gap-2">
                                 <Label htmlFor="name">Name</Label>

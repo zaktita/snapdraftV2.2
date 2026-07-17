@@ -133,11 +133,11 @@ export default function CsvWizardResult({ session, project, urls, summary, failu
                     <div className="grid gap-3 md:grid-cols-5">
                         <div className="rounded-lg border bg-card p-4">
                             <div className="text-muted-foreground text-xs">CSV Rows</div>
-                            <div className="mt-1 text-2xl font-semibold">{csvRows ?? '—'}</div>
+                            <div className="mt-1 text-2xl font-semibold">{csvRows ?? '-'}</div>
                         </div>
                         <div className="rounded-lg border bg-card p-4">
                             <div className="text-muted-foreground text-xs">Queued Jobs</div>
-                            <div className="mt-1 text-2xl font-semibold">{total ?? '—'}</div>
+                            <div className="mt-1 text-2xl font-semibold">{total ?? '-'}</div>
                         </div>
                         <div className="rounded-lg border bg-card p-4">
                             <div className="text-muted-foreground text-xs">Failed</div>
@@ -145,18 +145,18 @@ export default function CsvWizardResult({ session, project, urls, summary, failu
                         </div>
                         <div className="rounded-lg border bg-card p-4">
                             <div className="text-muted-foreground text-xs">Auto Format</div>
-                            <div className="mt-1 text-2xl font-semibold">{autoFormatCount ?? '—'}</div>
+                            <div className="mt-1 text-2xl font-semibold">{autoFormatCount ?? '-'}</div>
                         </div>
                         <div className="rounded-lg border bg-card p-4">
                             <div className="text-muted-foreground text-xs">Invalid Rows</div>
-                            <div className="mt-1 text-2xl font-semibold">{validationFailureCount ?? '—'}</div>
+                            <div className="mt-1 text-2xl font-semibold">{validationFailureCount ?? '-'}</div>
                         </div>
                     </div>
                 )}
 
                 {(autoFormatCount ?? 0) > 0 && (
                     <div className="text-muted-foreground text-sm">
-                        Some rows left the format blank — the AI chose the best format.
+                        Some rows left the format blank - the AI chose the best format.
                     </div>
                 )}
 
@@ -212,7 +212,7 @@ export default function CsvWizardResult({ session, project, urls, summary, failu
                                 <div key={f.id} className="rounded-md border p-4">
                                     <div className="flex flex-wrap items-center justify-between gap-2">
                                         <div className="font-medium">
-                                            Row {typeof f.csv_row_index === 'number' ? f.csv_row_index + 1 : '—'}
+                                            Row {typeof f.csv_row_index === 'number' ? f.csv_row_index + 1 : '-'}
                                             {f.title ? ` • ${f.title}` : ''}
                                         </div>
                                         <div className="text-muted-foreground text-xs">
@@ -266,7 +266,7 @@ export default function CsvWizardResult({ session, project, urls, summary, failu
                                             )}
                                             <div className="mt-2">
                                                 <div className="text-muted-foreground text-[11px]">
-                                                    Cluster ID: {String(img.metadata?.cluster_id ?? '—')}
+                                                    Cluster ID: {String(img.metadata?.cluster_id ?? '-')}
                                                 </div>
                                                 <div className="mt-2 flex flex-wrap gap-1">
                                                     {(img.metadata?.reference_cluster && img.metadata.reference_cluster.length > 0

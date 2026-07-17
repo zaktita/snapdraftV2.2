@@ -34,7 +34,7 @@
         <link href="https://fonts.bunny.net/css?family=instrument-sans:400,500,600" rel="stylesheet" />
         <link rel="preconnect" href="https://fonts.googleapis.com">
         <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&family=Raleway:wght@600;700&display=swap" rel="stylesheet">
+        <link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Inter:wght@400;500;600;700;800;900&family=Raleway:wght@600;700&display=swap" rel="stylesheet">
         <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
 
         @viteReactRefresh
@@ -56,7 +56,7 @@
                 class="sd-support-fab"
                 target="_blank"
                 rel="noopener noreferrer"
-                aria-label="Support — message on X"
+                aria-label="Support - message on X"
             >
                 <span class="sd-support-fab__icon" aria-hidden="true">
                     <i class="fa-solid fa-comments"></i>

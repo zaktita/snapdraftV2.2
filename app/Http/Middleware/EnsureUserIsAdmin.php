@@ -21,8 +21,8 @@ class EnsureUserIsAdmin
             abort(403, 'Unauthorized. Admin access required.');
         }
 
-        // Admins must have confirmed 2FA in non-local environments.
-        if (! app()->environment('local') && $user->two_factor_confirmed_at === null) {
+        // Admins must have confirmed 2FA outside local/testing.
+        if (! app()->environment(['local', 'testing']) && $user->two_factor_confirmed_at === null) {
             return redirect()
                 ->route('two-factor.show')
                 ->with('error', 'Enable two-factor authentication before accessing the admin panel.');

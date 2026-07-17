@@ -295,8 +295,13 @@ class SubscriptionController extends Controller
             'variant_id' => $variantId,
         ]);
         
-        if (!$variantId) {
-            Log::error('❌ Variant ID not configured');
+        // Reject missing or placeholder IDs left by PlanSeeder when .env variants were empty
+        if (!$variantId || !ctype_digit((string) $variantId)) {
+            Log::error('❌ Variant ID not configured or invalid', [
+                'tier' => $tier,
+                'billing_period' => $billingPeriod,
+                'variant_id' => $variantId,
+            ]);
             return back()->with('error', 'Plan variant not configured. Please contact support.');
         }
 
@@ -367,8 +372,14 @@ class SubscriptionController extends Controller
                 Log::error('Lemon Squeezy checkout failed', [
                     'status' => $response->status(),
                     'response' => $response->json(),
+                    'variant_id' => $variantId,
+                    'store_id' => $storeId,
+                    'tier' => $tier,
                 ]);
-                return back()->with('error', 'Failed to create checkout session. Please try again.');
+                $detail = data_get($response->json(), 'errors.0.detail');
+                return back()->with('error', $detail
+                    ? "Checkout failed: {$detail}"
+                    : 'Failed to create checkout session. Please try again.');
             }
 
             $checkoutUrl = $response->json('data.attributes.url');
@@ -455,6 +466,6 @@ class SubscriptionController extends Controller
 
         // Credits are included with your plan and reset automatically on your monthly renewal date.
         // One-time credit top-up packs are not available during the beta period.
-        return back()->with('info', 'Your credits reset automatically each month with your plan. One-time credit top-ups are not available during the beta period — your next batch will be available at your renewal date.');
+        return back()->with('info', 'Your credits reset automatically each month with your plan. One-time credit top-ups are not available during the beta period - your next batch will be available at your renewal date.');
     }
 }

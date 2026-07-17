@@ -1,32 +1,8 @@
-import { Head, Link } from '@inertiajs/react';
-import type { ReactNode } from 'react';
-
-function LegalShell({ title, children }: { title: string; children: ReactNode }) {
-    return (
-        <div className="min-h-screen bg-neutral-50 text-neutral-900">
-            <Head title={title} />
-            <header className="border-b border-neutral-200 bg-white">
-                <div className="mx-auto flex max-w-3xl items-center justify-between px-6 py-4">
-                    <Link href="/" className="font-semibold tracking-tight">
-                        SnapDraft
-                    </Link>
-                    <nav className="flex gap-4 text-sm text-neutral-600">
-                        <Link href="/privacy">Privacy</Link>
-                        <Link href="/terms">Terms</Link>
-                        <Link href="/refund">Refunds</Link>
-                    </nav>
-                </div>
-            </header>
-            <main className="prose prose-neutral mx-auto max-w-3xl px-6 py-12">{children}</main>
-        </div>
-    );
-}
+import { LegalShell } from '@/components/marketing/legal-shell';
 
 export default function Refund() {
     return (
-        <LegalShell title="Refund Policy">
-            <h1>Refund Policy</h1>
-            <p>Last updated: July 14, 2026</p>
+        <LegalShell title="Refund Policy" lastUpdated="July 14, 2026">
             <p>
                 Payments are processed by Lemon Squeezy as merchant of record. Subscriptions renew
                 automatically until cancelled in the customer portal.

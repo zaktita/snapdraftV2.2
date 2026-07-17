@@ -38,8 +38,8 @@ final class FormatPresetMapper
         'pinterest_square' => ['aspectRatio' => '1:1',  'description' => 'Pinterest square (1:1)'],
 
         // Reddit: distinct shapes for image posts vs link-style thumbnails in the feed
-        'reddit_image_post' => ['aspectRatio' => '4:5',  'description' => 'Reddit in-feed image post — tall mobile card (4:5)'],
-        'reddit_link_preview' => ['aspectRatio' => '16:9', 'description' => 'Reddit link / thumbnail preview — wide OG-style (16:9)'],
+        'reddit_image_post' => ['aspectRatio' => '4:5',  'description' => 'Reddit in-feed image post - tall mobile card (4:5)'],
+        'reddit_link_preview' => ['aspectRatio' => '16:9', 'description' => 'Reddit link / thumbnail preview - wide OG-style (16:9)'],
     ];
 
     public static function normalize(string $format): string

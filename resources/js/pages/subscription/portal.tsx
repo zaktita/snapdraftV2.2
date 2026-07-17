@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Separator } from '@/components/ui/separator';
+import { ConfirmDialog } from '@/components/confirm-dialog';
 import AppLayout from '@/layouts/app-layout';
 import { type BreadcrumbItem } from '@/types';
 import { Head, Link, router } from '@inertiajs/react';
@@ -11,16 +12,15 @@ import {
     CreditCard,
     Calendar,
     AlertCircle,
-    CheckCircle,
     ExternalLink,
-    XCircle,
-    Clock,
     Sparkles,
     TrendingUp,
-    ArrowRight
+    ArrowRight,
+    XCircle,
 } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { useState } from 'react';
 import { format } from 'date-fns';
+import { cn } from '@/lib/utils';
 
 const breadcrumbs: BreadcrumbItem[] = [
     {
@@ -67,45 +67,32 @@ interface SubscriptionPortalProps {
 }
 
 export default function SubscriptionPortal({ subscription, subscription_history }: SubscriptionPortalProps) {
+    const [cancelOpen, setCancelOpen] = useState(false);
+
     const handleCancelSubscription = () => {
-        if (confirm('Are you sure you want to cancel your subscription? You will lose access at the end of your billing period.')) {
-            router.post('/subscription/downgrade');
-        }
+        router.post('/subscription/downgrade', {}, {
+            onFinish: () => setCancelOpen(false),
+        });
     };
 
     const getStatusBadge = (status: string) => {
         switch (status.toLowerCase()) {
             case 'active':
-                return (
-                    <Badge className="bg-green-500/10 text-green-700 border-green-500/20">
-                        <CheckCircle className="h-3 w-3 mr-1" />
-                        Active
-                    </Badge>
-                );
+                return <Badge variant="yellow">Active</Badge>;
             case 'cancelled':
             case 'canceled':
-                return (
-                    <Badge className="bg-yellow-500/10 text-yellow-700 border-yellow-500/20">
-                        <AlertCircle className="h-3 w-3 mr-1" />
-                        Cancelled
-                    </Badge>
-                );
+                return <Badge variant="secondary">Cancelled</Badge>;
             case 'expired':
-                return (
-                    <Badge className="bg-red-500/10 text-red-700 border-red-500/20">
-                        <XCircle className="h-3 w-3 mr-1" />
-                        Expired
-                    </Badge>
-                );
+                return <Badge variant="destructive">Expired</Badge>;
             case 'trial':
+            case 'trialing':
+                return <Badge variant="blue">Trial</Badge>;
+            default:
                 return (
-                    <Badge className="bg-blue-500/10 text-blue-700 border-blue-500/20">
-                        <Clock className="h-3 w-3 mr-1" />
-                        Trial
+                    <Badge variant="outline" className="capitalize">
+                        {status}
                     </Badge>
                 );
-            default:
-                return <Badge variant="secondary">{status}</Badge>;
         }
     };
 
@@ -117,29 +104,22 @@ export default function SubscriptionPortal({ subscription, subscription_history 
         <AppLayout breadcrumbs={breadcrumbs}>
             <Head title="Manage Subscription" />
             
-            <div className="p-6 md:p-8 max-w-[1200px] mx-auto">
-                {/* Header */}
-                <div className="mb-8">
-                    <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gradient-to-br from-primary/10 to-primary/5">
-                                <Crown className="h-5 w-5 text-primary" />
-                            </div>
-                            <div>
-                                <h1 className="text-3xl font-bold tracking-tight">Manage Subscription</h1>
-                                <p className="text-sm text-muted-foreground mt-0.5">
-                                    View and manage your subscription details
-                                </p>
-                            </div>
+            <div className="sd-app-pricing">
+                <section className="sd-pricing-section sd-app-pricing-section">
+                    <div className="sd-sec-head sd-pricing-head">
+                        <div className="sd-sec-eyebrow">Subscription</div>
+                        <h1 className="sd-sec-title">Manage your plan</h1>
+                        <p className="sd-sec-sub">
+                            View billing details, credits, and renewal settings
+                            for your SnapDraft subscription.
+                        </p>
+                        <div className="sd-cta-row" style={{ marginTop: 20 }}>
+                            <Link href="/subscription/plans" className="sd-btn-sm">
+                                View all plans
+                                <TrendingUp size={14} />
+                            </Link>
                         </div>
-                        <Link href="/subscription/plans">
-                            <Button variant="outline" className="gap-2">
-                                <TrendingUp className="h-4 w-4" />
-                                View All Plans
-                            </Button>
-                        </Link>
                     </div>
-                </div>
 
                 {subscription ? (
                     <>
@@ -157,7 +137,9 @@ export default function SubscriptionPortal({ subscription, subscription_history 
                                 <CardContent className="space-y-4">
                                     <div>
                                         <div className="text-sm text-muted-foreground mb-1">Plan</div>
-                                        <div className="text-2xl font-bold capitalize">{subscription.tier}</div>
+                                        <div className="font-display text-3xl font-normal capitalize tracking-tight">
+                                            {subscription.tier}
+                                        </div>
                                     </div>
                                     
                                     <Separator />
@@ -325,8 +307,8 @@ export default function SubscriptionPortal({ subscription, subscription_history 
                                     {subscription.auto_renew && !subscription.cancelled_at && (
                                         <Button 
                                             variant="outline" 
-                                            className="gap-2 justify-start text-red-600 hover:text-red-700"
-                                            onClick={handleCancelSubscription}
+                                            className="gap-2 justify-start text-destructive hover:text-destructive"
+                                            onClick={() => setCancelOpen(true)}
                                         >
                                             <XCircle className="h-4 w-4" />
                                             Cancel Subscription
@@ -385,28 +367,35 @@ export default function SubscriptionPortal({ subscription, subscription_history 
                         )}
                     </>
                 ) : (
-                    /* No Active Subscription */
-                    <Card>
-                        <CardContent className="pt-12 pb-12 text-center">
-                            <div className="flex justify-center mb-4">
-                                <div className="flex h-16 w-16 items-center justify-center rounded-full bg-muted">
-                                    <Crown className="h-8 w-8 text-muted-foreground" />
-                                </div>
+                    <div className="sd-pricing-shell" style={{ marginTop: 28, padding: 48, textAlign: 'center' }}>
+                            <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-[var(--sd-or-pale)] text-primary">
+                                <Crown className="h-7 w-7" />
                             </div>
-                            <h3 className="text-xl font-semibold mb-2">No Active Subscription</h3>
-                            <p className="text-muted-foreground mb-6">
-                                You don't have an active subscription. Choose a plan to get started with AI-powered visual content generation.
+                            <h3 className="font-display text-2xl font-normal tracking-tight mb-2">
+                                No active subscription
+                            </h3>
+                            <p className="sd-sec-sub" style={{ marginBottom: 24, maxWidth: 420, marginLeft: 'auto', marginRight: 'auto' }}>
+                                Choose a plan to unlock Brand DNA, batch generation, and Canvas polish.
                             </p>
-                            <Button asChild size="lg" className="gap-2">
-                                <Link href="/subscription/plans">
-                                    View Plans
-                                    <ArrowRight className="h-4 w-4" />
-                                </Link>
-                            </Button>
-                        </CardContent>
-                    </Card>
+                            <Link href="/subscription/plans" className="sd-btn-price" style={{ width: 'auto', display: 'inline-flex', paddingInline: 28 }}>
+                                View plans
+                                <ArrowRight size={16} />
+                            </Link>
+                    </div>
                 )}
+                </section>
             </div>
+
+            <ConfirmDialog
+                open={cancelOpen}
+                onOpenChange={setCancelOpen}
+                title="Cancel subscription?"
+                description="You will keep access until the end of your current billing period. After that, your plan benefits and remaining credits will stop renewing."
+                confirmLabel="Cancel subscription"
+                cancelLabel="Keep plan"
+                variant="destructive"
+                onConfirm={handleCancelSubscription}
+            />
         </AppLayout>
     );
 }

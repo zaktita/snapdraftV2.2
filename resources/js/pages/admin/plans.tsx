@@ -56,19 +56,19 @@ export default function PlansPage({ plans }: { plans: Plan[] }) {
                                 </div>
                                 <div className="flex justify-between">
                                     <span>Trial</span>
-                                    <span>{plan.has_trial ? `${plan.trial_days} days` : '—'}</span>
+                                    <span>{plan.has_trial ? `${plan.trial_days} days` : '-'}</span>
                                 </div>
                                 {plan.capabilities && (
                                     <>
                                         <div className="flex justify-between">
                                             <span>Credits/mo</span>
                                             <span className="font-semibold text-gray-900">
-                                                {(plan.capabilities as Record<string,unknown>)['credits_per_month'] as number ?? '—'}
+                                                {(plan.capabilities as Record<string,unknown>)['credits_per_month'] as number ?? '-'}
                                             </span>
                                         </div>
                                         <div className="flex justify-between">
                                             <span>Projects limit</span>
-                                            <span>{(plan.capabilities as Record<string,unknown>)['projects_limit'] as number ?? '—'}</span>
+                                            <span>{(plan.capabilities as Record<string,unknown>)['projects_limit'] as number ?? '-'}</span>
                                         </div>
                                     </>
                                 )}

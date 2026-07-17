@@ -3,6 +3,7 @@
 use App\Jobs\CleanOrphanedFilesJob;
 use App\Models\Project;
 use App\Services\AI\AIServiceManager;
+use App\Services\UserMediaStorage;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Schedule;
@@ -235,3 +236,29 @@ Artisan::command('home:generate-images {projectId? : Project ID for brand refere
         }
     }
 })->purpose('Generate homepage images using OpenRouter seedream-4.5 and save to public/images/landing');
+
+Artisan::command('media:migrate-to-private', function () {
+    $media = app(UserMediaStorage::class);
+    $public = Storage::disk('public');
+    $target = Storage::disk($media->diskName());
+
+    $migrated = 0;
+
+    foreach (['projects', 'brand-references'] as $root) {
+        if (! $public->exists($root)) {
+            continue;
+        }
+
+        foreach ($public->allFiles($root) as $path) {
+            if ($target->exists($path)) {
+                continue;
+            }
+
+            $target->put($path, $public->get($path));
+            $migrated++;
+            $this->line("Copied: {$path}");
+        }
+    }
+
+    $this->info("Migrated {$migrated} file(s) to {$media->diskName()} disk.");
+})->purpose('Copy legacy public-disk uploads to private media disk');

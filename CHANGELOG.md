@@ -4,7 +4,7 @@ All notable changes to SnapDraft are documented here. Version tags follow semver
 
 Rollback: redeploy the previous git tag (e.g. `git checkout v1.0.0` on the production branch).
 
-## [1.0.0] — 2026-07-14
+## [1.0.0] - 2026-07-14
 
 ### Added
 - Public plans: Starter ($29/100), Pro ($49/200), Business ($99/500) with yearly (2 months free)

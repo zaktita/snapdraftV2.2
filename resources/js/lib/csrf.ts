@@ -3,7 +3,7 @@
  *
  * Prefer the XSRF-TOKEN cookie (kept in sync by Laravel on every response).
  * The Blade <meta name="csrf-token"> goes stale after Inertia login / session
- * regeneration and must not be sent alongside a valid XSRF cookie — Laravel
+ * regeneration and must not be sent alongside a valid XSRF cookie - Laravel
  * checks X-CSRF-TOKEN before X-XSRF-TOKEN.
  */
 export function xsrfToken(): string {

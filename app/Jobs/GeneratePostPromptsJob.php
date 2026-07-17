@@ -37,7 +37,7 @@ class GeneratePostPromptsJob implements ShouldQueue
 
         try {
             if ($project->dna_json === null) {
-                throw new \RuntimeException('dna_json missing — AnalyzeBrandJob may not have completed.');
+                throw new \RuntimeException('dna_json missing - AnalyzeBrandJob may not have completed.');
             }
 
             ClusterCsvPipeline::setPhase($project, 'prompts');

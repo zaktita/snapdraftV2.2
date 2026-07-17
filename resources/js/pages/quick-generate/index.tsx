@@ -95,7 +95,7 @@ export default function QuickGenerateIndex() {
 
                 <form onSubmit={handleSubmit} className="space-y-6">
                     {/* Step 1: Upload References */}
-                    <div className="rounded-lg border bg-card p-6 shadow-sm">
+                    <div className="rounded-2xl border border-border bg-card p-6 shadow-xs">
                         <h2 className="mb-4 text-lg font-semibold">Step 1: Upload Reference Images</h2>
                         <p className="text-muted-foreground mb-4 text-sm">
                             Upload 5-10 images that represent your brand style, colors, and typography.
@@ -171,7 +171,7 @@ export default function QuickGenerateIndex() {
                     </div>
 
                     {/* Step 2: Caption */}
-                    <div className="rounded-lg border bg-card p-6 shadow-sm">
+                    <div className="rounded-2xl border border-border bg-card p-6 shadow-xs">
                         <h2 className="mb-4 text-lg font-semibold">Step 2: Enter Caption</h2>
                         <p className="text-muted-foreground mb-4 text-sm">
                             Describe what visual you want to create. AI will extract title and description.
@@ -190,7 +190,7 @@ export default function QuickGenerateIndex() {
                     </div>
 
                     {/* Step 3: Format */}
-                    <div className="rounded-lg border bg-card p-6 shadow-sm">
+                    <div className="rounded-2xl border border-border bg-card p-6 shadow-xs">
                         <h2 className="mb-4 text-lg font-semibold">Step 3: Select Format</h2>
                         <p className="text-muted-foreground mb-4 text-sm">Choose aspect ratio for your visual.</p>
 

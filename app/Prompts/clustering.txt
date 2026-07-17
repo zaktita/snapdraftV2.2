@@ -11,9 +11,9 @@ INSTRUCTIONS:
 - Provide a "globalAnalysis" summarizing the overall brand identity found across all images.
 - Provide "globalRules": 4-6 actionable constraints that apply across every coherent style cluster (e.g. "Never place text directly over photographs", "Always use the brand footer lockup").
 - Group every image into a cluster. Each image MUST belong to exactly one cluster.
-- CLUSTER COUNT: Produce as many coherent style clusters as the visuals justify — typically 1 to 5. Do NOT collapse distinct layouts/styles into fewer clusters just to reduce count. Prefer splitting over forcing unrelated images together.
+- CLUSTER COUNT: Produce as many coherent style clusters as the visuals justify - typically 1 to 5. Do NOT collapse distinct layouts/styles into fewer clusters just to reduce count. Prefer splitting over forcing unrelated images together.
 - CLUSTER SIZE: A coherent style cluster may have any size (2+ preferred). Do NOT force an outlier into a style cluster just to pad size.
-- OUTLIERS — "unfit": If one or more images do not share a coherent visual system with any other group (or with each other), put them in a separate cluster whose name is exactly "unfit". The unfit cluster may contain 1 or more images. Only use "unfit" for true outliers — never dump a coherent style into unfit.
+- OUTLIERS - "unfit": If one or more images do not share a coherent visual system with any other group (or with each other), put them in a separate cluster whose name is exactly "unfit". The unfit cluster may contain 1 or more images. Only use "unfit" for true outliers - never dump a coherent style into unfit.
 - Never invent empty clusters. Never leave an image unassigned.
 - For each cluster, describe the visual system so precisely that a designer who has never seen the images could rebuild the template. Cover ALL of the following fields:
 
@@ -25,13 +25,13 @@ INSTRUCTIONS:
   - "backgroundTreatment": describe what the background is (e.g. "Flat solid #F5EFE6", "Full-bleed photo with 60% dark overlay", "Gradient from #1A1A1A to #2D2D2D").
   - "textPlacement": describe where and how text sits relative to images/background (e.g. "Text on flat color zone only, never over photo"). Use "none" if the cluster is text-free.
 
-  RICH VISUAL VOCABULARY (required — be specific, use free text, not generic labels):
+  RICH VISUAL VOCABULARY (required - be specific, use free text, not generic labels):
   - "renderingStyle": how visuals are rendered (e.g. "photorealistic lifestyle photography", "3D rendered floating elements with UI screenshots", "flat vector graphic design", "mixed-media photo + graphic shapes", "hyper-realistic digital illustration").
-  - "photoTreatment": how photos are treated (e.g. "full-bleed with soft bokeh", "hard-edge cutout on solid background", "shaped organic mask", "duotone blue/black", "photo masked inside display typography", "none — no photography"). Use "none" if no photos.
+  - "photoTreatment": how photos are treated (e.g. "full-bleed with soft bokeh", "hard-edge cutout on solid background", "shaped organic mask", "duotone blue/black", "photo masked inside display typography", "none - no photography"). Use "none" if no photos.
   - "graphicDevices": array of specific visual techniques used (e.g. ["photo cutout layered over giant numeral", "floating 3D gear and speech bubble icons", "checkerboard grid with duotone portraits", "pill badges for date and venue", "torn-paper divider between color zones", "abstract background shapes behind portrait", "product on pedestal with floating ingredients"]). List every notable device. For "unfit", list mixed devices or ["inconsistent"].
   - "typographyDetails": display vs body treatment, script/serif/sans mixing, vertical or rotated text, text effects like masking/knockout/outline (e.g. "Giant display sans-serif with photo masked inside letters; small body sans below"). Use "none" if text-free.
   - "layoutSkeleton": precise structural description of the grid and layer stacking order (e.g. "Top third: solid color block with headline. Middle: photo in shaped mask overlapping color block. Bottom: white logo bar with partner logos. Floating 3D elements in upper right."). For "unfit", state "no shared layout skeleton".
   - "logoTreatment": how logos appear (e.g. "White pill lockup bottom-center", "Partner logo bar bottom-left with vertical divider", "Small top-left corner mark", "none"). Use "none" if no logos visible.
-  - "textDensity": one of "text-free", "minimal", "moderate", or "text-heavy" — how much on-image text the cluster typically carries.
+  - "textDensity": one of "text-free", "minimal", "moderate", or "text-heavy" - how much on-image text the cluster typically carries.
 
 - When references use RTL or non-Latin scripts (Arabic, etc.), note this in typographyDetails and textPlacement.

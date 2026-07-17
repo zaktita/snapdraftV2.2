@@ -180,7 +180,7 @@ export default function CsvWizardProcessing({ session, urls, error }: Processing
                                         <FileText className="h-4 w-4" />
                                         Total
                                     </div>
-                                    <div className="mt-1 text-lg font-semibold">{progress.total ?? '—'}</div>
+                                    <div className="mt-1 text-lg font-semibold">{progress.total ?? '-'}</div>
                                 </div>
                                 <div className="rounded-md border p-3">
                                     <div className="text-muted-foreground">Processed</div>
