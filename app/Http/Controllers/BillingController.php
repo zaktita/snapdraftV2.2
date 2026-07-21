@@ -2,10 +2,13 @@
 
 namespace App\Http\Controllers;
 
+use App\Mail\InvoiceReceiptMail;
 use App\Models\Invoice;
 use Barryvdh\DomPDF\Facade\Pdf;
-use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -17,12 +20,11 @@ class BillingController extends Controller
     public function index(): Response
     {
         $user = Auth::user();
-        
-        // Get user's invoices
+
         $invoices = Invoice::where('user_id', $user->id)
             ->orderBy('created_at', 'desc')
             ->get()
-            ->map(function($invoice) {
+            ->map(function ($invoice) {
                 return [
                     'id' => $invoice->id,
                     'invoice_number' => $invoice->invoice_number ?? $invoice->id,
@@ -35,6 +37,7 @@ class BillingController extends Controller
                     'issued_date' => $invoice->issued_at ?? $invoice->created_at,
                     'due_date' => $invoice->due_at ?? $invoice->created_at,
                     'paid_at' => $invoice->paid_at,
+                    'invoice_url' => $invoice->meta['invoice_url'] ?? null,
                 ];
             });
 
@@ -48,16 +51,7 @@ class BillingController extends Controller
      */
     public function show($id): Response
     {
-        $user = Auth::user();
-        
-        // Find invoice by invoice_number or id, ensuring it belongs to the user
-        $invoice = Invoice::where(function($query) use ($id) {
-            $query->where('invoice_number', $id)
-                  ->orWhere('id', $id);
-        })
-        ->where('user_id', $user->id)
-        ->with(['user', 'transaction'])
-        ->firstOrFail();
+        $invoice = $this->findUserInvoice($id);
 
         return Inertia::render('billing/show', [
             'invoice' => [
@@ -79,6 +73,7 @@ class BillingController extends Controller
                 'billing_postal_code' => $invoice->billing_zip,
                 'billing_country' => $invoice->billing_country,
                 'items' => $invoice->items ?? [],
+                'invoice_url' => $invoice->meta['invoice_url'] ?? null,
                 'transaction' => $invoice->transaction ? [
                     'id' => $invoice->transaction->id,
                     'amount' => $invoice->transaction->amount,
@@ -94,19 +89,104 @@ class BillingController extends Controller
      */
     public function downloadPdf($id)
     {
-        $user = Auth::user();
-        
-        // Find invoice by invoice_number or id, ensuring it belongs to the user
-        $invoice = Invoice::where(function($query) use ($id) {
-            $query->where('invoice_number', $id)
-                  ->orWhere('id', $id);
-        })
-        ->where('user_id', $user->id)
-        ->with(['user', 'transaction'])
-        ->firstOrFail();
-        
+        $invoice = $this->findUserInvoice($id);
+
         $pdf = Pdf::loadView('pdf.invoice', compact('invoice'));
-        
-        return $pdf->download('invoice-' . $invoice->invoice_number . '.pdf');
+
+        return $pdf->download('invoice-'.$invoice->invoice_number.'.pdf');
+    }
+
+    /**
+     * Email the Lemon Squeezy receipt/invoice link to the user.
+     *
+     * Lemon Squeezy does not expose a public "resend receipt email" API, so we
+     * email the LS-hosted invoice/receipt URL (fetched from LS when missing).
+     */
+    public function resendReceipt($id)
+    {
+        $user = Auth::user();
+        $invoice = $this->findUserInvoice($id);
+
+        $invoiceUrl = $invoice->meta['invoice_url'] ?? null;
+
+        if (! $invoiceUrl && $invoice->lemonsqueezy_invoice_id) {
+            $invoiceUrl = $this->fetchLemonSqueezyInvoiceUrl($invoice->lemonsqueezy_invoice_id);
+
+            if ($invoiceUrl) {
+                $meta = $invoice->meta ?? [];
+                $meta['invoice_url'] = $invoiceUrl;
+                $invoice->update(['meta' => $meta]);
+            }
+        }
+
+        if (! $invoiceUrl) {
+            return back()->with('error', 'No Lemon Squeezy receipt URL is available for this invoice yet.');
+        }
+
+        try {
+            Mail::to($user->email)->send(new InvoiceReceiptMail(
+                userName: $user->name,
+                invoiceNumber: $invoice->invoice_number,
+                receiptUrl: $invoiceUrl,
+                total: (string) $invoice->formattedTotal(),
+            ));
+        } catch (\Throwable $e) {
+            Log::error('Failed to email invoice receipt', [
+                'invoice_id' => $invoice->id,
+                'error' => $e->getMessage(),
+            ]);
+
+            return back()->with('error', 'Failed to send receipt email. Please try again.');
+        }
+
+        return back()->with('success', 'Receipt link emailed to '.$user->email.'.');
+    }
+
+    protected function findUserInvoice($id): Invoice
+    {
+        $user = Auth::user();
+
+        return Invoice::where(function ($query) use ($id) {
+            $query->where('invoice_number', $id)
+                ->orWhere('id', $id);
+        })
+            ->where('user_id', $user->id)
+            ->with(['user', 'transaction'])
+            ->firstOrFail();
+    }
+
+    protected function fetchLemonSqueezyInvoiceUrl(string $lemonInvoiceId): ?string
+    {
+        $apiKey = config('services.lemonsqueezy.api_key');
+        if (empty($apiKey)) {
+            return null;
+        }
+
+        try {
+            $httpClient = Http::withHeaders([
+                'Accept' => 'application/vnd.api+json',
+                'Content-Type' => 'application/vnd.api+json',
+                'Authorization' => 'Bearer '.$apiKey,
+            ]);
+
+            if (! config('services.lemonsqueezy.verify_ssl', true)) {
+                $httpClient = $httpClient->withOptions(['verify' => false]);
+            }
+
+            $response = $httpClient->get('https://api.lemonsqueezy.com/v1/subscription-invoices/'.$lemonInvoiceId);
+
+            if (! $response->successful()) {
+                return null;
+            }
+
+            return $response->json('data.attributes.urls.invoice_url');
+        } catch (\Throwable $e) {
+            Log::warning('Failed to fetch Lemon Squeezy invoice URL', [
+                'invoice_id' => $lemonInvoiceId,
+                'error' => $e->getMessage(),
+            ]);
+
+            return null;
+        }
     }
 }

@@ -32,9 +32,9 @@ Route::get('/', function () {
     return app(HomeController::class)();
 })->name('home');
 
-Route::get('/privacy', fn () => Inertia::render('website/privacy'))->name('privacy');
-Route::get('/terms', fn () => Inertia::render('website/terms'))->name('terms');
-Route::get('/refund', fn () => Inertia::render('website/refund'))->name('refund');
+Route::get('/privacy', fn () => view('website.privacy'))->name('privacy');
+Route::get('/terms', fn () => view('website.terms'))->name('terms');
+Route::get('/refund', fn () => view('website.refund'))->name('refund');
 
 // Guest-accessible beta invite validation + waitlist signup
 Route::get('invite/validate', [\App\Http\Controllers\BetaInviteController::class, 'validateCode'])
@@ -65,10 +65,34 @@ Route::middleware(['auth', 'verified', 'not.suspended'])->group(function () {
         ->middleware('throttle:5,5')
         ->name('invite.redeem');
 
+    // Create routes must be registered before projects/{project} or "create" is captured as an ID.
+    Route::middleware('has.credits')->group(function () {
+        Route::get('projects/create', function () {
+            return Inertia::render('projects/create');
+        })->name('projects.create');
+
+        Route::get('projects/create/csv', function () {
+            return Inertia::render('projects/wizards/csv');
+        })->name('projects.wizards.csv');
+    });
+
+    // ── Past projects (view/download) — entitled OR expired with existing projects ──
+    Route::middleware('can.view.projects')->group(function () {
+        Route::get('projects', [ProjectController::class, 'index'])->name('projects.index');
+        Route::get('projects/{project}', [ProjectController::class, 'show'])
+            ->whereNumber('project')
+            ->name('projects.show');
+        Route::get('projects/{id}/generation-progress', [ProjectController::class, 'generationProgress'])
+            ->whereNumber('id')
+            ->name('projects.generation-progress');
+        Route::post('projects/{projectId}/images/bulk-download', [ImageController::class, 'bulkDownload'])
+            ->whereNumber('projectId')
+            ->name('images.bulk-download');
+    });
+
     // ── Subscription-gated area ─────────────────────────────────────────────
-    // Everything below requires an active subscription. Non-subscribers are
-    // redirected to /subscription/plans. This prevents copycats from exploring
-    // the wizard UX and blocks wasted time generating with zero credits.
+    // Everything below requires an entitled subscription + credits.
+    // Non-subscribers are redirected to /subscription/plans.
     Route::middleware('has.credits')->group(function () {
 
         // Simple Wizard + quick-generate - local labs only (not in production product)
@@ -77,18 +101,9 @@ Route::middleware(['auth', 'verified', 'not.suspended'])->group(function () {
             Route::post('simple-wizard/generate', [SimpleTextWizardController::class, 'generate'])->name('simple-wizard.generate');
         }
 
-        // Project Creation - Wizard Selection Page (must be before resource routes)
-        Route::get('projects/create', function () {
-            return Inertia::render('projects/create');
-        })->name('projects.create');
-
         // Project Creation Wizards
-        Route::get('projects/create/csv', function () {
-            return Inertia::render('projects/wizards/csv');
-        })->name('projects.wizards.csv');
-
         Route::post('projects/wizards/csv', [CSVWizardController::class, 'store'])
-            ->middleware('throttle.user:5,1')
+            ->middleware(['check.project.limit', 'check.csv.limit', 'throttle.user:5,1'])
             ->name('projects.wizards.csv.store');
 
         Route::get('projects/wizards/csv/sessions/{session}', [CSVWizardController::class, 'show'])
@@ -100,7 +115,7 @@ Route::middleware(['auth', 'verified', 'not.suspended'])->group(function () {
             Route::get('projects/create/csv-cluster', [\App\Http\Controllers\Wizards\ClusterCsvWizardController::class, 'create'])
                 ->name('projects.wizards.csv-cluster');
             Route::post('projects/wizards/csv-cluster', [\App\Http\Controllers\Wizards\ClusterCsvWizardController::class, 'store'])
-                ->middleware('throttle.user:5,1')
+                ->middleware(['check.project.limit', 'check.csv.limit', 'throttle.user:5,1'])
                 ->name('projects.wizards.csv-cluster.store');
             Route::get('projects/wizards/csv-cluster/sessions/{session}', [\App\Http\Controllers\Wizards\ClusterCsvWizardController::class, 'show'])
                 ->name('projects.wizards.csv-cluster.session');
@@ -187,10 +202,11 @@ Route::middleware(['auth', 'verified', 'not.suspended'])->group(function () {
                 ->name('quick-generate.status');
         }
 
-        // Projects Resource Routes (except create/store/destroy which need throttle)
-        Route::resource('projects', ProjectController::class)->except(['create', 'store', 'destroy']);
+        // Project mutations (create/update/delete stay subscription-gated)
+        Route::put('projects/{project}', [ProjectController::class, 'update'])->name('projects.update');
+        Route::patch('projects/{project}', [ProjectController::class, 'update']);
         Route::post('projects', [ProjectController::class, 'store'])
-            ->middleware('throttle.user:20,1')
+            ->middleware(['check.project.limit', 'throttle.user:20,1'])
             ->name('projects.store');
         Route::delete('projects/{project}', [ProjectController::class, 'destroy'])
             ->middleware('throttle.user:20,1')
@@ -200,17 +216,15 @@ Route::middleware(['auth', 'verified', 'not.suspended'])->group(function () {
 
         // AI Generation Routes
         Route::post('projects/{id}/generate', [ProjectController::class, 'generateMore'])
-            ->middleware('throttle.user:10,1')
+            ->middleware(['check.csv.limit', 'throttle.user:10,1'])
             ->name('projects.generate-more');
 
-        Route::get('projects/{id}/generation-progress', [ProjectController::class, 'generationProgress'])
-            ->name('projects.generation-progress');
         if (app()->environment('local')) {
             Route::get('projects/{id}/images/{imageId}/generation-debug', [ProjectController::class, 'imageGenerationDebug'])
                 ->name('projects.images.generation-debug');
         }
 
-        // Image Management Routes
+        // Image Management Routes (mutations)
         Route::prefix('projects/{projectId}/images')->group(function () {
             Route::put('{imageId}', [ImageController::class, 'update'])->name('images.update');
             Route::delete('{imageId}', [ImageController::class, 'destroy'])->name('images.destroy');
@@ -218,7 +232,6 @@ Route::middleware(['auth', 'verified', 'not.suspended'])->group(function () {
                 ->middleware('throttle.user:10,1')
                 ->name('images.regenerate');
             Route::post('bulk-delete', [ImageController::class, 'bulkDestroy'])->name('images.bulk-destroy');
-            Route::post('bulk-download', [ImageController::class, 'bulkDownload'])->name('images.bulk-download');
             Route::post('update-order', [ImageController::class, 'updateOrder'])->name('images.update-order');
             Route::post('{imageId}/toggle-favorite', [ImageController::class, 'toggleFavorite'])->name('images.toggle-favorite');
         });
@@ -297,27 +310,35 @@ Route::middleware(['auth', 'verified', 'not.suspended'])->group(function () {
     Route::post('/feedback', [FeedbackController::class, 'submit'])->name('feedback.submit');
     Route::get('/feedback/thank-you', [FeedbackController::class, 'thankYou'])->name('feedback.thank-you');
 
-    // Subscription & Billing
+    // Subscription & Billing (actions stay here; settings UI lives under /settings/*)
     Route::prefix('subscription')->name('subscription.')->group(function () {
         Route::get('/plans', [\App\Http\Controllers\SubscriptionController::class, 'index'])->name('plans');
-        Route::get('/portal', [\App\Http\Controllers\SubscriptionController::class, 'portal'])->name('portal');
+        Route::redirect('/portal', '/settings/subscription')->name('portal');
         Route::post('/upgrade', [\App\Http\Controllers\SubscriptionController::class, 'upgrade'])
             ->middleware('throttle:10,1')
             ->name('upgrade');
         Route::post('/downgrade', [\App\Http\Controllers\SubscriptionController::class, 'downgrade'])
             ->middleware('throttle:10,1')
             ->name('downgrade');
+        Route::post('/resume', [\App\Http\Controllers\SubscriptionController::class, 'resume'])
+            ->middleware('throttle:10,1')
+            ->name('resume');
         Route::post('/purchase-credits', [\App\Http\Controllers\SubscriptionController::class, 'purchaseCredits'])
             ->middleware('throttle:10,1')
             ->name('purchase-credits');
     });
 
-    // Invoices
-    Route::prefix('billing')->name('billing.')->group(function () {
-        Route::get('/invoices', [\App\Http\Controllers\BillingController::class, 'index'])->name('invoices');
-        Route::get('/invoices/{id}', [\App\Http\Controllers\BillingController::class, 'show'])->name('invoices.show');
-        Route::get('/invoices/{id}/download', [\App\Http\Controllers\BillingController::class, 'downloadPdf'])->name('invoices.download');
-    });
+    // Legacy billing URLs → settings
+    Route::redirect('/billing/invoices', '/settings/invoices')->name('billing.invoices');
+    Route::get('/billing/invoices/{id}', function (string $id) {
+        return redirect()->route('settings.invoices.show', $id);
+    })->name('billing.invoices.show');
+    Route::get('/billing/invoices/{id}/download', function (string $id) {
+        return redirect()->route('settings.invoices.download', $id);
+    })->name('billing.invoices.download');
+    Route::post('/billing/invoices/{id}/resend', [\App\Http\Controllers\BillingController::class, 'resendReceipt'])
+        ->middleware('throttle:5,1')
+        ->name('billing.invoices.resend');
 });
 
 require __DIR__.'/admin.php';

@@ -47,8 +47,13 @@ export function CreditsCard() {
                 <p className="text-sm text-foreground">Unlimited credits</p>
             )}
 
-            <div>
+            <div className="flex flex-col gap-2">
                 <Button asChild size="sm" className="w-full">
+                    <Link href="/settings/subscription" prefetch>
+                        Manage subscription
+                    </Link>
+                </Button>
+                <Button asChild size="sm" variant="outline" className="w-full">
                     <Link href="/subscription/plans" prefetch>
                         View plans
                     </Link>

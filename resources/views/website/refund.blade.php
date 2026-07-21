@@ -1,8 +1,18 @@
-import { LegalShell } from '@/components/marketing/legal-shell';
+@extends('layouts.marketing', [
+    'title' => 'Refund Policy - SnapDraft',
+    'description' => 'SnapDraft cancellation and refund policy for subscriptions processed by Lemon Squeezy.',
+])
 
-export default function Refund() {
-    return (
-        <LegalShell title="Refund Policy" lastUpdated="July 14, 2026">
+@section('content')
+    <div class="sd-page-hero">
+        <div class="reveal">
+            <div class="sd-sec-eyebrow">Legal</div>
+            <h1>Refund Policy</h1>
+        </div>
+    </div>
+    <p class="sd-legal-updated">Last updated: July 14, 2026</p>
+    <div class="sd-legal">
+        <div class="sd-prose">
             <p>
                 Payments are processed by Lemon Squeezy as merchant of record. Subscriptions renew
                 automatically until cancelled in the customer portal.
@@ -23,6 +33,6 @@ export default function Refund() {
                 Beta invite credits are complimentary promotional access and are not refundable
                 cash value.
             </p>
-        </LegalShell>
-    );
-}
+        </div>
+    </div>
+@endsection

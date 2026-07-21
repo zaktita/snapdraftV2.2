@@ -120,7 +120,16 @@ return [
     'google' => [
         'client_id'     => env('GOOGLE_CLIENT_ID'),
         'client_secret' => env('GOOGLE_CLIENT_SECRET'),
-        'redirect'      => env('GOOGLE_REDIRECT_URI', '/auth/google/callback'),
+        // Socialite requires an absolute redirect URI. Relative paths are resolved against APP_URL.
+        'redirect'      => (static function (): string {
+            $redirect = (string) env('GOOGLE_REDIRECT_URI', '/auth/google/callback');
+
+            if (str_starts_with($redirect, 'http://') || str_starts_with($redirect, 'https://')) {
+                return $redirect;
+            }
+
+            return rtrim((string) env('APP_URL', 'http://localhost'), '/').'/'.ltrim($redirect, '/');
+        })(),
     ],
 
     'fal' => [

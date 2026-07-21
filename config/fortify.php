@@ -146,7 +146,8 @@ return [
     'features' => [
         Features::registration(),
         Features::resetPasswords(),
-        Features::emailVerification(),
+        // Re-enable with User implementing MustVerifyEmail when mail is ready.
+        // Features::emailVerification(),
         Features::twoFactorAuthentication([
             'confirm' => true,
             'confirmPassword' => true,

@@ -66,7 +66,7 @@ class SubscriptionController extends Controller
 
             // Get current user's subscription info
             $subscription = $user->subscription();
-            $currentTier = $subscription?->name ?? null;
+            $currentTier = $subscription?->plan?->slug ?? null;
             $creditsRemaining = $subscription ? $subscription->creditsRemaining() : 0;
             $creditsTotal = $subscription ? $subscription->creditsLimit() : 0;
             $remainingSlots = SubscriptionService::getRemainingProjectSlots($user);
@@ -196,15 +196,17 @@ class SubscriptionController extends Controller
     public function portal(): Response
     {
         $user = Auth::user();
-
-        // Get active subscription from subscriptions table
         $activeSubscription = $user->subscription();
-        
+
         $subscription = null;
         if ($activeSubscription) {
+            $updateSubscriptionUrl = $activeSubscription->metadata['customer_portal_update_subscription']
+                ?? $activeSubscription->customer_portal_url;
+
             $subscription = [
                 'id' => $activeSubscription->id,
-                'tier' => $activeSubscription->name,
+                'tier' => $activeSubscription->plan?->slug ?? 'plan',
+                'plan_name' => $activeSubscription->plan?->name,
                 'billing_period' => $activeSubscription->billing_period,
                 'status' => $activeSubscription->status,
                 'price' => $activeSubscription->price,
@@ -215,22 +217,24 @@ class SubscriptionController extends Controller
                 'renews_at' => $activeSubscription->renews_at,
                 'ends_at' => $activeSubscription->ends_at,
                 'cancelled_at' => $activeSubscription->cancelled_at,
-                'auto_renew' => !$activeSubscription->cancelled_at,
+                'auto_renew' => ! $activeSubscription->cancelled_at && $activeSubscription->status === 'active',
+                'on_grace_period' => $activeSubscription->isOnGracePeriod(),
                 'customer_portal_url' => $activeSubscription->customer_portal_url,
                 'update_payment_url' => $activeSubscription->update_payment_url,
+                'update_subscription_url' => $updateSubscriptionUrl,
                 'on_trial' => $activeSubscription->onTrial(),
             ];
         }
 
-        // Get all user subscriptions (history)
         $subscriptionHistory = $user->subscriptions()
+            ->with('plan')
             ->latest()
             ->limit(10)
             ->get()
-            ->map(function($sub) {
+            ->map(function ($sub) {
                 return [
                     'id' => $sub->id,
-                    'tier' => $sub->name,
+                    'tier' => $sub->plan?->slug ?? 'plan',
                     'status' => $sub->status,
                     'billing_period' => $sub->billing_period,
                     'started_at' => $sub->created_at,
@@ -245,16 +249,11 @@ class SubscriptionController extends Controller
     }
 
     /**
-     * Create checkout session for subscription upgrade.
+     * Create checkout for a new subscription.
+     * Existing Lemon Squeezy subscribers change plans via the customer portal.
      */
     public function upgrade(Request $request)
     {
-        Log::info('🚀 Subscription upgrade request received', [
-            'tier' => $request->input('tier'),
-            'billing_period' => $request->input('billing_period'),
-            'user_id' => Auth::id(),
-        ]);
-
         $request->validate([
             'tier' => ['required', 'string', 'in:starter,pro,business'],
             'billing_period' => 'required|in:monthly,yearly',
@@ -264,76 +263,46 @@ class SubscriptionController extends Controller
         $tier = $request->tier;
         $billingPeriod = $request->billing_period;
 
-        Log::info('📋 Processing upgrade', [
-            'tier' => $tier,
-            'billing_period' => $billingPeriod,
-            'user_email' => $user->email,
-        ]);
+        $existing = $user->subscription();
+        if ($existing && $existing->lemonsqueezy_id && $existing->provider === 'lemonsqueezy') {
+            $portalUrl = $existing->metadata['customer_portal_update_subscription']
+                ?? $existing->customer_portal_url;
 
-        // Get the plan from database
+            if ($portalUrl) {
+                return Inertia::location($portalUrl);
+            }
+
+            return back()->with('error', 'You already have an active subscription. Use Manage Subscription to change your plan.');
+        }
+
         $plan = Plan::where('slug', $tier)->first();
-        
-        if (!$plan) {
-            Log::error('❌ Plan not found', ['tier' => $tier]);
+        if (! $plan) {
             return back()->with('error', 'Invalid subscription plan selected.');
         }
 
-        Log::info('✅ Plan found', [
-            'plan_id' => $plan->id,
-            'plan_name' => $plan->name,
-            'monthly_variant' => $plan->provider_variant_monthly,
-            'yearly_variant' => $plan->provider_variant_yearly,
-        ]);
-
-        // Get the variant ID based on billing period
-        $variantId = $billingPeriod === 'yearly' 
-            ? $plan->provider_variant_yearly 
+        $variantId = $billingPeriod === 'yearly'
+            ? $plan->provider_variant_yearly
             : $plan->provider_variant_monthly;
-        
-        Log::info('🎯 Selected variant', [
-            'billing_period' => $billingPeriod,
-            'variant_id' => $variantId,
-        ]);
-        
-        // Reject missing or placeholder IDs left by PlanSeeder when .env variants were empty
-        if (!$variantId || !ctype_digit((string) $variantId)) {
-            Log::error('❌ Variant ID not configured or invalid', [
-                'tier' => $tier,
-                'billing_period' => $billingPeriod,
-                'variant_id' => $variantId,
-            ]);
+
+        if (! $variantId || ! ctype_digit((string) $variantId)) {
             return back()->with('error', 'Plan variant not configured. Please contact support.');
         }
 
-        // Check if API keys are configured
         $storeId = config('services.lemonsqueezy.store_id');
         $apiKey = config('services.lemonsqueezy.api_key');
-        
-        Log::info('🔑 Checking API configuration', [
-            'has_store_id' => !empty($storeId),
-            'has_api_key' => !empty($apiKey),
-            'store_id' => $storeId,
-        ]);
-        
+
         if (empty($storeId) || empty($apiKey)) {
-            Log::info('Demo mode: Subscription upgrade requested (missing API keys)', [
-                'user_id' => $user->id,
-                'tier' => $tier,
-                'billing_period' => $billingPeriod,
-            ]);
-            
-            return back()->with('info', '🎨 Demo Mode: Configure Lemon Squeezy API keys in .env to enable live payments.');
+            return back()->with('info', 'Demo Mode: Configure Lemon Squeezy API keys in .env to enable live payments.');
         }
 
         try {
             $httpClient = Http::withHeaders([
                 'Accept' => 'application/vnd.api+json',
                 'Content-Type' => 'application/vnd.api+json',
-                'Authorization' => 'Bearer ' . $apiKey,
+                'Authorization' => 'Bearer '.$apiKey,
             ]);
 
-            // Disable SSL verification only when explicitly configured (e.g. local XAMPP dev)
-            if (!config('services.lemonsqueezy.verify_ssl', true)) {
+            if (! config('services.lemonsqueezy.verify_ssl', true)) {
                 $httpClient = $httpClient->withOptions(['verify' => false]);
             }
 
@@ -341,6 +310,11 @@ class SubscriptionController extends Controller
                 'data' => [
                     'type' => 'checkouts',
                     'attributes' => [
+                        'product_options' => [
+                            'redirect_url' => route('dashboard', absolute: true),
+                            'receipt_button_text' => 'Go to dashboard',
+                            'enabled_variants' => [(int) $variantId],
+                        ],
                         'checkout_data' => [
                             'email' => $user->email,
                             'name' => $user->name,
@@ -368,32 +342,29 @@ class SubscriptionController extends Controller
                 ],
             ]);
 
-            if (!$response->successful()) {
+            if (! $response->successful()) {
                 Log::error('Lemon Squeezy checkout failed', [
                     'status' => $response->status(),
                     'response' => $response->json(),
                     'variant_id' => $variantId,
-                    'store_id' => $storeId,
-                    'tier' => $tier,
                 ]);
                 $detail = data_get($response->json(), 'errors.0.detail');
+
                 return back()->with('error', $detail
                     ? "Checkout failed: {$detail}"
                     : 'Failed to create checkout session. Please try again.');
             }
 
             $checkoutUrl = $response->json('data.attributes.url');
-
             if (empty($checkoutUrl)) {
                 return back()->with('error', 'Failed to create checkout session. Please try again.');
             }
 
             app(PostHogService::class)->capture((string) $user->id, 'upgrade_checkout_started', [
-                'plan'           => $tier,
+                'plan' => $tier,
                 'billing_period' => $billingPeriod,
             ]);
 
-            // Redirect to Lemon Squeezy checkout
             return Inertia::location($checkoutUrl);
         } catch (\Exception $e) {
             Log::error('Lemon Squeezy checkout error', [
@@ -401,47 +372,58 @@ class SubscriptionController extends Controller
                 'tier' => $tier,
                 'error' => $e->getMessage(),
             ]);
+
             return back()->with('error', 'Failed to create checkout session. Please try again.');
         }
     }
 
     /**
-     * Cancel subscription.
+     * Cancel subscription at period end (monthly and yearly).
      */
     public function downgrade()
     {
         $user = Auth::user();
         $subscription = $user->subscription();
 
-        if (!$subscription) {
+        if (! $subscription || ! $subscription->lemonsqueezy_id) {
             return back()->with('error', 'No active subscription found.');
         }
 
+        if ($subscription->isOnGracePeriod()) {
+            return back()->with('info', 'Your subscription is already set to cancel at the end of the billing period.');
+        }
+
         try {
-            // Cancel Lemon Squeezy subscription via API
             $apiKey = config('services.lemonsqueezy.api_key');
-            
             $httpClient = Http::withHeaders([
                 'Accept' => 'application/vnd.api+json',
                 'Content-Type' => 'application/vnd.api+json',
-                'Authorization' => 'Bearer ' . $apiKey,
+                'Authorization' => 'Bearer '.$apiKey,
             ]);
 
-            // Disable SSL verification only when explicitly configured (e.g. local XAMPP dev)
-            if (!config('services.lemonsqueezy.verify_ssl', true)) {
+            if (! config('services.lemonsqueezy.verify_ssl', true)) {
                 $httpClient = $httpClient->withOptions(['verify' => false]);
             }
 
-            $response = $httpClient->delete('https://api.lemonsqueezy.com/v1/subscriptions/' . $subscription->lemonsqueezy_id);
+            $response = $httpClient->delete('https://api.lemonsqueezy.com/v1/subscriptions/'.$subscription->lemonsqueezy_id);
 
             if ($response->successful()) {
-                // Update subscription record (webhook will also handle this)
+                $attributes = $response->json('data.attributes') ?? [];
+                $endsAt = ! empty($attributes['ends_at'])
+                    ? $attributes['ends_at']
+                    : ($subscription->renews_at ?? now()->addMonth());
+
                 $subscription->update([
                     'status' => 'cancelled',
                     'cancelled_at' => now(),
+                    'ends_at' => $endsAt,
+                    'customer_portal_url' => $attributes['urls']['customer_portal'] ?? $subscription->customer_portal_url,
+                    'update_payment_url' => $attributes['urls']['update_payment_method'] ?? $subscription->update_payment_url,
                 ]);
 
-                return back()->with('success', 'Subscription cancelled. You will retain access until the end of your billing period.');
+                $accessUntil = \Carbon\Carbon::parse($endsAt)->toFormattedDateString();
+
+                return back()->with('success', "Subscription cancelled. You keep full access until {$accessUntil}. Unused time is not refunded.");
             }
 
             return back()->with('error', 'Failed to cancel subscription. Please contact support.');
@@ -451,12 +433,83 @@ class SubscriptionController extends Controller
                 'subscription_id' => $subscription->id,
                 'error' => $e->getMessage(),
             ]);
+
             return back()->with('error', 'An error occurred while cancelling your subscription.');
         }
     }
 
     /**
-     * Purchase additional credits.
+     * Resume a cancelled subscription during the grace period.
+     */
+    public function resume()
+    {
+        $user = Auth::user();
+        $subscription = $user->subscription();
+
+        if (! $subscription || ! $subscription->lemonsqueezy_id) {
+            return back()->with('error', 'No subscription found to resume.');
+        }
+
+        if (! $subscription->isOnGracePeriod()) {
+            return back()->with('error', 'Only cancelled subscriptions within the paid period can be resumed.');
+        }
+
+        try {
+            $apiKey = config('services.lemonsqueezy.api_key');
+            $httpClient = Http::withHeaders([
+                'Accept' => 'application/vnd.api+json',
+                'Content-Type' => 'application/vnd.api+json',
+                'Authorization' => 'Bearer '.$apiKey,
+            ]);
+
+            if (! config('services.lemonsqueezy.verify_ssl', true)) {
+                $httpClient = $httpClient->withOptions(['verify' => false]);
+            }
+
+            $response = $httpClient->patch(
+                'https://api.lemonsqueezy.com/v1/subscriptions/'.$subscription->lemonsqueezy_id,
+                [
+                    'data' => [
+                        'type' => 'subscriptions',
+                        'id' => (string) $subscription->lemonsqueezy_id,
+                        'attributes' => [
+                            'cancelled' => false,
+                        ],
+                    ],
+                ]
+            );
+
+            if ($response->successful()) {
+                $attributes = $response->json('data.attributes') ?? [];
+
+                $subscription->update([
+                    'status' => 'active',
+                    'cancelled_at' => null,
+                    'ends_at' => null,
+                    'renews_at' => ! empty($attributes['renews_at'])
+                        ? $attributes['renews_at']
+                        : $subscription->renews_at,
+                    'customer_portal_url' => $attributes['urls']['customer_portal'] ?? $subscription->customer_portal_url,
+                    'update_payment_url' => $attributes['urls']['update_payment_method'] ?? $subscription->update_payment_url,
+                ]);
+
+                return back()->with('success', 'Subscription resumed. Billing will continue as before.');
+            }
+
+            return back()->with('error', 'Failed to resume subscription. Please try the customer portal or contact support.');
+        } catch (\Exception $e) {
+            Log::error('Subscription resume error', [
+                'user_id' => $user->id,
+                'subscription_id' => $subscription->id,
+                'error' => $e->getMessage(),
+            ]);
+
+            return back()->with('error', 'An error occurred while resuming your subscription.');
+        }
+    }
+
+    /**
+     * Purchase additional credits (not available in beta).
      */
     public function purchaseCredits(Request $request)
     {
@@ -464,8 +517,6 @@ class SubscriptionController extends Controller
             'amount' => 'required|integer|min:1|max:1000',
         ]);
 
-        // Credits are included with your plan and reset automatically on your monthly renewal date.
-        // One-time credit top-up packs are not available during the beta period.
         return back()->with('info', 'Your credits reset automatically each month with your plan. One-time credit top-ups are not available during the beta period - your next batch will be available at your renewal date.');
     }
 }

@@ -6,14 +6,13 @@ use App\Http\Controllers\Controller;
 use App\Models\Plan;
 use App\Services\BlogRepository;
 use App\Services\SubscriptionService;
-use Inertia\Inertia;
-use Inertia\Response;
+use Illuminate\View\View;
 
 class HomeController extends Controller
 {
     public function __construct(protected BlogRepository $posts) {}
 
-    public function __invoke(): Response
+    public function __invoke(): View
     {
         $plans = Plan::active()
             ->ordered()
@@ -61,7 +60,7 @@ class HomeController extends Controller
             ->values()
             ->all();
 
-        return Inertia::render('website/home', [
+        return view('website.home', [
             'plans' => $plans,
             'posts' => $posts,
         ]);

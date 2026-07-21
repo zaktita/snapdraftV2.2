@@ -5,12 +5,11 @@ namespace App\Http\Controllers\Marketing;
 use App\Http\Controllers\Controller;
 use App\Models\Plan;
 use App\Services\SubscriptionService;
-use Inertia\Inertia;
-use Inertia\Response;
+use Illuminate\View\View;
 
 class PricingController extends Controller
 {
-    public function index(): Response
+    public function index(): View
     {
         $plans = Plan::active()
             ->ordered()
@@ -46,7 +45,7 @@ class PricingController extends Controller
             ->values()
             ->toArray();
 
-        return Inertia::render('website/pricing', [
+        return view('website.pricing', [
             'plans' => $plans,
         ]);
     }

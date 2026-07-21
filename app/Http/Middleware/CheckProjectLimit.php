@@ -16,23 +16,26 @@ class CheckProjectLimit
      */
     public function handle(Request $request, Closure $next): Response
     {
-        // Bypass limit checks in local/testing environments
-        if (app()->environment('local', 'testing')) {
+        // Bypass in local only so developers can iterate freely.
+        // Testing and production always enforce plan limits.
+        if (app()->environment('local')) {
             return $next($request);
         }
 
         $user = $request->user();
 
-        if (!$user) {
+        if (! $user) {
             return redirect()->route('login');
         }
 
-        if (!SubscriptionService::canCreateProject($user)) {
-            $limits = SubscriptionService::getTierLimits($user->currentTier() ?? 'free');
-            $tierName = SubscriptionService::getTierDisplayName($user->currentTier() ?? 'free');
+        if (! SubscriptionService::canCreateProject($user)) {
+            $subscription = $user->subscription();
+            $limit = $subscription?->projectsLimit() ?? 0;
+            $tierName = $subscription?->plan?->name
+                ?? SubscriptionService::getTierDisplayName($user->currentTier() ?? 'free');
 
-            return back()->with('error', 
-                "You've reached the maximum of {$limits['max_projects']} project(s) for your {$tierName}. Please upgrade to create more projects."
+            return back()->with('error',
+                "You've reached the maximum of {$limit} project(s) for your {$tierName}. Please upgrade to create more projects."
             );
         }
 

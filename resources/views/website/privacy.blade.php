@@ -1,10 +1,20 @@
-import { LegalShell } from '@/components/marketing/legal-shell';
+@extends('layouts.marketing', [
+    'title' => 'Privacy Policy - SnapDraft',
+    'description' => 'How SnapDraft collects, uses, and retains account, billing, and project data.',
+])
 
-export default function Privacy() {
-    return (
-        <LegalShell title="Privacy Policy" lastUpdated="July 14, 2026">
+@section('content')
+    <div class="sd-page-hero">
+        <div class="reveal">
+            <div class="sd-sec-eyebrow">Legal</div>
+            <h1>Privacy Policy</h1>
+        </div>
+    </div>
+    <p class="sd-legal-updated">Last updated: July 14, 2026</p>
+    <div class="sd-legal">
+        <div class="sd-prose">
             <p>
-                SnapDraft (&quot;we&quot;, &quot;us&quot;) provides AI-assisted visual generation for
+                SnapDraft ("we", "us") provides AI-assisted visual generation for
                 brands. This policy explains what we collect and how we use it.
             </p>
             <h2>What we collect</h2>
@@ -32,6 +42,6 @@ export default function Privacy() {
             </p>
             <h2>Contact</h2>
             <p>Questions: contact@snapdraft.com</p>
-        </LegalShell>
-    );
-}
+        </div>
+    </div>
+@endsection

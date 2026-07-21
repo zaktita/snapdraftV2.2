@@ -118,7 +118,10 @@ export function AppSidebar() {
                 },
             ],
         },
-        {
+    ];
+
+    if (!auth.user?.subscription_read_only) {
+        dynamicProjectNavGroups.push({
             title: 'Tools',
             items: [
                 {
@@ -127,9 +130,8 @@ export function AppSidebar() {
                     icon: PenTool,
                 },
             ],
-        },
-
-    ];
+        });
+    }
 
     // Add admin section for admins
     if (user.is_admin) {
@@ -200,17 +202,19 @@ export function AppSidebar() {
                             </Link>
                         </SidebarMenuButton>
                     </SidebarMenuItem>
-                    <SidebarMenuItem className="mt-2">
-                        <SidebarMenuButton
-                            asChild
-                            className="bg-primary text-primary-foreground hover:bg-[var(--sd-or2)] hover:text-primary-foreground transition-colors duration-150"
-                        >
-                            <Link href="/projects/create" prefetch>
-                                <FolderPlus />
-                                <span>New Project</span>
-                            </Link>
-                        </SidebarMenuButton>
-                    </SidebarMenuItem>
+                    {!auth.user?.subscription_read_only && (
+                        <SidebarMenuItem className="mt-2">
+                            <SidebarMenuButton
+                                asChild
+                                className="bg-primary text-primary-foreground hover:bg-[var(--sd-or2)] hover:text-primary-foreground transition-colors duration-150"
+                            >
+                                <Link href="/projects/create" prefetch>
+                                    <FolderPlus />
+                                    <span>New Project</span>
+                                </Link>
+                            </SidebarMenuButton>
+                        </SidebarMenuItem>
+                    )}
                 </SidebarMenu>
             </SidebarHeader>
 

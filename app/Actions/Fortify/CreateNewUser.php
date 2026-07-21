@@ -34,11 +34,11 @@ class CreateNewUser implements CreatesNewUsers
             'password' => $this->passwordRules(),
         ])->validate();
 
+        // is_admin defaults to false in the DB; never mass-assign privilege flags.
         $user = User::create([
             'name'     => $input['name'],
             'email'    => $input['email'],
             'password' => $input['password'],
-            'is_admin' => false,
         ]);
 
         $signupMethod = 'email';

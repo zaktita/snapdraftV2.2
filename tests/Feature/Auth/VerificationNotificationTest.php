@@ -12,6 +12,13 @@ class VerificationNotificationTest extends TestCase
 {
     use RefreshDatabase;
 
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        $this->markTestSkipped('Email verification is temporarily disabled.');
+    }
+
     public function test_sends_verification_notification(): void
     {
         Notification::fake();

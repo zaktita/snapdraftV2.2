@@ -18,12 +18,16 @@ return Application::configure(basePath: dirname(__DIR__))
         commands: __DIR__.'/../routes/console.php',
         health: '/up',
         then: function () {
-            Route::middleware('api')
+            Route::middleware('throttle:webhooks')
                 ->prefix('webhooks')
                 ->group(base_path('routes/webhooks.php'));
         },
     )
     ->withMiddleware(function (Middleware $middleware): void {
+        // ngrok / reverse proxies terminate TLS; trust X-Forwarded-* so asset() and
+        // route() emit https:// (avoids mixed-content blocks on the tunnel URL).
+        $middleware->trustProxies(at: '*');
+
         $middleware->encryptCookies(except: ['appearance', 'sidebar_state']);
 
         // Webhooks only - authenticated canvas /api/* routes use session cookies and must stay CSRF-protected
@@ -44,6 +48,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'throttle.user' => \App\Http\Middleware\ThrottlePerUser::class,
             'admin' => \App\Http\Middleware\EnsureUserIsAdmin::class,
             'has.credits' => \App\Http\Middleware\EnsureUserHasCredits::class,
+            'can.view.projects' => \App\Http\Middleware\EnsureCanViewProjects::class,
             'not.suspended' => \App\Http\Middleware\EnsureUserNotSuspended::class,
             'check.project.limit' => \App\Http\Middleware\CheckProjectLimit::class,
             'check.csv.limit' => \App\Http\Middleware\CheckCsvRowLimit::class,

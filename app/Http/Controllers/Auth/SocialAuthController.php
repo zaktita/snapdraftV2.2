@@ -57,25 +57,27 @@ class SocialAuthController extends Controller
         $user = User::where('email', $googleUser->getEmail())->first();
 
         if ($user) {
-            $user->update([
+            $user->forceFill([
                 'google_id' => $googleUser->getId(),
                 'avatar'    => $googleUser->getAvatar(),
                 // Mark email as verified if it isn't already
                 'email_verified_at' => $user->email_verified_at ?? now(),
-            ]);
+            ])->save();
             Auth::login($user, remember: true);
             return redirect()->intended(route('dashboard'));
         }
 
         // 3. Brand new user - create account (invite optional)
-        $user = User::create([
-            'name'              => $googleUser->getName(),
-            'email'             => $googleUser->getEmail(),
-            'google_id'         => $googleUser->getId(),
-            'avatar'            => $googleUser->getAvatar(),
-            'email_verified_at' => now(), // Google already verified the email
-            'password'          => null,  // No password for OAuth-only users
+        $user = new User([
+            'name'     => $googleUser->getName(),
+            'email'    => $googleUser->getEmail(),
+            'google_id' => $googleUser->getId(),
+            'avatar'   => $googleUser->getAvatar(),
+            'password' => null, // No password for OAuth-only users
         ]);
+        $user->forceFill([
+            'email_verified_at' => now(), // Google already verified the email
+        ])->save();
 
         $signupMethod = 'google';
         $inviteCode = strtoupper(trim((string) session()->pull('oauth_invite_code', '')));

@@ -70,9 +70,23 @@ Route::middleware(['auth', 'verified', 'not.suspended', 'admin'])->prefix('admin
     Route::get('/analytics', [AdminDashboardController::class, 'analytics'])->name('analytics');
     Route::get('/usage', [AdminDashboardController::class, 'usage'])->name('usage');
 
+    // ── Queue / failed jobs ──────────────────────────────────────
+    Route::get('/failed-jobs', [AdminDashboardController::class, 'failedJobs'])->name('failed-jobs');
+    Route::post('/failed-jobs/retry-all', [AdminDashboardController::class, 'retryAllFailedJobs'])
+        ->middleware(['password.confirm', 'throttle:5,1'])
+        ->name('failed-jobs.retry-all');
+    Route::post('/failed-jobs/{uuid}/retry', [AdminDashboardController::class, 'retryFailedJob'])
+        ->middleware(['password.confirm', 'throttle:20,1'])
+        ->name('failed-jobs.retry');
+    Route::delete('/failed-jobs/{uuid}', [AdminDashboardController::class, 'forgetFailedJob'])
+        ->middleware(['password.confirm', 'throttle:20,1'])
+        ->name('failed-jobs.forget');
+
+    // ── Audit log ────────────────────────────────────────────────
+    Route::get('/audit-log', [AdminDashboardController::class, 'auditLog'])->name('audit-log');
+
     // ── Feedback Export ──────────────────────────────────────────
     Route::get('/feedback/download', [AdminDashboardController::class, 'downloadFeedback'])->name('feedback.download');
 });
-
 // Stop-impersonation is outside admin middleware: the active user is the impersonated non-admin
 Route::middleware(['auth'])->post('/admin/impersonate/stop', [AdminDashboardController::class, 'stopImpersonation'])->name('admin.impersonate.stop');

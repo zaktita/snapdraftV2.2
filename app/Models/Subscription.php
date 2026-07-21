@@ -119,6 +119,29 @@ class Subscription extends Model
     }
 
     /**
+     * Paid access still valid (active, or cancelled within grace period).
+     */
+    public function isEntitled(): bool
+    {
+        if ($this->hasEnded()) {
+            return false;
+        }
+
+        return $this->status === 'active'
+            || ($this->status === 'cancelled' && $this->ends_at && $this->ends_at->isFuture());
+    }
+
+    /**
+     * Cancelled but still within the paid billing period (can resume).
+     */
+    public function isOnGracePeriod(): bool
+    {
+        return $this->status === 'cancelled'
+            && $this->ends_at
+            && $this->ends_at->isFuture();
+    }
+
+    /**
      * Check if subscription is past due.
      */
     public function isPastDue(): bool

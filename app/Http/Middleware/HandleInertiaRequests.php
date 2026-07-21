@@ -51,6 +51,8 @@ class HandleInertiaRequests extends Middleware
                         'credits_total' => $request->user()->creditsTotal(),
                         'subscription_tier' => $request->user()->currentTier(),
                         'subscription_plan_name' => $request->user()->subscription()?->plan?->name,
+                        'subscription_entitled' => $request->user()->hasActiveSubscription(),
+                        'subscription_read_only' => $request->user()->isSubscriptionReadOnly(),
                     ])
                     : null,
             ],
@@ -60,6 +62,7 @@ class HandleInertiaRequests extends Middleware
                 'success' => session('success'),
                 'error' => session('error'),
                 'warning' => session('warning'),
+                'info' => session('info'),
             ],
             // Backwards-compatible top-level error for existing pages expecting page.props.error
             'error' => session('error'),

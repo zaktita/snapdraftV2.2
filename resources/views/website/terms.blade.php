@@ -1,8 +1,18 @@
-import { LegalShell } from '@/components/marketing/legal-shell';
+@extends('layouts.marketing', [
+    'title' => 'Terms of Service - SnapDraft',
+    'description' => 'Terms governing use of SnapDraft accounts, plans, acceptable use, and intellectual property.',
+])
 
-export default function Terms() {
-    return (
-        <LegalShell title="Terms of Service" lastUpdated="July 14, 2026">
+@section('content')
+    <div class="sd-page-hero">
+        <div class="reveal">
+            <div class="sd-sec-eyebrow">Legal</div>
+            <h1>Terms of Service</h1>
+        </div>
+    </div>
+    <p class="sd-legal-updated">Last updated: July 14, 2026</p>
+    <div class="sd-legal">
+        <div class="sd-prose">
             <p>
                 By using SnapDraft you agree to these terms. If you do not agree, do not use the
                 service.
@@ -21,7 +31,7 @@ export default function Terms() {
             <h2>Acceptable use</h2>
             <p>
                 Do not use SnapDraft for illegal content, abuse of our APIs, attempts to bypass
-                billing, or infringement of others&apos; rights.
+                billing, or infringement of others' rights.
             </p>
             <h2>Intellectual property</h2>
             <p>
@@ -31,11 +41,11 @@ export default function Terms() {
             </p>
             <h2>Disclaimer</h2>
             <p>
-                The service is provided &quot;as is&quot;. We do not guarantee uninterrupted
+                The service is provided "as is". We do not guarantee uninterrupted
                 availability or specific creative outcomes.
             </p>
             <h2>Contact</h2>
             <p>contact@snapdraft.com</p>
-        </LegalShell>
-    );
-}
+        </div>
+    </div>
+@endsection

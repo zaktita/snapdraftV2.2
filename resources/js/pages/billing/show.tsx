@@ -3,8 +3,9 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import AppLayout from '@/layouts/app-layout';
+import SettingsLayout from '@/layouts/settings/layout';
 import { type BreadcrumbItem } from '@/types';
-import { Head, Link } from '@inertiajs/react';
+import { Head, Link, router } from '@inertiajs/react';
 import { 
     FileText,
     Download,
@@ -16,23 +17,16 @@ import {
     CreditCard,
     MapPin,
     Mail,
-    User
+    User,
+    Send
 } from 'lucide-react';
 import { format } from 'date-fns';
+import { useState } from 'react';
 
 const breadcrumbs: BreadcrumbItem[] = [
-    {
-        title: 'Billing',
-        href: '/billing/invoices',
-    },
-    {
-        title: 'Invoices',
-        href: '/billing/invoices',
-    },
-    {
-        title: 'Invoice Details',
-        href: '#',
-    },
+    { title: 'Settings', href: '/settings/profile' },
+    { title: 'Invoices', href: '/settings/invoices' },
+    { title: 'Invoice details', href: '#' },
 ];
 
 interface InvoiceItem {
@@ -68,6 +62,7 @@ interface Invoice {
     billing_postal_code: string | null;
     billing_country: string | null;
     items: InvoiceItem[];
+    invoice_url?: string | null;
     transaction: Transaction | null;
 }
 
@@ -76,6 +71,16 @@ interface InvoiceShowProps {
 }
 
 export default function InvoiceShow({ invoice }: InvoiceShowProps) {
+    const [resending, setResending] = useState(false);
+
+    const handleResend = () => {
+        setResending(true);
+        router.post(`/settings/invoices/${invoice.id}/resend`, {}, {
+            preserveScroll: true,
+            onFinish: () => setResending(false),
+        });
+    };
+
     const getStatusBadge = (status: string) => {
         switch (status.toLowerCase()) {
             case 'paid':
@@ -115,23 +120,43 @@ export default function InvoiceShow({ invoice }: InvoiceShowProps) {
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
             <Head title={`Invoice #${invoice.invoice_number}`} />
-            
-            <div className="p-6 md:p-8 max-w-[900px] mx-auto">
+
+            <SettingsLayout wide>
+            <div className="space-y-6">
                 {/* Header */}
-                <div className="mb-6">
-                    <div className="flex items-center justify-between mb-4">
-                        <Link href="/billing/invoices">
+                <div>
+                    <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+                        <Link href="/settings/invoices">
                             <Button variant="ghost" size="sm" className="gap-2">
                                 <ArrowLeft className="h-4 w-4" />
                                 Back to Invoices
                             </Button>
                         </Link>
-                        <Button variant="outline" className="gap-2" asChild>
-                            <a href={`/billing/invoices/${invoice.id}/download`} download>
-                                <Download className="h-4 w-4" />
-                                Download PDF
-                            </a>
-                        </Button>
+                        <div className="flex flex-wrap items-center gap-2">
+                            <Button
+                                variant="outline"
+                                className="gap-2"
+                                onClick={handleResend}
+                                disabled={resending}
+                            >
+                                <Send className="h-4 w-4" />
+                                {resending ? 'Sending…' : 'Email receipt'}
+                            </Button>
+                            {invoice.invoice_url && (
+                                <Button variant="outline" className="gap-2" asChild>
+                                    <a href={invoice.invoice_url} target="_blank" rel="noopener noreferrer">
+                                        <FileText className="h-4 w-4" />
+                                        Lemon Squeezy
+                                    </a>
+                                </Button>
+                            )}
+                            <Button variant="outline" className="gap-2" asChild>
+                                <a href={`/settings/invoices/${invoice.id}/download`} download>
+                                    <Download className="h-4 w-4" />
+                                    Download PDF
+                                </a>
+                            </Button>
+                        </div>
                     </div>
 
                     <div className="flex items-center justify-between">
@@ -335,6 +360,7 @@ export default function InvoiceShow({ invoice }: InvoiceShowProps) {
                     </Card>
                 </div>
             </div>
+            </SettingsLayout>
         </AppLayout>
     );
 }

@@ -49,7 +49,7 @@
   --sd-font-body: 'Inter', 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
 
   /* Semantic app tokens ← mapped from brand palette */
-  --background: var(--sd-canvas);
+  --background: #ffffff;
   --foreground: var(--sd-text);
   --surface-0: var(--sd-surface);
   --surface-1: var(--sd-surface-muted);
@@ -84,7 +84,7 @@
   --chart-3: var(--sd-yellow);
   --chart-4: var(--sd-pink-deep);
   --chart-5: var(--sd-ink);
-  --sidebar: var(--sd-surface);
+  --sidebar: #fffefc;
   --sidebar-foreground: var(--sd-text);
   --sidebar-primary: var(--sd-or);
   --sidebar-primary-foreground: #ffffff;
@@ -971,14 +971,14 @@
 }
 
 .sd-btn-hero-ghost-inv {
-  border-color: rgb(255 255 255 / 35%);
-  color: #fff;
+  border-color: var(--sd-or);
+  color: var(--sd-or);
   background: transparent;
 }
 
 .sd-btn-hero-ghost-inv:hover {
-  border-color: #fff;
-  color: #fff;
+  border-color: var(--sd-or);
+  color: var(--sd-or);
   background: rgb(255 255 255 / 8%);
 }
 
@@ -1223,7 +1223,7 @@
 .sd-hero h1 {
   font-family: var(--sd-font-display, 'Archivo Black', 'Arial Black', sans-serif);
   font-weight: 400;
-  font-size: clamp(42px, 5.5vw, 68px);
+  font-size: clamp(42px, 5.5vw, 58px);
   line-height: 1.08;
   letter-spacing: -0.03em;
   font-weight: 400;
@@ -2040,7 +2040,7 @@
 }
 
 .sd-sec-eyebrow {
-  display: inline-block;
+  display: block;
   font-size: 11px;
   font-weight: 800;
   letter-spacing: 0.04em;
@@ -2051,6 +2051,7 @@
   text-align: center;
   padding: 6px 12px;
   border-radius: 8px;
+  width: fit-content;
 }
 
 .sd-sec-head {
@@ -2385,11 +2386,11 @@
 /* ── CTA ── */
 
 .sd-cta {
-  background: var(--sd-surface-muted);
+
   color: var(--sd-text);
   text-align: center;
   padding: 100px 32px;
-  border-top: 1px solid var(--sd-border);
+
 }
 
 .sd-cta h2 {
@@ -2674,7 +2675,7 @@
     display: inline-flex;
   }
 
-  .sd-nav-mobile {
+  .sd-nav-mobile.is-open {
     display: flex;
   }
 

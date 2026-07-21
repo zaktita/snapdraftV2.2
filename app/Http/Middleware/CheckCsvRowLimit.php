@@ -16,28 +16,31 @@ class CheckCsvRowLimit
      */
     public function handle(Request $request, Closure $next): Response
     {
-        // Bypass limit checks in local/testing environments
-        if (app()->environment('local', 'testing')) {
+        // Bypass in local only so developers can iterate freely.
+        // Testing and production always enforce plan limits.
+        if (app()->environment('local')) {
             return $next($request);
         }
 
         $user = $request->user();
 
-        if (!$user) {
+        if (! $user) {
             return redirect()->route('login');
         }
+
+        $subscription = $user->subscription();
+        $csvLimit = (int) ($subscription?->capabilities['csv_max_rows'] ?? 0);
+        $tierName = $subscription?->plan?->name
+            ?? SubscriptionService::getTierDisplayName($user->currentTier() ?? 'free');
 
         // Check if CSV file is uploaded (field name is 'csv_file')
         if ($request->hasFile('csv_file')) {
             $csv = $request->file('csv_file');
             $rows = $this->countCsvRows($csv);
 
-            if (!SubscriptionService::canUploadCsvRows($user, $rows)) {
-                $limits = SubscriptionService::getTierLimits($user->currentTier() ?? 'free');
-                $tierName = SubscriptionService::getTierDisplayName($user->currentTier() ?? 'free');
-
-                return back()->with('error', 
-                    "Your CSV has {$rows} rows, but your {$tierName} allows up to {$limits['csv_max_rows']} rows. Please upgrade or reduce the number of rows."
+            if (! SubscriptionService::canUploadCsvRows($user, $rows)) {
+                return back()->with('error',
+                    "Your CSV has {$rows} rows, but your {$tierName} allows up to {$csvLimit} rows. Please upgrade or reduce the number of rows."
                 );
             }
         }
@@ -48,12 +51,9 @@ class CheckCsvRowLimit
             if (is_array($inlineData)) {
                 $rows = count($inlineData);
 
-                if (!SubscriptionService::canUploadCsvRows($user, $rows)) {
-                    $limits = SubscriptionService::getTierLimits($user->currentTier() ?? 'free');
-                    $tierName = SubscriptionService::getTierDisplayName($user->currentTier() ?? 'free');
-
-                    return back()->with('error', 
-                        "Your data has {$rows} rows, but your {$tierName} allows up to {$limits['csv_max_rows']} rows. Please upgrade or reduce the number of rows."
+                if (! SubscriptionService::canUploadCsvRows($user, $rows)) {
+                    return back()->with('error',
+                        "Your data has {$rows} rows, but your {$tierName} allows up to {$csvLimit} rows. Please upgrade or reduce the number of rows."
                     );
                 }
             }

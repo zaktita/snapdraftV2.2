@@ -142,6 +142,7 @@ jobs:
 
             php artisan migrate --force
             php artisan db:seed --class=PlanSeeder --force
+            php artisan production:check --skip-payments || true
 
       - name: Upload built assets to server
         uses: appleboy/scp-action@v0.1.7

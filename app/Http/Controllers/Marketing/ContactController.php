@@ -8,14 +8,13 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
-use Inertia\Inertia;
-use Inertia\Response;
+use Illuminate\View\View;
 
 class ContactController extends Controller
 {
-    public function show(): Response
+    public function show(): View
     {
-        return Inertia::render('website/contact');
+        return view('website.contact');
     }
 
     public function submit(Request $request): RedirectResponse
@@ -40,9 +39,9 @@ class ContactController extends Controller
 
             return back()->withErrors([
                 'message' => 'Something went wrong sending your message. Please try again or email us directly.',
-            ]);
+            ])->withInput();
         }
 
-        return back();
+        return back()->with('success', true);
     }
 }

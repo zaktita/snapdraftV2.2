@@ -18,29 +18,28 @@ class ThrottlePerUser
     {
         $user = $request->user();
 
-        if (!$user) {
+        if (! $user) {
             return $next($request);
         }
 
-        // Create a unique key for this user
-        $key = 'user:' . $user->id;
+        // Include route so CSV (5/min) and progress polling (120/min) do not share a bucket.
+        $routeKey = $request->route()?->getName()
+            ?? $request->path();
+        $key = 'user:'.$user->id.':'.$routeKey.':'.$maxAttempts;
 
-        // Check if user has exceeded the rate limit
         if (RateLimiter::tooManyAttempts($key, $maxAttempts)) {
             $seconds = RateLimiter::availableIn($key);
-            
+
             return response()->json([
                 'message' => 'Too many requests. Please try again later.',
                 'retry_after' => $seconds,
             ], 429);
         }
 
-        // Increment the number of attempts
         RateLimiter::hit($key, $decayMinutes * 60);
 
         $response = $next($request);
 
-        // Add rate limit headers to response
         return $response->withHeaders([
             'X-RateLimit-Limit' => $maxAttempts,
             'X-RateLimit-Remaining' => RateLimiter::remaining($key, $maxAttempts),

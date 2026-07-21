@@ -36,6 +36,16 @@ class UserFactory extends Factory
     }
 
     /**
+     * Privilege flag — set via unguarded factory fill / forceFill only.
+     */
+    public function admin(): static
+    {
+        return $this->state(fn () => [
+            'is_admin' => true,
+        ]);
+    }
+
+    /**
      * Indicate that the model's email address should be unverified.
      */
     public function unverified(): static

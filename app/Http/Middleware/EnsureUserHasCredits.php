@@ -20,7 +20,7 @@ class EnsureUserHasCredits
         // No active subscription - send to plans
         if (!$user || !$user->hasActiveSubscription()) {
             return redirect()->route('subscription.plans')
-                ->with('error', 'Choose a plan or redeem a beta invite to continue.');
+                ->with('error', 'Choose a plan to continue, or redeem an invite code if you have one.');
         }
 
         // Credits exhausted

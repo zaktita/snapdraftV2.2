@@ -28,15 +28,15 @@ class AdminUserSeeder extends Seeder
             return;
         }
 
-        User::updateOrCreate(
-            ['email' => env('ADMIN_SEED_EMAIL', 'admin@snapdraft.com')],
-            [
-                'name' => 'Admin User',
-                'password' => Hash::make($password),
-                'is_admin' => true,
-                'email_verified_at' => now(),
-            ]
-        );
+        $user = User::firstOrNew(['email' => env('ADMIN_SEED_EMAIL', 'admin@snapdraft.com')]);
+        $user->fill([
+            'name' => 'Admin User',
+            'password' => Hash::make($password),
+        ]);
+        $user->forceFill([
+            'is_admin' => true,
+            'email_verified_at' => now(),
+        ])->save();
 
         $this->command?->info('Admin user ensured for local/dev (password from ADMIN_SEED_PASSWORD).');
     }

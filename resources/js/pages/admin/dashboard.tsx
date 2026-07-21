@@ -1,6 +1,6 @@
 import AdminLayout from '@/layouts/admin-layout';
 import { Head, Link, router } from '@inertiajs/react';
-import { Users, FolderOpen, Zap, DollarSign, CreditCard, ShieldCheck, TrendingUp, Activity } from 'lucide-react';
+import { Users, FolderOpen, Zap, DollarSign, CreditCard, ShieldCheck, TrendingUp, Activity, AlertTriangle } from 'lucide-react';
 
 interface DashboardProps {
     stats: {
@@ -18,6 +18,8 @@ interface DashboardProps {
         total_revenue: number;
         revenue_this_month: number;
         subscription_breakdown: Record<string, number>;
+        failed_jobs?: number;
+        pending_jobs?: number;
     };
     recent_users: { id: number; name: string; email: string; created_at: string; subscription_tier: string }[];
     feedback: {
@@ -118,6 +120,27 @@ export default function AdminDashboard({ stats, recent_users, feedback, feedback
                         sub="total generation cost" Icon={Activity} color="bg-pink-500" />
                 </div>
 
+                <div className="grid grid-cols-2 gap-4 lg:grid-cols-2">
+                    <Link href="/admin/failed-jobs" className="block">
+                        <StatCard
+                            label="Failed Jobs"
+                            value={stats.failed_jobs ?? 0}
+                            sub={`${stats.pending_jobs ?? 0} pending in queue`}
+                            Icon={AlertTriangle}
+                            color={(stats.failed_jobs ?? 0) > 0 ? 'bg-red-600' : 'bg-zinc-500'}
+                        />
+                    </Link>
+                    <Link href="/admin/audit-log" className="block">
+                        <StatCard
+                            label="Audit Log"
+                            value="View"
+                            sub="Admin actions trail"
+                            Icon={ShieldCheck}
+                            color="bg-zinc-700"
+                        />
+                    </Link>
+                </div>
+
                 <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
                     <div className="rounded-xl bg-white p-5 shadow-sm ring-1 ring-gray-100">
                         <h2 className="mb-4 text-sm font-semibold text-gray-700">Subscription Breakdown</h2>
@@ -159,6 +182,8 @@ export default function AdminDashboard({ stats, recent_users, feedback, feedback
                         { href: '/admin/credits', label: 'Credits' },
                         { href: '/admin/plans', label: 'Plans' },
                         { href: '/admin/projects', label: 'Projects' },
+                        { href: '/admin/failed-jobs', label: 'Failed Jobs' },
+                        { href: '/admin/audit-log', label: 'Audit Log' },
                         { href: '/admin#feedback', label: 'Feedback' },
                         { href: '/admin/analytics', label: 'Analytics' },
                     ].map((l) => (

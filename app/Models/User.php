@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+// Re-enable with Features::emailVerification() in config/fortify.php when mail is ready.
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -10,7 +11,7 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Fortify\TwoFactorAuthenticatable;
 
-class User extends Authenticatable
+class User extends Authenticatable // implements MustVerifyEmail
 {
     /** @use HasFactory<\Database\Factories\UserFactory> */
     use HasFactory, Notifiable, TwoFactorAuthenticatable;
@@ -28,11 +29,8 @@ class User extends Authenticatable
         'avatar',
         'last_generation_at',
         'total_generations',
-        // Privilege flags: only set from trusted server code (seeders, admin, CreateNewUser).
-        // Never pass $request->all() into User::create/update.
-        'is_admin',
-        'is_suspended',
-        'suspension_reason',
+        // Privilege flags (is_admin, is_suspended, suspension_reason) are NOT fillable.
+        // Set only via forceFill() in trusted admin/seeder code.
     ];
 
     /**
@@ -171,7 +169,18 @@ class User extends Authenticatable
     public function activeSubscription(): HasOne
     {
         return $this->hasOne(Subscription::class)
-            ->where('status', 'active')
+            ->where(function ($query) {
+                $query->where('status', 'active')
+                    ->orWhere(function ($q) {
+                        $q->where('status', 'cancelled')
+                            ->whereNotNull('ends_at')
+                            ->where('ends_at', '>', now());
+                    });
+            })
+            ->where(function ($query) {
+                $query->whereNull('ends_at')
+                    ->orWhere('ends_at', '>', now());
+            })
             ->latest();
     }
 
@@ -211,13 +220,22 @@ class User extends Authenticatable
     private $cachedSubscription = false;
 
     /**
-     * Get the user's active subscription (cached per model instance to avoid N+1 queries).
+     * Get the user's entitled subscription (cached per model instance to avoid N+1 queries).
+     *
+     * Includes cancelled subscriptions still within their paid period (ends_at in the future).
      */
     public function subscription(): ?\App\Models\Subscription
     {
         if ($this->cachedSubscription === false) {
             $this->cachedSubscription = $this->subscriptions()
-                ->where('status', 'active')
+                ->where(function ($query) {
+                    $query->where('status', 'active')
+                        ->orWhere(function ($q) {
+                            $q->where('status', 'cancelled')
+                                ->whereNotNull('ends_at')
+                                ->where('ends_at', '>', now());
+                        });
+                })
                 ->where(function ($query) {
                     $query->whereNull('ends_at')
                         ->orWhere('ends_at', '>', now());
@@ -225,15 +243,24 @@ class User extends Authenticatable
                 ->latest()
                 ->first();
         }
+
         return $this->cachedSubscription;
     }
 
     /**
-     * Check if user has an active subscription.
+     * Check if user has an entitled subscription (active, or cancelled but not yet expired).
      */
     public function hasActiveSubscription(): bool
     {
         return $this->subscription() !== null;
+    }
+
+    /**
+     * True when the user may view past projects but cannot create/generate.
+     */
+    public function isSubscriptionReadOnly(): bool
+    {
+        return ! $this->hasActiveSubscription() && $this->projects()->exists();
     }
 
     /**

@@ -15,6 +15,8 @@ import {
     FolderOpen,
     MessageSquare,
     ClipboardList,
+    AlertTriangle,
+    ScrollText,
 } from 'lucide-react';
 
 interface AdminLayoutProps {
@@ -30,10 +32,11 @@ const navItems = [
     { label: 'Subscriptions', href: '/admin/subscriptions', icon: Receipt },
     { label: 'Plans', href: '/admin/plans', icon: Package },
     { label: 'Projects', href: '/admin/projects', icon: FolderOpen },
+    { label: 'Failed jobs', href: '/admin/failed-jobs', icon: AlertTriangle },
+    { label: 'Audit log', href: '/admin/audit-log', icon: ScrollText },
     { label: 'Feedback', href: '/admin#feedback', icon: MessageSquare },
     { label: 'Usage', href: '/admin/usage', icon: BarChart3 },
 ];
-
 function isActive(href: string, currentPath: string, exact = false) {
     if (exact) return currentPath === href;
     return currentPath.startsWith(href);

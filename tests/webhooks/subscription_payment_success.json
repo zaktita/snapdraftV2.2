@@ -11,7 +11,7 @@
     "id": "55555",
     "attributes": {
       "store_id": 12345,
-      "subscription_id": "sub_abc123",
+      "subscription_id": "12345",
       "customer_id": 67890,
       "billing_reason": "renewal",
       "card_brand": "visa",
@@ -34,6 +34,11 @@
       "discount_total_formatted": "€0.00",
       "tax_formatted": "€0.00",
       "total_formatted": "€89.00",
+      "urls": {
+        "invoice_url": "https://app.lemonsqueezy.com/my-orders/example/subscription-invoice/55555"
+      },
+      "user_name": "Test User",
+      "user_email": "test@example.com",
       "created_at": "2026-03-16T12:00:00.000000Z",
       "updated_at": "2026-03-16T12:00:00.000000Z",
       "test_mode": true

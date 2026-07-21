@@ -15,6 +15,7 @@ class Invoice extends Model
         'user_id',
         'transaction_id',
         'invoice_number',
+        'lemonsqueezy_invoice_id',
         'billing_name',
         'billing_email',
         'billing_address',

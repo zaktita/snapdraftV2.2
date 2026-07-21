@@ -11,21 +11,20 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Validation\Rule;
-use Inertia\Inertia;
-use Inertia\Response;
+use Illuminate\View\View;
 
 class BetaApplicationController extends Controller
 {
-    public function create(): Response|RedirectResponse
+    public function create(): View|RedirectResponse
     {
         if (auth()->check()) {
             return redirect()->route('dashboard');
         }
 
-        return Inertia::render('website/beta-apply');
+        return view('website.beta-apply');
     }
 
-    public function store(Request $request): JsonResponse
+    public function store(Request $request): JsonResponse|RedirectResponse
     {
         $roles = config('beta_application.roles', []);
         $volumes = config('beta_application.monthly_post_volumes', []);
@@ -45,11 +44,17 @@ class BetaApplicationController extends Controller
             ->exists();
 
         if ($duplicatePending) {
-            return response()->json([
-                'success' => false,
-                'message' => 'You already have a pending application with this email.',
-                'errors' => ['email' => ['You already have a pending application with this email.']],
-            ], 422);
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'You already have a pending application with this email.',
+                    'errors' => ['email' => ['You already have a pending application with this email.']],
+                ], 422);
+            }
+
+            return back()
+                ->withErrors(['email' => 'You already have a pending application with this email.'])
+                ->withInput();
         }
 
         $application = BetaApplication::create([
@@ -72,6 +77,13 @@ class BetaApplicationController extends Controller
             ]);
         }
 
-        return response()->json(['success' => true]);
+        if ($request->expectsJson()) {
+            return response()->json(['success' => true]);
+        }
+
+        return redirect()
+            ->route('beta.apply.form')
+            ->with('beta_applied', true)
+            ->with('beta_email', $email);
     }
 }

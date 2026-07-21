@@ -27,7 +27,7 @@ export interface SharedData {
     quote: { message: string; author: string };
     auth: Auth;
     sidebarOpen: boolean;
-    flash?: { success?: string; error?: string; warning?: string };
+    flash?: { success?: string; error?: string; warning?: string; info?: string };
     error?: string;
     [key: string]: unknown;
 }
@@ -43,5 +43,9 @@ export interface User {
     updated_at: string;
     credits_remaining?: number;
     credits_total?: number;
+    subscription_tier?: string | null;
+    subscription_plan_name?: string | null;
+    subscription_entitled?: boolean;
+    subscription_read_only?: boolean;
     [key: string]: unknown; // This allows for additional properties...
 }
