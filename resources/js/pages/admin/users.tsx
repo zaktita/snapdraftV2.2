@@ -50,6 +50,9 @@ const TIER_COLORS: Record<string, string> = {
     launch: 'bg-blue-100 text-blue-700',
     growth: 'bg-orange-100 text-orange-700',
     scale: 'bg-purple-100 text-purple-700',
+    starter: 'bg-blue-100 text-blue-700',
+    pro: 'bg-orange-100 text-orange-700',
+    business: 'bg-purple-100 text-purple-700',
 };
 
 function Initials({ name }: { name: string }) {

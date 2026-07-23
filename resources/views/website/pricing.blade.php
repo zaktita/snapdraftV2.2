@@ -6,7 +6,7 @@
 @section('content')
 @php
     $currencySymbols = ['EUR' => '€', 'USD' => '$', 'GBP' => '£'];
-    $planIcons = ['fa-mobile-screen', 'fa-sparkles', 'fa-layer-group'];
+    $planIcons = ['fa-rocket', 'fa-chart-line', 'fa-expand'];
     $plans = $plans ?? [];
     $hasPopular = collect($plans)->contains(fn ($p) => ! empty($p['popular']));
     $fmt = function ($n) {

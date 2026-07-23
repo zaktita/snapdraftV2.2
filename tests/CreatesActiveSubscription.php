@@ -14,7 +14,7 @@ trait CreatesActiveSubscription
         $plan = Plan::query()->where('slug', 'starter')->first()
             ?? Plan::create([
                 'provider' => 'test',
-                'name' => 'Starter',
+                'name' => 'Launch',
                 'slug' => 'starter',
                 'price' => 29,
                 'currency' => 'USD',

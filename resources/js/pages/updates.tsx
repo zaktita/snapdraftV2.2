@@ -9,7 +9,7 @@ export default function Updates() {
             id: 1,
             type: 'feature',
             title: 'Admin Panel & Billing System',
-            description: 'New admin dashboard with user management and subscription system with Free, Pro, and Enterprise tiers.',
+            description: 'New admin dashboard with user management and subscription system with Launch, Growth, and Scale tiers.',
             date: 'November 3, 2025',
             icon: Sparkles,
         },

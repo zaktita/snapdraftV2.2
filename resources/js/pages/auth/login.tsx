@@ -24,11 +24,16 @@ export default function Login({
 }: LoginProps) {
     return (
         <AuthLayout
-            title="Log in to your account"
-            description="Enter your email and password below to log in"
-            logoClassName="h-12 w-auto fill-current text-[var(--foreground)] dark:text-white"
+            title="Welcome back"
+            description="Welcome to SnapDraft, log in to continue"
         >
             <Head title="Log in" />
+
+            {status && (
+                <div className="mb-4 text-center text-sm font-medium text-green-600">
+                    {status}
+                </div>
+            )}
 
             <a
                 href="/auth/google"
@@ -56,20 +61,21 @@ export default function Login({
                 Continue with Google
             </a>
 
-            <div className="relative my-2 text-center text-xs text-muted-foreground">
-                <span className="bg-background px-2">or</span>
+            <div className="relative my-4 text-center text-xs text-muted-foreground">
+                <span className="relative z-10 bg-white px-2">or</span>
+                <span className="absolute inset-x-0 top-1/2 h-px -translate-y-1/2 bg-[#ebebeb]" />
             </div>
 
             <Form
                 {...store.form()}
                 resetOnSuccess={['password']}
-                className="flex flex-col gap-6"
+                className="flex flex-col gap-5"
             >
                 {({ processing, errors }) => (
                     <>
-                        <div className="grid gap-6">
+                        <div className="grid gap-5">
                             <div className="grid gap-2">
-                                <Label htmlFor="email">Email address</Label>
+                                <Label htmlFor="email">Your email</Label>
                                 <Input
                                     id="email"
                                     type="email"
@@ -78,7 +84,7 @@ export default function Login({
                                     autoFocus
                                     tabIndex={1}
                                     autoComplete="email"
-                                    placeholder="email@example.com"
+                                    placeholder="hi@snapdraft.com"
                                 />
                                 <InputError message={errors.email} />
                             </div>
@@ -103,7 +109,7 @@ export default function Login({
                                     required
                                     tabIndex={2}
                                     autoComplete="current-password"
-                                    placeholder="Password"
+                                    placeholder="••••••••"
                                 />
                                 <InputError message={errors.password} />
                             </div>
@@ -119,7 +125,7 @@ export default function Login({
 
                             <Button
                                 type="submit"
-                                className="mt-4 w-full"
+                                className="mt-1 w-full"
                                 tabIndex={4}
                                 disabled={processing}
                                 data-test="login-button"
@@ -131,8 +137,12 @@ export default function Login({
 
                         {canRegister && (
                             <div className="text-center text-sm text-muted-foreground">
-                                Don't have an account?{' '}
-                                <TextLink href={register()} tabIndex={5}>
+                                Don&apos;t have an account?{' '}
+                                <TextLink
+                                    href={register()}
+                                    tabIndex={5}
+                                    className="font-semibold text-foreground underline"
+                                >
                                     Sign up
                                 </TextLink>
                             </div>
@@ -140,12 +150,6 @@ export default function Login({
                     </>
                 )}
             </Form>
-
-            {status && (
-                <div className="mb-4 text-center text-sm font-medium text-green-600">
-                    {status}
-                </div>
-            )}
         </AuthLayout>
     );
 }

@@ -4,9 +4,9 @@ import { Head, router, useForm } from '@inertiajs/react';
 import {
     Check,
     KeyRound,
-    Layers,
-    Smartphone,
-    Sparkles,
+    Rocket,
+    Scaling,
+    TrendingUp,
 } from 'lucide-react';
 import { FormEvent, useState } from 'react';
 
@@ -27,7 +27,7 @@ const CURRENCY_SYMBOLS: Record<string, string> = {
     GBP: '£',
 };
 
-const PLAN_ICONS = [Smartphone, Sparkles, Layers] as const;
+const PLAN_ICONS = [Rocket, TrendingUp, Scaling] as const;
 
 interface Plan {
     id: string;

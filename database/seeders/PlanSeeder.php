@@ -23,7 +23,7 @@ class PlanSeeder extends Seeder
                 'provider_product_id' => $variants['starter_monthly'] ?: null,
                 'provider_variant_monthly' => $variants['starter_monthly'] ?: null,
                 'provider_variant_yearly' => $variants['starter_yearly'] ?: null,
-                'name' => 'Starter',
+                'name' => 'Launch',
                 'slug' => 'starter',
                 'description' => 'For freelancers and solo social managers shipping on-brand posts without a designer queue.',
                 'price' => 29.00,
@@ -57,7 +57,7 @@ class PlanSeeder extends Seeder
                 'provider_product_id' => $variants['pro_monthly'] ?: null,
                 'provider_variant_monthly' => $variants['pro_monthly'] ?: null,
                 'provider_variant_yearly' => $variants['pro_yearly'] ?: null,
-                'name' => 'Pro',
+                'name' => 'Growth',
                 'slug' => 'pro',
                 'description' => 'For social managers shipping weekly calendars with priority processing and full regeneration.',
                 'price' => 49.00,
@@ -91,7 +91,7 @@ class PlanSeeder extends Seeder
                 'provider_product_id' => $variants['business_monthly'] ?: null,
                 'provider_variant_monthly' => $variants['business_monthly'] ?: null,
                 'provider_variant_yearly' => $variants['business_yearly'] ?: null,
-                'name' => 'Business',
+                'name' => 'Scale',
                 'slug' => 'business',
                 'description' => 'For agencies running multiple brands — higher volume credits and founder support.',
                 'price' => 99.00,
@@ -164,6 +164,6 @@ class PlanSeeder extends Seeder
             );
         }
 
-        $this->command?->info('Plans seeded: Starter ($29/100), Pro ($49/200), Business ($99/500), Beta (invite-only).');
+        $this->command?->info('Plans seeded: Launch ($29/100), Growth ($49/200), Scale ($99/500), Beta (invite-only).');
     }
 }

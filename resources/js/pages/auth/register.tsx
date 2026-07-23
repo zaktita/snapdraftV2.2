@@ -21,8 +21,8 @@ export default function Register() {
 
     return (
         <AuthLayout
-            title="Create an account"
-            description="Enter your details below to create your account"
+            title="Get Started"
+            description="Welcome to SnapDraft, let's get started"
         >
             <Head title="Register" />
 
@@ -52,21 +52,22 @@ export default function Register() {
                 Continue with Google
             </a>
 
-            <div className="relative my-2 text-center text-xs text-muted-foreground">
-                <span className="bg-background px-2">or</span>
+            <div className="relative my-4 text-center text-xs text-muted-foreground">
+                <span className="relative z-10 bg-white px-2">or</span>
+                <span className="absolute inset-x-0 top-1/2 h-px -translate-y-1/2 bg-[#ebebeb]" />
             </div>
 
             <Form
                 {...store.form()}
                 resetOnSuccess={['password', 'password_confirmation']}
                 disableWhileProcessing
-                className="flex flex-col gap-6"
+                className="flex flex-col gap-5"
             >
                 {({ processing, errors }) => (
                     <>
-                        <div className="grid gap-6">
+                        <div className="grid gap-5">
                             <div className="grid gap-2">
-                                <Label htmlFor="name">Name</Label>
+                                <Label htmlFor="name">Your name</Label>
                                 <Input
                                     id="name"
                                     type="text"
@@ -84,7 +85,7 @@ export default function Register() {
                             </div>
 
                             <div className="grid gap-2">
-                                <Label htmlFor="email">Email address</Label>
+                                <Label htmlFor="email">Your email</Label>
                                 <Input
                                     id="email"
                                     type="email"
@@ -92,13 +93,13 @@ export default function Register() {
                                     tabIndex={2}
                                     autoComplete="email"
                                     name="email"
-                                    placeholder="email@example.com"
+                                    placeholder="hi@snapdraft.com"
                                 />
                                 <InputError message={errors.email} />
                             </div>
 
                             <div className="grid gap-2">
-                                <Label htmlFor="password">Password</Label>
+                                <Label htmlFor="password">Create new password</Label>
                                 <Input
                                     id="password"
                                     type="password"
@@ -106,7 +107,7 @@ export default function Register() {
                                     tabIndex={3}
                                     autoComplete="new-password"
                                     name="password"
-                                    placeholder="Password"
+                                    placeholder="••••••••"
                                 />
                                 <InputError message={errors.password} />
                             </div>
@@ -122,7 +123,7 @@ export default function Register() {
                                     tabIndex={4}
                                     autoComplete="new-password"
                                     name="password_confirmation"
-                                    placeholder="Confirm password"
+                                    placeholder="••••••••"
                                 />
                                 <InputError
                                     message={errors.password_confirmation}
@@ -131,7 +132,8 @@ export default function Register() {
 
                             <div className="grid gap-2">
                                 <Label htmlFor="invite_code">
-                                    Invite code <span className="text-muted-foreground">(optional)</span>
+                                    Invite code{' '}
+                                    <span className="text-muted-foreground">(optional)</span>
                                 </Label>
                                 <Input
                                     id="invite_code"
@@ -147,19 +149,23 @@ export default function Register() {
 
                             <Button
                                 type="submit"
-                                className="mt-2 w-full"
+                                className="mt-1 w-full"
                                 tabIndex={6}
                                 data-test="register-user-button"
                             >
                                 {processing && <Spinner />}
-                                Create account
+                                Create new account
                             </Button>
                         </div>
 
                         <div className="text-center text-sm text-muted-foreground">
                             Already have an account?{' '}
-                            <TextLink href={login()} tabIndex={7}>
-                                Log in
+                            <TextLink
+                                href={login()}
+                                tabIndex={7}
+                                className="font-semibold text-foreground underline"
+                            >
+                                Login
                             </TextLink>
                         </div>
                     </>

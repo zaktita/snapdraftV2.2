@@ -12,7 +12,7 @@
             'label' => 'Brand DNA analysis',
             'title' => 'Learn the brand once',
             'desc' => 'Upload client or brand references. SnapDraft locks in palette, composition, and typography so every batch looks like it came from the same studio without another designer round.',
-            'image' => '/images/marketing/feature-brand-dna.png',
+            'image' => '/images/marketing/dna.jpg',
             'icon' => 'fa-palette',
             'tone' => 'yellow',
         ],
@@ -21,7 +21,7 @@
             'label' => 'Batch from CSV',
             'title' => 'Calendar in, visuals out',
             'desc' => 'Drop your content sheet. Each row becomes a finished visual in minutes. Plan captions in the spreadsheet, review the set, skip the prompt gymnastics.',
-            'image' => '/images/marketing/feature-batch.png',
+            'image' => '/images/marketing/csv.jpg',
             'icon' => 'fa-table',
             'tone' => 'pink',
         ],
@@ -30,7 +30,7 @@
             'label' => 'Canvas Editor',
             'title' => 'Tweak until it fits',
             'desc' => 'Swap objects, fix headlines, erase, expand, and upscale. Handle last-mile client feedback yourself instead of waiting on another revision ticket.',
-            'image' => '/images/marketing/feature-canvas.png',
+            'image' => '/images/marketing/edit.jpg',
             'icon' => 'fa-wand-magic-sparkles',
             'tone' => 'blue',
         ],
@@ -39,16 +39,16 @@
             'label' => 'Export & delivery',
             'title' => 'Ready to schedule',
             'desc' => 'Download batches sized for feed, stories, and banners. Consistent formats and naming so you can hand off or post the same day.',
-            'image' => '/images/marketing/feature-export.png',
+            'image' => '/images/marketing/download.jpg',
             'icon' => 'fa-layer-group',
             'tone' => 'orange',
         ],
     ];
     $colorCards = [
-        ['tone' => 'orange', 'title' => 'Brand DNA', 'desc' => 'Lock the look once. Every client or brand stays consistent.', 'image' => '/images/marketing/feature-brand-dna.png'],
-        ['tone' => 'ink', 'title' => 'Batch from CSV', 'desc' => 'A week of posts from one spreadsheet upload.', 'image' => '/images/marketing/feature-batch.png'],
-        ['tone' => 'pink', 'title' => 'Canvas polish', 'desc' => 'Tweak text, objects, and framing before you ship.', 'image' => '/images/marketing/feature-canvas.png'],
-        ['tone' => 'blue', 'title' => 'Campaign export', 'desc' => 'Download a full set ready to schedule or send to clients.', 'image' => '/images/marketing/feature-export.png'],
+        ['tone' => 'orange', 'title' => 'Brand DNA', 'desc' => 'Lock the look once. Every client or brand stays consistent.', 'image' => '/images/marketing/dna.jpg'],
+        ['tone' => 'ink', 'title' => 'Batch from CSV', 'desc' => 'A week of posts from one spreadsheet upload.', 'image' => '/images/marketing/csv.jpg'],
+        ['tone' => 'pink', 'title' => 'Canvas polish', 'desc' => 'Tweak text, objects, and framing before you ship.', 'image' => '/images/marketing/edit.jpg'],
+        ['tone' => 'blue', 'title' => 'Campaign export', 'desc' => 'Download a full set ready to schedule or send to clients.', 'image' => '/images/marketing/download.jpg'],
     ];
     $testimonials = [
         ['quote' => 'I used to sit on a designer queue for a week. Now I turn a content calendar into a full Instagram set in an afternoon - and it still looks like the brand.', 'name' => 'Priya Nair', 'role' => 'Social media manager', 'initials' => 'PN', 'tone' => 'pink'],
@@ -61,7 +61,7 @@
     $fallbackPlans = [
         [
             'id' => 'starter',
-            'name' => 'Starter',
+            'name' => 'Launch',
             'subtitle' => 'For freelancers and solo social managers',
             'price' => 29,
             'yearly_price' => 24,
@@ -72,30 +72,30 @@
         ],
         [
             'id' => 'pro',
-            'name' => 'Professional',
+            'name' => 'Growth',
             'subtitle' => 'For managers shipping weekly calendars',
             'price' => 79,
             'yearly_price' => 66,
             'yearly_total' => 792,
             'currency' => 'USD',
             'popular' => true,
-            'features' => ['Everything in Starter', 'Higher monthly credits', 'Advanced Canvas Editor', 'Priority processing'],
+            'features' => ['Everything in Launch', 'Higher monthly credits', 'Advanced Canvas Editor', 'Priority processing'],
         ],
         [
             'id' => 'business',
-            'name' => 'Enterprise',
+            'name' => 'Scale',
             'subtitle' => 'For agencies running multiple brands',
             'price' => 199,
             'yearly_price' => 166,
             'yearly_total' => 1992,
             'currency' => 'USD',
             'popular' => false,
-            'features' => ['Everything in Professional', 'Larger CSV batches', 'Higher volume credits', 'Priority support'],
+            'features' => ['Everything in Growth', 'Larger CSV batches', 'Higher volume credits', 'Priority support'],
         ],
     ];
     $displayPlans = ! empty($plans) ? array_slice($plans, 0, 3) : $fallbackPlans;
     $hasPopular = collect($displayPlans)->contains(fn ($p) => ! empty($p['popular']));
-    $planIcons = ['fa-mobile-screen', 'fa-sparkles', 'fa-layer-group'];
+    $planIcons = ['fa-rocket', 'fa-chart-line', 'fa-expand'];
     $aboutStats = [
         ['val' => '1 row', 'label' => 'One spreadsheet row → one post-ready visual'],
         ['val' => 'Minutes', 'label' => 'From calendar upload to a full batch'],

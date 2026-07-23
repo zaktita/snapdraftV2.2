@@ -46,7 +46,7 @@ class LemonSqueezyWebhookTest extends TestCase
     {
         return Plan::create([
             'provider' => 'lemonsqueezy',
-            'name' => 'Starter',
+            'name' => 'Launch',
             'slug' => 'starter',
             'price' => 29,
             'currency' => 'USD',
