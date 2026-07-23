@@ -1,0 +1,59 @@
+{
+  "version": 1,
+  "skills": {
+    "analytics-tracking": {
+      "source": "kostja94/marketing-skills",
+      "sourceType": "github",
+      "skillPath": "skills/analytics/tracking/SKILL.md",
+      "computedHash": "16009ea520923cc92aa70572fd7f1c12cbbca3b3bac52aebbd545933fd87c4f5"
+    },
+    "article-content": {
+      "source": "kostja94/marketing-skills",
+      "sourceType": "github",
+      "skillPath": "skills/content/article/SKILL.md",
+      "computedHash": "a94f7be41617d59097081df5ecd8df9fd367499d0e900e9e88f360b3956095fd"
+    },
+    "copywriting": {
+      "source": "kostja94/marketing-skills",
+      "sourceType": "github",
+      "skillPath": "skills/content/copywriting/SKILL.md",
+      "computedHash": "de2a342b3926cc421f2e1f6bd72b248fd98ca7d17bab96cc8da3d57c24e76613"
+    },
+    "entity-seo": {
+      "source": "kostja94/marketing-skills",
+      "sourceType": "github",
+      "skillPath": "skills/seo/entity-seo/SKILL.md",
+      "computedHash": "b93a7ec7e38ca2ef535b6e3bd40a92716708fa4e870432d50ab92ea26e568be0"
+    },
+    "github": {
+      "source": "kostja94/marketing-skills",
+      "sourceType": "github",
+      "skillPath": "skills/platforms/github/SKILL.md",
+      "computedHash": "55cd7e0e659ec6b8e66bdd572eef36b0a0f91df8b1245ca06fdd5b3b0effea7e"
+    },
+    "grokipedia-recommendations": {
+      "source": "kostja94/marketing-skills",
+      "sourceType": "github",
+      "skillPath": "skills/platforms/grokipedia/SKILL.md",
+      "computedHash": "768385adc47d2478aec07b821ed7e9233100ce569d85ae9b734527932654d6ce"
+    },
+    "local-seo": {
+      "source": "kostja94/marketing-skills",
+      "sourceType": "github",
+      "skillPath": "skills/seo/local/SKILL.md",
+      "computedHash": "7ebddef17d2547c96543b08f2db54c153bd914a7c69ee30630bf58469d15100c"
+    },
+    "parasite-seo": {
+      "source": "kostja94/marketing-skills",
+      "sourceType": "github",
+      "skillPath": "skills/seo/parasite-seo/SKILL.md",
+      "computedHash": "9f029920fdaf7fef5d8b8d9d2e45677eee48a42bd510f219aad0744e88ab428d"
+    },
+    "programmatic-seo": {
+      "source": "kostja94/marketing-skills",
+      "sourceType": "github",
+      "skillPath": "skills/seo/programmatic-seo/SKILL.md",
+      "computedHash": "a5e17f51f9811f354e135b953101e22f5d02e763c20a2f3c4d72d5668845fc93"
+    }
+  }
+}
