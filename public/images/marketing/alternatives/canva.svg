@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="540" viewBox="0 0 960 540" role="img" aria-label="Canva">
+  <rect width="960" height="540" fill="#00C4CC"/>
+  <circle cx="480" cy="230" r="92" fill="rgba(255,255,255,0.16)"/>
+  <circle cx="480" cy="230" r="72" fill="#FFFFFF"/>
+  <text x="480" y="250" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="64" font-weight="700" fill="#00C4CC">C</text>
+  <text x="480" y="390" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="42" font-weight="700" fill="#083B40">Canva</text>
+  <text x="480" y="440" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="20" font-weight="500" fill="#083B40" opacity="0.75">Comparison mark</text>
+</svg>

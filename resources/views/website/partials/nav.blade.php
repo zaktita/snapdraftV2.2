@@ -5,6 +5,7 @@
     }
     $navLinks = [
         ['href' => '/features', 'label' => 'Features'],
+        ['href' => '/use-cases', 'label' => 'Use cases'],
         ['href' => '/pricing', 'label' => 'Pricing'],
         ['href' => '/blog', 'label' => 'Blog'],
         ['href' => '/faq', 'label' => 'FAQ'],

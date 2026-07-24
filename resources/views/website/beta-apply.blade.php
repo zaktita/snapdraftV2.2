@@ -13,10 +13,10 @@
         'other' => 'Other',
     ];
     $volumeLabels = [
-        '1-5' => '1–5',
-        '6-20' => '6–20',
-        '21-50' => '21–50',
-        '51-100' => '51–100',
+        '1-5' => '1-5',
+        '6-20' => '6-20',
+        '21-50' => '21-50',
+        '51-100' => '51-100',
         '100-plus' => '100+',
     ];
 @endphp
@@ -28,7 +28,19 @@
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>{{ $pageTitle }}</title>
     <meta name="description" content="Apply for SnapDraft beta access. For social media managers, freelancers, and agencies.">
+    <meta name="robots" content="noindex, nofollow">
     <link rel="canonical" href="{{ url()->current() }}">
+    <meta property="og:site_name" content="SnapDraft">
+    <meta property="og:locale" content="{{ str_replace('_', '-', app()->getLocale()) }}">
+    <meta property="og:title" content="{{ $pageTitle }}">
+    <meta property="og:description" content="Apply for SnapDraft beta access. For social media managers, freelancers, and agencies.">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="{{ url()->current() }}">
+    <meta property="og:image" content="{{ url('/images/marketing/og.png') }}">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="{{ $pageTitle }}">
+    <meta name="twitter:description" content="Apply for SnapDraft beta access. For social media managers, freelancers, and agencies.">
+    <meta name="twitter:image" content="{{ url('/images/marketing/og.png') }}">
     <script>
         (function () {
             document.documentElement.classList.remove('dark');
@@ -37,7 +49,8 @@
     </script>
     <link rel="icon" href="/favicon.ico" sizes="any">
     <link rel="icon" href="/favicon.svg" type="image/svg+xml">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" media="print" onload="this.media='all'">
+    <noscript><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"></noscript>
     <link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Inter:wght@400;500;600;700;800;900&family=Raleway:wght@600;700&display=swap" rel="stylesheet">
     @vite(['resources/css/app.css', 'resources/js/marketing.js'])
 </head>

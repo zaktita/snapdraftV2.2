@@ -142,17 +142,26 @@ function initFaq() {
     });
 }
 
-function initNewsletter() {
-    document.querySelectorAll('[data-newsletter-form]').forEach((form) => {
-        form.addEventListener('submit', (e) => {
-            e.preventDefault();
-            const email = form.querySelector('input[type="email"]');
-            if (!email || !String(email.value).trim()) return;
-            const thanks = form.parentElement?.querySelector(
-                '[data-newsletter-thanks]',
-            );
-            form.hidden = true;
-            if (thanks) thanks.hidden = false;
+function initMarketingCtaTracking() {
+    if (typeof window.posthog?.capture !== 'function') return;
+
+    document.querySelectorAll('a[href]').forEach((link) => {
+        const href = link.getAttribute('href') || '';
+        let event = null;
+        if (href.includes('/register') || link.classList.contains('sd-btn-hero') || link.classList.contains('sd-btn-price')) {
+            event = 'marketing_cta_click';
+        } else if (href.includes('/pricing')) {
+            event = 'marketing_pricing_click';
+        } else if (href.includes('/contact')) {
+            event = 'marketing_contact_click';
+        }
+        if (!event) return;
+        link.addEventListener('click', () => {
+            window.posthog.capture(event, {
+                href,
+                label: (link.textContent || '').trim().slice(0, 120),
+                path: window.location.pathname,
+            });
         });
     });
 }
@@ -163,5 +172,5 @@ document.addEventListener('DOMContentLoaded', () => {
     initPricingToggle();
     initFeatureTabs();
     initFaq();
-    initNewsletter();
+    initMarketingCtaTracking();
 });

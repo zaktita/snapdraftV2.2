@@ -91,10 +91,47 @@ class BlogRepository
             'excerpt' => $meta['excerpt'] ?? '',
             'cover' => $meta['cover'] ?? null,
             'category' => $meta['category'] ?? 'News',
+            'related_slugs' => array_values(array_filter(array_map('trim', explode(',', $meta['related'] ?? '')))),
             'date' => $date?->toDateString(),
+            'date_iso' => $date?->toIso8601String(),
             'date_formatted' => $date?->format('M j, Y'),
             'reading_minutes' => max(1, (int) ceil(str_word_count(strip_tags($matches[2])) / 200)),
             'body' => trim($matches[2]),
         ];
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    public function related(string $slug, int $limit = 3): array
+    {
+        $current = $this->find($slug);
+        $all = $this->all();
+
+        if ($current !== null && ! empty($current['related_slugs'])) {
+            $picked = [];
+            foreach ($current['related_slugs'] as $relatedSlug) {
+                foreach ($all as $post) {
+                    if ($post['slug'] === $relatedSlug) {
+                        $picked[] = collect($post)->except('body')->all();
+                        break;
+                    }
+                }
+            }
+            if (count($picked) >= $limit) {
+                return array_slice($picked, 0, $limit);
+            }
+        }
+
+        return collect($all)
+            ->reject(fn (array $post) => $post['slug'] === $slug)
+            ->when(
+                $current !== null,
+                fn ($c) => $c->sortByDesc(fn (array $post) => ($post['category'] ?? '') === ($current['category'] ?? '') ? 1 : 0)
+            )
+            ->take($limit)
+            ->map(fn (array $post) => collect($post)->except('body')->all())
+            ->values()
+            ->all();
     }
 }

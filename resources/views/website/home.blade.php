@@ -1,9 +1,27 @@
 @extends('layouts.marketing', [
-    'title' => 'SnapDraft - On-brand visuals without waiting on designers',
-    'description' => 'For social media managers, freelancers, and agencies. Upload brand references, drop in your content calendar, and get on-brand visuals in minutes. Then tweak them until they fit.',
+    'title' => 'SnapDraft | On-brand social visuals from your content calendar',
+    'description' => 'SnapDraft helps social media managers, freelancers, and agencies turn brand references and a spreadsheet into on-brand visuals. Lock Brand DNA, batch from CSV, finish in Canvas.',
+    'preloadLcp' => '/images/marketing/poster1.jpg',
 ])
 
 @section('content')
+@php
+    $softwareSchema = [
+        '@context' => 'https://schema.org',
+        '@type' => 'SoftwareApplication',
+        'name' => 'SnapDraft',
+        'applicationCategory' => 'DesignApplication',
+        'operatingSystem' => 'Web',
+        'url' => url('/'),
+        'description' => 'SnapDraft turns brand references and content spreadsheets into on-brand social visuals for managers, freelancers, and agencies.',
+        'offers' => [
+            '@type' => 'Offer',
+            'priceCurrency' => 'USD',
+            'url' => url('/pricing'),
+        ],
+    ];
+@endphp
+<script type="application/ld+json">{!! json_encode($softwareSchema, JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE) !!}</script>
 @php
     $currencySymbols = ['EUR' => '€', 'USD' => '$', 'GBP' => '£'];
     $featureTabs = [
@@ -11,8 +29,9 @@
             'id' => 'brand',
             'label' => 'Brand DNA analysis',
             'title' => 'Learn the brand once',
-            'desc' => 'Upload client or brand references. SnapDraft locks in palette, composition, and typography so every batch looks like it came from the same studio without another designer round.',
+            'desc' => 'Upload client or brand references. SnapDraft locks palette, composition, and typography so every batch looks like it came from the same studio, without another designer round.',
             'image' => '/images/marketing/dna.jpg',
+            'image_alt' => 'SnapDraft Brand DNA analysis locking palette and composition from brand references',
             'icon' => 'fa-palette',
             'tone' => 'yellow',
         ],
@@ -20,8 +39,9 @@
             'id' => 'batch',
             'label' => 'Batch from CSV',
             'title' => 'Calendar in, visuals out',
-            'desc' => 'Drop your content sheet. Each row becomes a finished visual in minutes. Plan captions in the spreadsheet, review the set, skip the prompt gymnastics.',
+            'desc' => 'Drop your content sheet. Each row becomes a finished visual. Plan captions in the spreadsheet, review the set, skip the prompt gymnastics.',
             'image' => '/images/marketing/csv.jpg',
+            'image_alt' => 'SnapDraft CSV content calendar rows generating on-brand social visuals',
             'icon' => 'fa-table',
             'tone' => 'pink',
         ],
@@ -29,34 +49,37 @@
             'id' => 'canvas',
             'label' => 'Canvas Editor',
             'title' => 'Tweak until it fits',
-            'desc' => 'Swap objects, fix headlines, erase, expand, and upscale. Handle last-mile client feedback yourself instead of waiting on another revision ticket.',
+            'desc' => 'Swap objects, fix headlines, erase, expand, and upscale. Handle last-mile client feedback yourself instead of opening another revision ticket.',
             'image' => '/images/marketing/edit.jpg',
+            'image_alt' => 'SnapDraft Canvas Editor for last-mile text and object edits',
             'icon' => 'fa-wand-magic-sparkles',
             'tone' => 'blue',
         ],
         [
             'id' => 'export',
-            'label' => 'Export & delivery',
+            'label' => 'Export and delivery',
             'title' => 'Ready to schedule',
             'desc' => 'Download batches sized for feed, stories, and banners. Consistent formats and naming so you can hand off or post the same day.',
             'image' => '/images/marketing/download.jpg',
+            'image_alt' => 'SnapDraft batch export of feed, story, and banner formats',
             'icon' => 'fa-layer-group',
             'tone' => 'orange',
         ],
     ];
     $colorCards = [
-        ['tone' => 'orange', 'title' => 'Brand DNA', 'desc' => 'Lock the look once. Every client or brand stays consistent.', 'image' => '/images/marketing/dna.jpg'],
-        ['tone' => 'ink', 'title' => 'Batch from CSV', 'desc' => 'A week of posts from one spreadsheet upload.', 'image' => '/images/marketing/csv.jpg'],
-        ['tone' => 'pink', 'title' => 'Canvas polish', 'desc' => 'Tweak text, objects, and framing before you ship.', 'image' => '/images/marketing/edit.jpg'],
-        ['tone' => 'blue', 'title' => 'Campaign export', 'desc' => 'Download a full set ready to schedule or send to clients.', 'image' => '/images/marketing/download.jpg'],
+        ['tone' => 'orange', 'title' => 'Brand DNA', 'desc' => 'Lock the look once. Every client or brand stays consistent.', 'image' => '/images/marketing/dna.jpg', 'image_alt' => 'SnapDraft Brand DNA product panel'],
+        ['tone' => 'ink', 'title' => 'Batch from CSV', 'desc' => 'A week of posts from one spreadsheet upload.', 'image' => '/images/marketing/csv.jpg', 'image_alt' => 'SnapDraft CSV batch generation product panel'],
+        ['tone' => 'pink', 'title' => 'Canvas polish', 'desc' => 'Tweak text, objects, and framing before you ship.', 'image' => '/images/marketing/edit.jpg', 'image_alt' => 'SnapDraft Canvas polish product panel'],
+        ['tone' => 'blue', 'title' => 'Campaign export', 'desc' => 'Download a full set ready to schedule or send to clients.', 'image' => '/images/marketing/download.jpg', 'image_alt' => 'SnapDraft campaign export product panel'],
     ];
-    $testimonials = [
-        ['quote' => 'I used to sit on a designer queue for a week. Now I turn a content calendar into a full Instagram set in an afternoon - and it still looks like the brand.', 'name' => 'Priya Nair', 'role' => 'Social media manager', 'initials' => 'PN', 'tone' => 'pink'],
-        ['quote' => 'As a freelancer I was the bottleneck. SnapDraft lets me generate a client batch, tweak headlines in Canvas, and deliver the same day.', 'name' => 'Jordan Blake', 'role' => 'Freelance content designer', 'initials' => 'JB', 'tone' => 'blue'],
-        ['quote' => 'We run multiple brands. Brand DNA keeps each account looking distinct, and CSV batches mean we stop chasing designers for every post.', 'name' => 'Maya Chen', 'role' => 'Agency account lead', 'initials' => 'MC', 'tone' => 'coral'],
-        ['quote' => 'Client feedback used to mean another round. Now I swap a logo, fix a line, export. Done. Revision loops got cut in half.', 'name' => 'Sam Ortiz', 'role' => 'Social media freelancer', 'initials' => 'SO', 'tone' => 'ink'],
-        ['quote' => 'Consistency across 40 posts used to be impossible for our bench. SnapDraft is how we keep calendars full without adding design headcount.', 'name' => 'Alex Rivera', 'role' => 'Agency founder', 'initials' => 'AR', 'tone' => 'orange'],
-        ['quote' => 'It feels like a production pipeline, not a prompt toy. We plan in the sheet, review finished work, and only open Canvas when something needs a tweak.', 'name' => 'Chris Adeyemi', 'role' => 'In-house social lead', 'initials' => 'CA', 'tone' => 'green'],
+    // Illustrative workflow scenarios (not customer testimonials).
+    $scenarios = [
+        ['quote' => 'In-house social: the calendar is ready Monday, the design queue is not. Brand DNA plus a CSV batch fills the week. Canvas handles the two posts that need a headline tweak before scheduling.', 'name' => 'In-house social workflow', 'role' => 'Scenario', 'initials' => 'SM', 'tone' => 'pink'],
+        ['quote' => 'Freelance delivery: one client sheet in, batch out, three Canvas fixes, export pack sent the same day. No waiting on another designer for routine posts.', 'name' => 'Freelance delivery workflow', 'role' => 'Scenario', 'initials' => 'FL', 'tone' => 'blue'],
+        ['quote' => 'Agency multi-brand: separate Brand DNA per account so Client A never drifts into Client B look, while content ops still plans in the shared spreadsheet format.', 'name' => 'Agency multi-brand workflow', 'role' => 'Scenario', 'initials' => 'AG', 'tone' => 'coral'],
+        ['quote' => 'Revision loop: client asks to swap a logo and fix one line. Open Canvas, edit, export. No new design ticket for last-mile feedback.', 'name' => 'Last-mile revision workflow', 'role' => 'Scenario', 'initials' => 'RV', 'tone' => 'ink'],
+        ['quote' => 'Volume without headcount: long calendars stay consistent because every row inherits the same Brand DNA instead of a fresh prompt each time.', 'name' => 'Consistency at volume', 'role' => 'Scenario', 'initials' => 'CV', 'tone' => 'orange'],
+        ['quote' => 'Production pipeline: plan in the sheet, review finished work, open Canvas only when something needs a tweak. Not a prompt playground for every asset.', 'name' => 'Pipeline mindset', 'role' => 'Scenario', 'initials' => 'PP', 'tone' => 'green'],
     ];
     $fallbackPlans = [
         [
@@ -97,10 +120,10 @@
     $hasPopular = collect($displayPlans)->contains(fn ($p) => ! empty($p['popular']));
     $planIcons = ['fa-rocket', 'fa-chart-line', 'fa-expand'];
     $aboutStats = [
-        ['val' => '1 row', 'label' => 'One spreadsheet row → one post-ready visual'],
-        ['val' => 'Minutes', 'label' => 'From calendar upload to a full batch'],
-        ['val' => 'On-brand', 'label' => 'Stays consistent once Brand DNA is set'],
-        ['val' => 'You', 'label' => 'Handle last-mile tweaks - no designer wait'],
+        ['val' => 'CSV in', 'label' => 'One spreadsheet row maps to one post-ready visual'],
+        ['val' => 'Batch out', 'label' => 'Generate the calendar set after Brand DNA is locked'],
+        ['val' => 'On-brand', 'label' => 'Palette and composition stay consistent across the set'],
+        ['val' => 'Canvas', 'label' => 'Close last-mile tweaks yourself. No designer wait.'],
     ];
     $fmt = function ($n) {
         return fmod((float) $n, 1.0) === 0.0 ? (string) (int) $n : number_format((float) $n, 2);
@@ -126,14 +149,13 @@
 
             <div class="sd-hero-center">
                 <div class="reveal">
-                    <h1>Stop waiting on designers. Get the week's posts today.</h1>
+                    <h1>Your calendar is ready. Design is not. SnapDraft fixes that.</h1>
                 </div>
                 <div class="reveal" style="transition-delay: 80ms">
                     <p class="sd-hero-desc">
-                        Built for social media managers, freelancers,
-                        and agencies. Turn brand references and a
-                        content spreadsheet into a ready-to-post batch.
-                        Then tweak anything until it fits.
+                        SnapDraft is built for social media managers, freelancers,
+                        and agencies. Turn brand references and a content spreadsheet
+                        into a ready-to-post batch. Then tweak anything until it fits.
                     </p>
                 </div>
                 <div class="reveal" style="transition-delay: 140ms">
@@ -161,8 +183,8 @@
                 <div class="sd-sec-eyebrow">The bottleneck</div>
                 <h2 class="sd-about-title">
                     Your calendar moves faster than the design queue.
-                    SnapDraft closes that gap. On-brand visuals in
-                    minutes, with room to tweak before you publish.
+                    SnapDraft closes that gap. On-brand visuals when you
+                    need them, with room to tweak before you publish.
                 </h2>
             </div>
         </div>
@@ -228,7 +250,7 @@
                     </div>
                 </div>
                 <div class="sd-feat-panel-media">
-                    <img src="{{ $feature['image'] }}" alt="">
+                    <img src="{{ $feature['image'] }}" alt="{{ $feature['image_alt'] }}" width="960" height="720" loading="lazy" decoding="async">
                 </div>
             </div>
         @endforeach
@@ -239,7 +261,7 @@
             <div class="reveal" style="transition-delay: {{ $i * 60 }}ms">
                 <div class="sd-color-card sd-color-card-{{ $card['tone'] }}">
                     <div class="sd-color-card-media">
-                        <img src="{{ $card['image'] }}" alt="">
+                        <img src="{{ $card['image'] }}" alt="{{ $card['image_alt'] }}" width="640" height="480" loading="lazy" decoding="async">
                     </div>
                     <div>
                         <h3>{{ $card['title'] }}</h3>
@@ -325,12 +347,13 @@
     <section class="sd-quotes">
         <div class="reveal">
             <div class="sd-sec-head sd-quotes-head">
-                <div class="sd-sec-eyebrow">Testimonials</div>
+                <div class="sd-sec-eyebrow">How teams use it</div>
                 <h2 class="sd-sec-title">Less queue time. More posts shipped.</h2>
+                <p class="sd-sec-sub">Illustrative workflow scenarios based on how SnapDraft is designed to be used. Not customer testimonials.</p>
             </div>
         </div>
         <div class="sd-quotes-grid">
-            @foreach ($testimonials as $t)
+            @foreach ($scenarios as $t)
                 <article class="sd-quote-card">
                     <div class="sd-quote-mark" aria-hidden="true">&rdquo;</div>
                     <p>{{ $t['quote'] }}</p>
@@ -345,6 +368,15 @@
                     </div>
                 </article>
             @endforeach
+        </div>
+        <div class="sd-cta-row" style="margin-top: 28px">
+            <a href="/use-cases" class="sd-btn-hero-ghost">
+                Explore use cases
+                <i class="fa-solid fa-arrow-right" aria-hidden="true"></i>
+            </a>
+            <a href="/features" class="sd-btn-hero-ghost">
+                See features
+            </a>
         </div>
     </section>
 
@@ -367,7 +399,7 @@
                         <a href="/blog/{{ $post['slug'] }}" class="sd-blog-card sd-home-blog-card">
                             @if (! empty($post['cover']))
                                 <div class="sd-blog-card-cover">
-                                    <img src="{{ $post['cover'] }}" alt="" loading="lazy">
+                                    <img src="{{ $post['cover'] }}" alt="{{ $post['title'] }}" loading="lazy" decoding="async" width="640" height="360">
                                 </div>
                             @endif
                             <div class="sd-blog-card-body">
@@ -382,5 +414,19 @@
                 @endforeach
             </div>
         @endif
+    </section>
+
+    <section class="sd-cta">
+        <div class="reveal">
+            <h2>Ready for <em>your next calendar?</em></h2>
+            <p>Bring brand references and a spreadsheet. Generate with SnapDraft, tweak in Canvas, export.</p>
+            <div class="sd-cta-row">
+                <a href="{{ route('register') }}" class="sd-btn-hero">
+                    Generate your next batch
+                    <i class="fa-solid fa-arrow-right" aria-hidden="true"></i>
+                </a>
+                <a href="/pricing" class="sd-btn-hero-ghost sd-btn-hero-ghost-inv">View pricing</a>
+            </div>
+        </div>
     </section>
 @endsection

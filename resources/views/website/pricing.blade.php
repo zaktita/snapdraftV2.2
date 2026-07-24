@@ -1,10 +1,23 @@
 @extends('layouts.marketing', [
-    'title' => 'Pricing - SnapDraft',
-    'description' => 'Plans for freelancers, social media managers, and agencies. Every plan includes Brand DNA, spreadsheet batch generation, and Canvas tweaks.',
+    'title' => 'SnapDraft pricing | Plans for freelancers, managers, agencies',
+    'description' => 'SnapDraft plans for freelancers, social media managers, and agencies. Every plan includes Brand DNA, spreadsheet batch generation, and Canvas tweaks.',
 ])
 
 @section('content')
 @php
+    $softwareSchema = [
+        '@context' => 'https://schema.org',
+        '@type' => 'SoftwareApplication',
+        'name' => 'SnapDraft',
+        'applicationCategory' => 'DesignApplication',
+        'operatingSystem' => 'Web',
+        'url' => url('/pricing'),
+        'offers' => [
+            '@type' => 'AggregateOffer',
+            'priceCurrency' => 'USD',
+            'url' => url('/pricing'),
+        ],
+    ];
     $currencySymbols = ['EUR' => '€', 'USD' => '$', 'GBP' => '£'];
     $planIcons = ['fa-rocket', 'fa-chart-line', 'fa-expand'];
     $plans = $plans ?? [];
@@ -31,6 +44,7 @@
         ],
     ];
 @endphp
+<script type="application/ld+json">{!! json_encode($softwareSchema, JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE) !!}</script>
 
     <section class="sd-pricing-section" style="padding-top: 132px">
         <div class="reveal">
@@ -124,11 +138,29 @@
                         <span>{{ $item['q'] }}</span>
                         <span class="sd-faq-ico">+</span>
                     </button>
-                    <div class="sd-faq-ans">{{ $item['a'] }}</div>
+                    <div class="sd-faq-ans">
+                        {{ $item['a'] }}
+                        @if ($idx === 0)
+                            See also the <a href="/faq">full FAQ</a> and <a href="/use-cases">use cases</a>.
+                        @endif
+                    </div>
                 </div>
             @endforeach
         </div>
     </section>
+
+    @php
+        $pricingSchemaFaqs = collect($pricingFaq)->map(fn ($item) => [
+            '@type' => 'Question',
+            'name' => $item['q'],
+            'acceptedAnswer' => ['@type' => 'Answer', 'text' => $item['a']],
+        ])->all();
+    @endphp
+    <script type="application/ld+json">{!! json_encode([
+        '@context' => 'https://schema.org',
+        '@type' => 'FAQPage',
+        'mainEntity' => $pricingSchemaFaqs,
+    ], JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE) !!}</script>
 
     <section class="sd-cta">
         <div class="reveal">

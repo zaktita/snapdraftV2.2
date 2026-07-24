@@ -1,6 +1,6 @@
 @extends('layouts.marketing', [
-    'title' => 'FAQ - SnapDraft',
-    'description' => 'How SnapDraft helps social media managers, freelancers, and agencies get on-brand visuals in minutes. Brand DNA, batch generation, Canvas tweaks, credits, and ownership.',
+    'title' => 'SnapDraft FAQ | Brand DNA, batches, Canvas, billing',
+    'description' => 'Answers about SnapDraft for social media managers, freelancers, and agencies. Brand DNA, CSV setup, Canvas edits, credits, ownership, and cancellations.',
 ])
 
 @section('content')
@@ -15,7 +15,7 @@
                 ],
                 [
                     'q' => 'Who is SnapDraft for?',
-                    'a' => 'People who ship weekly content but hit a design bottleneck: in-house social managers, freelance creators handling multiple clients, and agencies producing calendars across brands. If you already plan in a spreadsheet and need visuals that stay on-brand, you are the audience.',
+                    'a' => 'People who ship weekly content but hit a design bottleneck: in-house social managers, freelance creators handling multiple clients, and agencies producing calendars across brands.',
                 ],
                 [
                     'q' => 'How should my spreadsheet be set up?',
@@ -23,7 +23,7 @@
                 ],
                 [
                     'q' => 'What are brand references?',
-                    'a' => 'Brand references are 5–10 images that represent the visual identity - past posts, campaign assets, or guideline exports. SnapDraft extracts color, composition, and typography cues so every batch stays consistent for that client or brand.',
+                    'a' => 'Brand references are 5-10 images that represent the visual identity - past posts, campaign assets, or guideline exports. SnapDraft extracts color, composition, and typography cues so every batch stays consistent for that client or brand.',
                 ],
                 [
                     'q' => 'Can I edit the generated images?',
@@ -57,15 +57,29 @@
             ],
         ],
     ];
+
+    $schemaFaqs = [];
+    foreach ($faqSections as $section) {
+        foreach ($section['items'] as $item) {
+            $schemaFaqs[] = [
+                '@type' => 'Question',
+                'name' => $item['q'],
+                'acceptedAnswer' => [
+                    '@type' => 'Answer',
+                    'text' => $item['a'],
+                ],
+            ];
+        }
+    }
 @endphp
 
     <div class="sd-page-hero">
         <div class="reveal">
-            <div class="sd-sec-eyebrow">FAQ</div>
+            <div class="sd-sec-eyebrow">SnapDraft FAQ</div>
             <h1>Frequently asked <em>questions</em></h1>
             <p>
-                From Brand DNA to billing - and how SnapDraft fits a
-                weekly publishing workflow. Can't find your answer?
+                How SnapDraft fits a weekly publishing workflow, from Brand DNA
+                to billing. Cannot find your answer?
                 <a href="/contact">Contact us</a>.
             </p>
         </div>
@@ -84,13 +98,37 @@
                                 <span>{{ $item['q'] }}</span>
                                 <span class="sd-faq-ico">+</span>
                             </button>
-                            <div class="sd-faq-ans">{{ $item['a'] }}</div>
+                            <div class="sd-faq-ans">
+                                @if ($item['q'] === 'What exactly does SnapDraft do?')
+                                    {{ $item['a'] }} See the full walkthrough on <a href="/features">Features</a>.
+                                @elseif ($item['q'] === 'Who is SnapDraft for?')
+                                    {{ $item['a'] }} Explore <a href="/use-cases/social-media-managers">social media managers</a>, <a href="/use-cases/freelancers">freelancers</a>, and <a href="/use-cases/agencies">agencies</a>.
+                                @elseif ($item['q'] === 'How should my spreadsheet be set up?')
+                                    {{ $item['a'] }} Read <a href="/blog/from-spreadsheet-to-campaign">From spreadsheet to campaign</a>.
+                                @elseif ($item['q'] === 'What are brand references?')
+                                    {{ $item['a'] }} Learn more in the <a href="/glossary/brand-dna">Brand DNA glossary</a>.
+                                @elseif ($item['q'] === 'What formats and sizes are supported?')
+                                    {{ $item['a'] }} See the <a href="/templates/multi-format-export">multi-format export template</a>.
+                                @elseif ($item['q'] === 'How do credits work?')
+                                    {{ $item['a'] }} <a href="/pricing">Compare plans</a>.
+                                @elseif ($item['q'] === 'Do you offer refunds?')
+                                    See our <a href="/refund">refund policy</a> for the details. If something is not working, <a href="/contact">contact us</a> first.
+                                @else
+                                    {{ $item['a'] }}
+                                @endif
+                            </div>
                         </div>
                     </div>
                 @endforeach
             </div>
         </section>
     @endforeach
+
+    <script type="application/ld+json">{!! json_encode([
+        '@context' => 'https://schema.org',
+        '@type' => 'FAQPage',
+        'mainEntity' => $schemaFaqs,
+    ], JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE) !!}</script>
 
     <section class="sd-cta">
         <div class="reveal">

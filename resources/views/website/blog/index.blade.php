@@ -1,6 +1,6 @@
 @extends('layouts.marketing', [
-    'title' => 'Blog - SnapDraft',
-    'description' => 'Workflow tips for social media managers, freelancers, and agencies. Brand consistency, batch calendars, and shipping visuals without the designer wait.',
+    'title' => 'Blog - SnapDraft | Workflow tips for weekly publishers',
+    'description' => 'SnapDraft blog for social media managers, freelancers, and agencies. Brand DNA, CSV batch workflows, Canvas revisions, and shipping visuals without the designer wait.',
 ])
 
 @section('content')
@@ -28,7 +28,7 @@
                         <a href="/blog/{{ $post['slug'] }}" class="sd-blog-card sd-home-blog-card">
                             @if (! empty($post['cover']))
                                 <div class="sd-blog-card-cover">
-                                    <img src="{{ $post['cover'] }}" alt="" loading="lazy">
+                                    <img src="{{ $post['cover'] }}" alt="{{ $post['title'] }}" loading="lazy" decoding="async" width="640" height="360">
                                 </div>
                             @endif
                             <div class="sd-blog-card-body">

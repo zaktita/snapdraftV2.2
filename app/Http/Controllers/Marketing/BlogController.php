@@ -30,6 +30,7 @@ class BlogController extends Controller
 
         return view('website.blog.show', [
             'post' => collect($post)->except('body')->all(),
+            'related' => $this->posts->related($slug, 3),
         ]);
     }
 }
